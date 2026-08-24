@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "source": "reference",
+  "sourceLabel": "Historical NUC preview catalog",
+  "revision": 1,
+  "games": [
+    {
+      "id": "super-metroid",
+      "title": "SUPER METROID",
+      "systemId": "snes",
+      "systemName": "Super Nintendo",
+      "aliases": ["Super Metroid"],
+      "releaseYear": 1994,
+      "region": "Japan",
+      "developer": "Nintendo R&D1",
+      "publisher": "Nintendo",
+      "genres": ["Action adventure"],
+      "languages": ["en"],
+      "players": "1 player",
+      "description": "Explore the ruined planet Zebes through a vast interconnected world. This reference entry exercises a long archival description without using private game data.",
+      "artwork": {
+        "key": "reference:super-metroid",
+        "kind": "frontCover"
+      },
+      "accent": {
+        "primary": "#DCA35D",
+        "secondary": "#6D3028"
+      },
+      "favorite": true,
+      "playable": true
+    },
+    {
+      "id": "sonic-2",
+      "title": "SONIC THE HEDGEHOG 2",
+      "systemId": "megadrive",
+      "systemName": "Mega Drive",
+      "aliases": ["Sonic 2"],
+      "releaseYear": 1992,
+      "region": "Japan",
+      "developer": "Sega Technical Institute",
+      "publisher": "Sega",
+      "genres": ["Platform"],
+      "languages": ["en"],
+      "players": "1 to 2 players",
+      "description": "Race through layered worlds with immediate movement and two-player presentation states. Artwork remains a deterministic frontend fallback until approved provider media is available.",
+      "artwork": {
+        "key": "reference:sonic-2",
+        "kind": "frontCover"
+      },
+      "accent": {
+        "primary": "#4AA6E8",
+        "secondary": "#133D83"
+      },
+      "favorite": false,
+      "playable": true
+    },
+    {
+      "id": "chrono-trigger",
+      "title": "CHRONO TRIGGER",
+      "systemId": "snes",
+      "systemName": "Super Nintendo",
+      "aliases": ["Chrono Trigger"],
+      "releaseYear": 1995,
+      "region": "Japan",
+      "developer": "Square",
+      "publisher": "Square",
+      "genres": ["Role-playing"],
+      "languages": ["en"],
+      "players": "1 player",
+      "description": "A time-spanning role-playing adventure used here to test dense metadata and details presentation.",
+      "artwork": {
+        "key": "reference:chrono-trigger",
+        "kind": "frontCover"
+      },
+      "accent": {
+        "primary": "#DF7F4F",
+        "secondary": "#513B76"
+      },
+      "favorite": true,
+      "playable": true
+    },
+    {
+      "id": "streets-of-rage-2",
+      "title": "STREETS OF RAGE II",
+      "systemId": "megadrive",
+      "systemName": "Mega Drive",
+      "aliases": ["Bare Knuckle II", "Streets of Rage 2"],
+      "releaseYear": 1992,
+      "region": "Japan",
+      "developer": "Ancient",
+      "publisher": "Sega",
+      "genres": ["Beat 'em up"],
+      "languages": ["en"],
+      "players": "1 to 2 players",
+      "description": "A cooperative action reference entry that proves player-count, favorite, and alternate-title search behavior without external media.",
+      "artwork": {
+        "key": "reference:streets-of-rage-2",
+        "kind": "frontCover"
+      },
+      "accent": {
+        "primary": "#E8C34A",
+        "secondary": "#9E2637"
+      },
+      "favorite": false,
+      "playable": true
+    },
+    {
+      "id": "ridge-racer",
+      "title": "RIDGE RACER",
+      "systemId": "playstation",
+      "systemName": "PlayStation",
+      "aliases": ["Ridge Racer"],
+      "releaseYear": 1994,
+      "region": "Japan",
+      "developer": "Namco",
+      "publisher": "Namco",
+      "genres": ["Racing"],
+      "languages": ["en"],
+      "players": "1 player",
+      "description": "A presentation-only disc-system reference entry. Gameplay remains unavailable until shared PlayStation emulation support is accepted and verified.",
+      "artwork": {
+        "key": "reference:ridge-racer",
+        "kind": "frontCover"
+      },
+      "accent": {
+        "primary": "#F05B63",
+        "secondary": "#4259A8"
+      },
+      "favorite": false,
+      "playable": false
+    }
+  ]
+}

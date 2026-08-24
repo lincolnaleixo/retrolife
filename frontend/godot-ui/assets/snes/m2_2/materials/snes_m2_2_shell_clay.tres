@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "M2.2 shell clay"
+albedo_color = Color(0.686275, 0.701961, 0.737255, 1)
+metallic = 0.0
+roughness = 0.720

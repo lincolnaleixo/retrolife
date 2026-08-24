@@ -1,0 +1,108 @@
+name: M2.2 SNES front shell
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m2-2-snes-front-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7"
+
+jobs:
+  linux:
+    name: Linux deterministic source and Godot smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out the immutable commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install official Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          install_root="$RUNNER_TEMP/godot-${GODOT_VERSION}"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$archive" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          mkdir -p "$install_root"
+          unzip -q "$archive" -d "$install_root"
+          godot_bin="$install_root/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          chmod +x "$godot_bin"
+          "$godot_bin" --version
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+
+      - name: Verify deterministic source package
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-m2-snes-reference.py
+          python3 scripts/generate-m2-2-snes-front.py --check
+          python3 scripts/verify-m2-2-snes-front.py
+          git diff --exit-code
+
+      - name: Import and smoke test the Godot scene
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path frontend/godot-ui --editor --quit-after 20
+          "$GODOT_BIN" --headless --path frontend/godot-ui \
+            --script res://scripts/m2_2_snes_front_smoke_test.gd \
+            | tee "$RUNNER_TEMP/m2-2-linux.txt"
+          grep -Fq 'RETROLIFE_M2_2_FRONT_GODOT_OK' "$RUNNER_TEMP/m2-2-linux.txt"
+
+  macos:
+    name: macOS deterministic source and Godot smoke
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out the immutable commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install official Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          install_root="$RUNNER_TEMP/godot-${GODOT_VERSION}"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$archive" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          mkdir -p "$install_root"
+          ditto -x -k "$archive" "$install_root"
+          godot_bin="$install_root/Godot.app/Contents/MacOS/Godot"
+          test -x "$godot_bin"
+          "$godot_bin" --version
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+
+      - name: Verify deterministic source package
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-m2-snes-reference.py
+          python3 scripts/generate-m2-2-snes-front.py --check
+          python3 scripts/verify-m2-2-snes-front.py
+          git diff --exit-code
+
+      - name: Import and smoke test the Godot scene
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path frontend/godot-ui --editor --quit-after 20
+          "$GODOT_BIN" --headless --path frontend/godot-ui \
+            --script res://scripts/m2_2_snes_front_smoke_test.gd \
+            | tee "$RUNNER_TEMP/m2-2-macos.txt"
+          grep -Fq 'RETROLIFE_M2_2_FRONT_GODOT_OK' "$RUNNER_TEMP/m2-2-macos.txt"

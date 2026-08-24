@@ -1,0 +1,91 @@
+{
+  "alphaGeometryReused": false,
+  "assetId": "retrolife.snes.na-cartridge.m2.2.front.v1",
+  "centralUpperBodyWidthMm": 83.0,
+  "components": {
+    "front_features": {
+      "triangles": 6496,
+      "vertices": 3288
+    },
+    "front_grooves": {
+      "triangles": 3576,
+      "vertices": 1814
+    },
+    "front_shell": {
+      "triangles": 160,
+      "vertices": 82
+    },
+    "label_surface": {
+      "triangles": 648,
+      "vertices": 326
+    },
+    "screw_wells": {
+      "triangles": 384,
+      "vertices": 196
+    }
+  },
+  "consoleVisible": false,
+  "frontHalfDepthMm": 10.4,
+  "generatedFiles": {
+    "frontend/design/m2-2-snes-alpha-comparison.svg": "57bf38f747c6028a46e29e1db4214133925347851d3688bf48bb90e9228e376b",
+    "frontend/design/m2-2-snes-front-clay.svg": "524aff6cc73bbe6f73e9327011c77e3212259d221ea2d31ea38be5ac133e98bd",
+    "frontend/design/m2-2-snes-front-overlay.svg": "15966ad1cbd79468009e05cb250933dd753773540f36f1dcc7d6aa5c1124faed",
+    "frontend/design/m2-2-snes-front-shell.md": "dc43dd8d60d31eff047aadd6ed946a930167c98e14787761888708893f291506",
+    "frontend/design/m2-2-snes-front-top-side-overlay.svg": "a06070d5a6ba1b11905f7c82d6d06902395e7070bfd8eeceb390f06a2cef8195",
+    "frontend/design/m2-2-snes-m1-poses.svg": "c23aca8e3a2a662939dff73d062e74208e24e3b7af5bde425758cbd167d93e7d",
+    "frontend/godot-ui/assets/snes/m2_2/LICENSE-CC0.md": "005e9247b804c715d6e87cf2077f77643a47ec13d44be7426e05ad138754d97c",
+    "frontend/godot-ui/assets/snes/m2_2/PROVENANCE.md": "a443e79f54ad4b1e0314d03530a296ac08b22121a14be5cb2770f9e3732ebeee",
+    "frontend/godot-ui/assets/snes/m2_2/README.md": "365d45d6281a62136dd0fde5ae67214977887f11b1f24256f5ba1bd8d45d9322",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_detail_clay.tres": "773d4108867c9bc8ff19440c846e09c42c884e8661e66dfe279c4f27353a3bc3",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_label_placeholder.tres": "2184e5b51af2593a05af5b2b062647e0c482e30a15d0a75956d07a404d7939d5",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_shell_clay.tres": "5d8b3a1738b0f6b6ae14c595b01a010ee45ab5a3131fdce9bb7cb14da3b72b6d",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_features.obj": "b7063bb1ba736254ced5a6f1a09e35c51d43cd558c688e3cc6ac50857f6394b6",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_grooves.obj": "b9c454186001cc81ae04a49cf351517d4634059cc1896a3d8aa0346c039e33fa",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell.obj": "e47c2b6b34ff0db702dca11714b94417841426a327a66ab809a21754781a9e14",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface.obj": "a733fa15c7088739b08eb3a840ab77dbdfc43b601176b7ddc3cb19a20aca91f0",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_screw_wells.obj": "4a0dc9aca2bc10be17a0138ad2c88ceab6950c0ad497e93d6e3798b64d945376",
+    "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn": "b1bdaae38249dfa800dca32f184d8080269ae031a620ceb49a2b21a61ce41dd6",
+    "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd": "e728445fc42da57f435fb7f4058f3c187aefd1a5483937f7622b35be6bd934fd"
+  },
+  "labelRecessMm": [
+    83.0,
+    38.5,
+    47.0
+  ],
+  "labelUvBounds": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      1.0,
+      1.0
+    ]
+  ],
+  "license": "CC0-1.0",
+  "lowerFrontGripFieldMm": [
+    83.0,
+    37.0,
+    4.5
+  ],
+  "m3TextureSlot": "snes-front-label",
+  "mayApproveFinalGeometry": false,
+  "mayStartM2_3Blockout": true,
+  "mayStartM3": false,
+  "physicalCalibrationComplete": false,
+  "physicalEnvelopeMm": [
+    136.0,
+    88.0,
+    20.0
+  ],
+  "referenceId": "retrolife.m2.1.snes-ntsc-u.reference.v1",
+  "region": "NTSC-U/C",
+  "rootPivot": "bottom connector center",
+  "schemaVersion": 1,
+  "shellPart": "front",
+  "sideGripGrooveCountEach": 5,
+  "sideWingWidthEachMm": 26.5,
+  "source": "original-parametric-clean-rebuild",
+  "status": "provisional-front-shell-blockout",
+  "systemId": "snes"
+}

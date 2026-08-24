@@ -1,0 +1,42 @@
+name: Source validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-and-contracts:
+    name: Rust workspace and design contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out the immutable commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify Rust workspace
+        run: |
+          set -euo pipefail
+          cargo fmt --all --check
+          cargo test --workspace --locked
+
+      - name: Verify design contracts
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-m1-snes-contract.py
+          python3 scripts/verify-m2-snes-reference.py
+          python3 scripts/generate-m2-2-snes-front.py --check
+          python3 scripts/verify-m2-2-snes-front.py
+          git diff --exit-code

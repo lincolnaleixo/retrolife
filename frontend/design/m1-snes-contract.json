@@ -1,0 +1,561 @@
+{
+  "schemaVersion": 1,
+  "contractId": "retrolife.macos.snes.m1.v1",
+  "status": "candidateForOwnerApproval",
+  "scope": {
+    "systemIds": [
+      "snes"
+    ],
+    "referenceRegion": "northAmerica",
+    "physicalReference": "Nintendo SNS-006 style North American SNES cartridge",
+    "mediaFamily": "snes-na-cartridge",
+    "consoleVisibleInNormalFlow": false,
+    "otherSystemsFinalProductionAllowed": false,
+    "designReference": {
+      "authority": "original owner PDF",
+      "availabilityInRepository": false,
+      "acceptanceRule": "Rendered frames and motion must be compared by the owner before M1 closes."
+    }
+  },
+  "viewport": {
+    "referenceLogicalSize": {
+      "width": 1600,
+      "height": 900
+    },
+    "safeAreaFractions": {
+      "left": 0.06,
+      "right": 0.06,
+      "top": 0.05,
+      "bottom": 0.045
+    },
+    "supportedCompositions": [
+      {
+        "id": "windowed-16x10",
+        "aspectRatio": 1.6,
+        "minimumLogicalSize": {
+          "width": 1100,
+          "height": 688
+        }
+      },
+      {
+        "id": "fullscreen-16x9",
+        "aspectRatio": 1.777778,
+        "minimumLogicalSize": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      {
+        "id": "fullscreen-16x10",
+        "aspectRatio": 1.6,
+        "minimumLogicalSize": {
+          "width": 1280,
+          "height": 800
+        }
+      },
+      {
+        "id": "retina-external",
+        "aspectRatioRange": {
+          "minimum": 1.55,
+          "maximum": 1.9
+        },
+        "scaleFactors": [
+          1.0,
+          2.0
+        ]
+      }
+    ],
+    "layoutRules": {
+      "heroAreaTop": 0.1,
+      "heroAreaBottom": 0.72,
+      "dockAreaTop": 0.76,
+      "dockAreaBottom": 0.96,
+      "metadataMaximumWidthFraction": 0.42,
+      "minimumHeroToChromeGapPxAtReference": 48
+    }
+  },
+  "palette": {
+    "background": "#07080D",
+    "backgroundLift": "#0D1018",
+    "surface": "#121620",
+    "surfaceRaised": "#181D29",
+    "textPrimary": "#F6F7FB",
+    "textSecondary": "#9CA5B5",
+    "focus": "#B9A7FF",
+    "focusSoft": "#6F63A8",
+    "dockSlot": "#242B39",
+    "dockEdge": "#343D50",
+    "cartridgeShell": "#B7B9BE",
+    "cartridgeShellShadow": "#7D8088",
+    "labelFallbackA": "#5966B9",
+    "labelFallbackB": "#D95F9D"
+  },
+  "typography": {
+    "macSystemFamilyOrder": [
+      "SF Pro Display",
+      "SF Pro Text",
+      "Helvetica Neue",
+      "sans-serif"
+    ],
+    "titlePxAtReference": 34,
+    "metadataPxAtReference": 17,
+    "hintPxAtReference": 14,
+    "titleWeight": 600,
+    "metadataWeight": 400,
+    "maximumMetadataLinesDocked": 2,
+    "allCapsUsage": "system badge and short input hints only"
+  },
+  "cartridge": {
+    "referenceVariant": {
+      "id": "snes-na-sns-006",
+      "region": "northAmerica",
+      "normalizedPhysicalProportions": {
+        "width": 1.0,
+        "height": 0.64,
+        "depth": 0.15
+      },
+      "geometryCalibrationTolerancePercentForM2": 2.0,
+      "labelSurface": "front recessed rectangle",
+      "m2Rule": "A measured or scanned physical reference may refine dimensions within tolerance without changing M1 composition."
+    },
+    "poses": {
+      "browseNeighborLeft": {
+        "centerFraction": [
+          0.245,
+          0.43
+        ],
+        "visualHeightFraction": 0.29,
+        "rotationDegrees": [
+          -4.0,
+          14.0,
+          -1.5
+        ],
+        "opacity": 0.34,
+        "blurHintPx": 1.5
+      },
+      "browseFocused": {
+        "centerFraction": [
+          0.5,
+          0.405
+        ],
+        "visualHeightFraction": 0.42,
+        "rotationDegrees": [
+          -5.0,
+          -9.0,
+          0.0
+        ],
+        "opacity": 1.0,
+        "shadowSoftnessPx": 44
+      },
+      "browseNeighborRight": {
+        "centerFraction": [
+          0.755,
+          0.43
+        ],
+        "visualHeightFraction": 0.29,
+        "rotationDegrees": [
+          -4.0,
+          -14.0,
+          1.5
+        ],
+        "opacity": 0.34,
+        "blurHintPx": 1.5
+      },
+      "dockApproach": {
+        "centerFraction": [
+          0.5,
+          0.665
+        ],
+        "visualHeightFraction": 0.34,
+        "rotationDegrees": [
+          -2.0,
+          -2.0,
+          0.0
+        ],
+        "opacity": 1.0
+      },
+      "docked": {
+        "centerFraction": [
+          0.5,
+          0.805
+        ],
+        "visualHeightFraction": 0.3,
+        "rotationDegrees": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "opacity": 1.0,
+        "occludedHeightFraction": 0.27
+      }
+    }
+  },
+  "bottomDock": {
+    "visibleWithoutCommittedSelection": false,
+    "centerFraction": [
+      0.5,
+      0.885
+    ],
+    "sizeFraction": [
+      0.48,
+      0.105
+    ],
+    "cornerRadiusPxAtReference": 24,
+    "slotSizeFraction": [
+      0.205,
+      0.023
+    ],
+    "slotCenterFraction": [
+      0.5,
+      0.844
+    ],
+    "restingOcclusionFraction": 0.27,
+    "minimumVisibleCartridgeFraction": 0.7,
+    "lighting": {
+      "rimIntensity": 0.34,
+      "slotGlowIntensity": 0.18,
+      "shadowOpacity": 0.48
+    },
+    "rules": [
+      "The dock is an abstract product surface, not a console or a console silhouette.",
+      "The cartridge remains recognizable and readable after seating.",
+      "The slot may not cover the label title area.",
+      "The dock does not move during normal selection animation.",
+      "The docked cartridge identity is stable across launch, failure, cancellation, and return."
+    ]
+  },
+  "motion": {
+    "normal": {
+      "focusChangeMs": 190,
+      "confirmInputLockMs": 40,
+      "dockingTotalMs": 620,
+      "undockingTotalMs": 540,
+      "launchReturnSettleMs": 240,
+      "easing": {
+        "focus": "cubicOut",
+        "dockingTravel": "quintInOut",
+        "seat": "backOutLimited",
+        "undocking": "quintInOut"
+      },
+      "dockingKeyframes": [
+        {
+          "timeMs": 0,
+          "pose": "browseFocused",
+          "scaleMultiplier": 1.0,
+          "shadowMultiplier": 1.0
+        },
+        {
+          "timeMs": 70,
+          "pose": "browseFocused",
+          "offsetFraction": [
+            0.0,
+            -0.018
+          ],
+          "scaleMultiplier": 1.015,
+          "shadowMultiplier": 1.12
+        },
+        {
+          "timeMs": 250,
+          "interpolateToPose": "dockApproach",
+          "scaleMultiplier": 0.91,
+          "shadowMultiplier": 0.82
+        },
+        {
+          "timeMs": 480,
+          "interpolateToPose": "docked",
+          "seatOvershootPxAtReference": 7,
+          "scaleMultiplier": 1.0,
+          "shadowMultiplier": 0.56
+        },
+        {
+          "timeMs": 620,
+          "pose": "docked",
+          "seatOvershootPxAtReference": 0,
+          "scaleMultiplier": 1.0,
+          "shadowMultiplier": 0.48
+        }
+      ],
+      "reverseRule": "Cancel during docking reverses continuously from the current normalized progress. It never teleports to an endpoint.",
+      "resizeRule": "Viewport changes recompute normalized endpoints and preserve current normalized animation progress."
+    },
+    "reducedMotion": {
+      "transitionMs": 120,
+      "translationEnabled": false,
+      "rotationEnabled": false,
+      "scalePulseEnabled": false,
+      "behavior": "Crossfade browse chrome to docked chrome, place the cartridge directly in the docked pose, and preserve identical committed state and focus semantics."
+    },
+    "rapidInput": {
+      "navigationCoalescingMs": 65,
+      "confirmDuringDocking": "ignore",
+      "confirmWhileDocked": "activateFocusedDockAction",
+      "backDuringDocking": "reverseFromCurrentProgress",
+      "navigationWhileDocked": "disabledUntilUndocked",
+      "duplicateLaunchProtection": true
+    }
+  },
+  "stateMachine": {
+    "initialState": "browseFocused",
+    "states": [
+      {
+        "id": "browseIdle",
+        "selectionCommitted": false,
+        "dockVisible": false,
+        "navigationEnabled": true
+      },
+      {
+        "id": "browseFocused",
+        "selectionCommitted": false,
+        "dockVisible": false,
+        "navigationEnabled": true
+      },
+      {
+        "id": "commitPending",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "docking",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "docked",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "launching",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "launchReturn",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "undocking",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      },
+      {
+        "id": "recoverableError",
+        "selectionCommitted": true,
+        "dockVisible": true,
+        "navigationEnabled": false
+      }
+    ],
+    "transitions": [
+      {
+        "from": "browseIdle",
+        "event": "focusGame",
+        "to": "browseFocused",
+        "focusAfter": "browse:game:{gameId}"
+      },
+      {
+        "from": "browseFocused",
+        "event": "navigate",
+        "to": "browseFocused",
+        "focusAfter": "browse:game:{newGameId}"
+      },
+      {
+        "from": "browseFocused",
+        "event": "confirm",
+        "to": "commitPending",
+        "focusAfter": "none"
+      },
+      {
+        "from": "commitPending",
+        "event": "nextFrame",
+        "to": "docking",
+        "focusAfter": "none"
+      },
+      {
+        "from": "docking",
+        "event": "animationCompleted",
+        "to": "docked",
+        "focusAfter": "dock:primary"
+      },
+      {
+        "from": "docking",
+        "event": "cancel",
+        "to": "undocking",
+        "reverseFromCurrentProgress": true,
+        "focusAfter": "none"
+      },
+      {
+        "from": "docked",
+        "event": "cancel",
+        "to": "undocking",
+        "focusAfter": "none"
+      },
+      {
+        "from": "docked",
+        "event": "launch",
+        "to": "launching",
+        "focusAfter": "none"
+      },
+      {
+        "from": "launching",
+        "event": "launchCompleted",
+        "to": "launchReturn",
+        "focusAfter": "none"
+      },
+      {
+        "from": "launching",
+        "event": "launchFailed",
+        "to": "recoverableError",
+        "focusAfter": "dock:retry"
+      },
+      {
+        "from": "launching",
+        "event": "launchCancelled",
+        "to": "docked",
+        "focusAfter": "dock:primary"
+      },
+      {
+        "from": "launchReturn",
+        "event": "settleCompleted",
+        "to": "docked",
+        "focusAfter": "dock:primary"
+      },
+      {
+        "from": "recoverableError",
+        "event": "dismissError",
+        "to": "docked",
+        "focusAfter": "dock:primary"
+      },
+      {
+        "from": "undocking",
+        "event": "animationCompleted",
+        "to": "browseFocused",
+        "focusAfter": "browse:game:{committedGameId}"
+      }
+    ],
+    "invariants": [
+      "Committed game identity never changes between commitPending and completed undocking.",
+      "Exactly one semantic focus target exists after every terminal transition.",
+      "No transition may emit more than one launch request.",
+      "Filtering or catalog refresh may not replace the committed game during docking or docked states.",
+      "Missing media may update the cartridge label surface, but may not change selection identity or animation progress."
+    ]
+  },
+  "chrome": {
+    "browse": {
+      "visible": [
+        "systemName",
+        "gameTitle",
+        "neighborCountHint",
+        "inputHints"
+      ],
+      "hidden": [
+        "longDescription",
+        "launchActions",
+        "technicalStatus"
+      ]
+    },
+    "docked": {
+      "visible": [
+        "gameTitle",
+        "systemName",
+        "yearOptional",
+        "primaryAction",
+        "secondaryAction",
+        "backHint"
+      ],
+      "hidden": [
+        "searchField",
+        "systemFilterRow",
+        "paginationChrome",
+        "longDescription"
+      ]
+    },
+    "focusKeys": {
+      "browseGame": "browse:game:{gameId}",
+      "dockPrimary": "dock:primary",
+      "dockSecondary": "dock:secondary",
+      "dockBack": "dock:back",
+      "dockRetry": "dock:retry"
+    }
+  },
+  "goldenFrames": [
+    {
+      "id": "browse",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "browse"
+    },
+    {
+      "id": "focused",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "focused"
+    },
+    {
+      "id": "docking",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "docking"
+    },
+    {
+      "id": "docked",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "docked"
+    },
+    {
+      "id": "launchReturn",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "launch-return"
+    },
+    {
+      "id": "undocking",
+      "file": "frontend/design/m1-snes-golden-frames.svg",
+      "panel": "undocking"
+    }
+  ],
+  "storyboard": {
+    "file": "frontend/design/m1-snes-motion-storyboard.svg",
+    "normalMotionPanels": 8,
+    "reducedMotionPanels": 3
+  },
+  "m2Handoff": {
+    "locked": [
+      "reference region and cartridge family",
+      "camera composition and normalized poses",
+      "bottom dock geometry and occlusion",
+      "normal and reduced-motion state semantics",
+      "animation durations and easing families",
+      "semantic focus restoration rules",
+      "normal flow never displays a console"
+    ],
+    "allowedCalibration": [
+      "physical mesh dimensions within the recorded tolerance",
+      "material roughness and micro-normal detail",
+      "lighting intensity within 10 percent while preserving contrast",
+      "label safe inset after measured geometry exists"
+    ],
+    "requiresM1Revision": [
+      "changing the reference region",
+      "showing a console",
+      "moving or redesigning the dock",
+      "changing selection commit semantics",
+      "changing reverse/cancel behavior",
+      "changing reduced-motion state equivalence"
+    ]
+  },
+  "acceptance": {
+    "implementationChecksCompleteWhen": [
+      "contract JSON validates",
+      "golden frame SVG contains all six states",
+      "motion storyboard contains normal and reduced-motion sequences",
+      "documentation maps every M1 scope item to a locked decision",
+      "M2 handoff has no unresolved implementation choices"
+    ],
+    "ownerApprovalRequired": true,
+    "ownerApprovalStatus": "pending"
+  }
+}

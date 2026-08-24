@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "referenceId": "retrolife.m2.1.snes-ntsc-u.reference.v1",
+  "status": "provisional-orthographic-baseline",
+  "systemId": "snes",
+  "region": "NTSC-U/C",
+  "shellFamily": "SNS-006 early wide-shell family",
+  "referenceEmbodiment": "USD343833S first embodiment",
+  "units": "millimetres",
+  "coordinateSystem": {
+    "origin": "bottom connector center",
+    "xPositive": "right",
+    "yPositive": "up",
+    "zPositive": "front",
+    "frontView": "looking toward negative Z"
+  },
+  "physicalCalibration": {
+    "requiredBeforeM2_1Closure": true,
+    "completed": false,
+    "requiredInstrument": "digital caliper with 0.1 mm resolution or better",
+    "requiredSpecimen": "authentic NTSC-U/C SNS-006 early wide-shell cartridge",
+    "rule": "The provisional baseline may drive M2.2 blockout and topology, but final dimensions and tolerances must be spot-checked against a physical specimen before M2.1 closes."
+  },
+  "sourceHierarchy": [
+    {
+      "id": "overall-envelope",
+      "type": "published dimensions",
+      "source": "Super Nintendo Entertainment System Game Pak",
+      "url": "https://en.wikipedia.org/wiki/Super_Nintendo_Entertainment_System_Game_Pak",
+      "use": "overall NTSC shell envelope",
+      "values": {"width": 136.0, "height": 88.0, "depth": 20.0},
+      "confidence": "A",
+      "uncertaintyMm": {"width": 1.0, "height": 1.0, "depth": 0.8}
+    },
+    {
+      "id": "patent-USD343833S",
+      "type": "design patent",
+      "source": "Nintendo USD343833S",
+      "url": "https://patents.google.com/patent/USD343833S/en",
+      "use": "front, rear, top, bottom, side and perspective silhouette relationships",
+      "confidence": "A for silhouette relationships, not absolute dimensions"
+    },
+    {
+      "id": "patent-USD344504S",
+      "type": "design patent family member",
+      "source": "Nintendo USD344504S",
+      "url": "https://patents.google.com/patent/USD344504S/en",
+      "use": "perspective cross-check for shell family and alternate embodiment details",
+      "confidence": "B"
+    },
+    {
+      "id": "evan-amos-public-domain-photo",
+      "type": "public-domain photograph",
+      "source": "SNES-SFAM-Cartridges.jpg by Evan-Amos",
+      "url": "https://commons.wikimedia.org/wiki/File:SNES-SFAM-Cartridges.jpg",
+      "use": "NTSC-U silhouette, side-wing mass and region comparison",
+      "license": "Public domain",
+      "confidence": "B"
+    },
+    {
+      "id": "wikimedia-ntsc-bottom",
+      "type": "open photograph",
+      "source": "North American SNES cartridge bottom.jpg by Anomie",
+      "url": "https://commons.wikimedia.org/wiki/File:North_American_SNES_cartridge_bottom.jpg",
+      "use": "connector mouth, bottom notches and standard non-enhancement edge connector",
+      "license": "CC BY-SA 3.0 or compatible listed license",
+      "confidence": "B"
+    },
+    {
+      "id": "mousebitelabs-pcb",
+      "type": "open hardware",
+      "source": "MouseBiteLabs Super-Nintendo-Cartridges",
+      "url": "https://github.com/MouseBiteLabs/Super-Nintendo-Cartridges",
+      "use": "PCB thickness, board envelope range and connector chamfer only",
+      "license": "CC BY-SA 4.0",
+      "values": {
+        "boardWidthRange": [77.7, 79.2],
+        "boardLengthRange": [110.2, 116.2],
+        "pcbThickness": 1.2,
+        "goldFingerChamferDegrees": 30.0
+      },
+      "confidence": "A for the cited open board variants"
+    }
+  ],
+  "envelope": {
+    "width": {"value": 136.0, "uncertainty": 1.0, "confidence": "A"},
+    "height": {"value": 88.0, "uncertainty": 1.0, "confidence": "A"},
+    "depth": {"value": 20.0, "uncertainty": 0.8, "confidence": "A"}
+  },
+  "provisionalLandmarks": {
+    "centralUpperBodyWidth": {"value": 83.0, "uncertainty": 2.0, "confidence": "B"},
+    "sideWingWidthEach": {"value": 26.5, "uncertainty": 1.0, "confidence": "B"},
+    "sideWingTopDrop": {"value": 6.5, "uncertainty": 1.0, "confidence": "B"},
+    "outerCornerRadius": {"value": 4.0, "uncertainty": 1.0, "confidence": "B"},
+    "labelRecess": {
+      "width": {"value": 83.0, "uncertainty": 1.5, "confidence": "B"},
+      "height": {"value": 38.5, "uncertainty": 2.0, "confidence": "B"},
+      "bottomY": {"value": 47.0, "uncertainty": 1.5, "confidence": "B"},
+      "cornerRadius": {"value": 4.0, "uncertainty": 1.0, "confidence": "B"},
+      "depth": {"value": 0.6, "uncertainty": 0.3, "confidence": "C"}
+    },
+    "lowerFrontGripField": {
+      "width": {"value": 83.0, "uncertainty": 1.5, "confidence": "B"},
+      "height": {"value": 37.0, "uncertainty": 2.0, "confidence": "B"},
+      "bottomY": {"value": 4.5, "uncertainty": 1.0, "confidence": "B"}
+    },
+    "securityScrewCenters": {
+      "xAbsolute": {"value": 54.5, "uncertainty": 1.0, "confidence": "B"},
+      "y": {"value": 10.0, "uncertainty": 1.0, "confidence": "B"},
+      "wellDiameter": {"value": 5.2, "uncertainty": 0.8, "confidence": "C"}
+    },
+    "sideGripGrooves": {
+      "count": 5,
+      "centerY": [17.5, 31.5, 45.5, 59.5, 73.5],
+      "centerYUncertainty": 1.5,
+      "grooveHeight": {"value": 1.2, "uncertainty": 0.5, "confidence": "C"},
+      "confidence": "B for count and spacing relationship"
+    },
+    "connectorCavity": {
+      "mouthWidth": {"value": 88.0, "uncertainty": 2.0, "confidence": "B"},
+      "mouthHeight": {"value": 7.0, "uncertainty": 1.0, "confidence": "B"},
+      "centerX": 0.0,
+      "depth": {"value": 10.0, "uncertainty": 2.0, "confidence": "C"}
+    },
+    "rearWarningField": {
+      "width": {"value": 83.0, "uncertainty": 2.0, "confidence": "B"},
+      "height": {"value": 28.0, "uncertainty": 2.0, "confidence": "B"},
+      "bottomY": {"value": 49.0, "uncertainty": 2.0, "confidence": "B"}
+    },
+    "rearMouldedBandCount": {"value": 5, "confidence": "B"},
+    "topTabCentersX": {"value": [-46.0, 46.0], "uncertainty": 2.0, "confidence": "C"},
+    "shellPartingPlaneZ": {"value": 0.0, "uncertainty": 1.0, "confidence": "C"}
+  },
+  "pcbClearance": {
+    "boardWidthRange": [77.7, 79.2],
+    "boardLengthRange": [110.2, 116.2],
+    "pcbThickness": 1.2,
+    "goldFingerChamferDegrees": 30.0,
+    "rule": "PCB values validate internal clearance only and do not define the exterior shell."
+  },
+  "tolerances": {
+    "overallEnvelopeMm": 1.0,
+    "criticalDockAndConnectorLandmarkMm": 0.6,
+    "majorSilhouetteLandmarkMm": 1.5,
+    "labelRecessMm": 1.0,
+    "decorativeMouldedDetailMm": 2.0,
+    "rule": "Physical caliper measurements replace provisional B and C values when available. A tolerance does not permit changing the M1 pivot or dock path."
+  },
+  "alphaDeviation": {
+    "alphaAssetId": "retrolife.snes.na-cartridge.m2.v1",
+    "classification": "M2-alpha-blockout",
+    "finalGeometryAccepted": false,
+    "majorFindings": [
+      {"id": "envelope-height", "alpha": 86.4, "reference": 88.0, "differencePercent": -1.82},
+      {"id": "envelope-width", "alpha": 135.0, "reference": 136.0, "differencePercent": -0.74},
+      {"id": "label-recess-width", "alpha": 79.5, "reference": 83.0, "differencePercent": -4.22},
+      {"id": "label-recess-height", "alpha": 31.0, "reference": 38.5, "differencePercent": -19.48},
+      {"id": "side-wings", "alpha": "narrow auxiliary prisms", "reference": "two broad 26.5 mm shell masses", "severity": "critical"},
+      {"id": "grip-bands", "alpha": "small ladder-like ribs", "reference": "five full-width horizontal grooves per wing", "severity": "critical"},
+      {"id": "lower-front", "alpha": "58 x 7.2 mm narrow feature", "reference": "approximately 83 x 37 mm moulded grip field", "severity": "critical"},
+      {"id": "rear-shell", "alpha": "generic inset panel with fine ribs", "reference": "broad moulded bands and distinct warning field", "severity": "critical"},
+      {"id": "connector", "alpha": "solid bar and exposed contact boxes", "reference": "true recessed cavity with PCB edge clearance", "severity": "critical"}
+    ]
+  },
+  "modelingGate": {
+    "mayStartM2_2Blockout": true,
+    "mayApproveFinalM2_2Geometry": false,
+    "mayStartM3": false,
+    "conditions": [
+      "M2.2 must be built from this reference package, not by polishing the alpha.",
+      "The first front-shell overlay must preserve the provisional envelope and landmarks.",
+      "Final M2.2 sign-off waits for the physical caliper spot-check recorded in M2.1."
+    ]
+  }
+}
