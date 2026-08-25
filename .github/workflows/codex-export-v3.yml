@@ -1,0 +1,34 @@
+name: Codex temporary public checkout export v3
+
+on:
+  push:
+    branches: [codex/m2-2-physical-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out immutable commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Pack public checkout
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf "$RUNNER_TEMP/retrolife-public-v3.tar.gz" .
+
+      - name: Upload public checkout
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retrolife-public-v3-checkout
+          path: ${{ runner.temp }}/retrolife-public-v3.tar.gz
+          if-no-files-found: error
+          retention-days: 1
