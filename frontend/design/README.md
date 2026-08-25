@@ -31,3 +31,7 @@ python3 scripts/verify-m2-2-snes-front.py
 ```
 
 The normal product flow displays no console. Confirm seats the selected cartridge into the fixed bottom dock. Back reverses the transition and restores exact context and semantic focus.
+
+## Mobile review
+
+The deterministic PNG review sheet at `mobile/m2-2-snes-v3-mobile-review.png` mirrors the current generated v3 geometry for mobile browsers that do not render repository SVGs reliably.

@@ -1,207 +1,211 @@
 #!/usr/bin/env python3
-"""Deterministic verification for the provisional M2.2 SNES front shell v2."""
+"""Deterministic verification for the M2.2 v3 SNES front-shell rebuild."""
 from __future__ import annotations
 
-import collections
 import hashlib
-import importlib.util
 import json
+import struct
 import subprocess
 import sys
+from collections import Counter, deque
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "frontend/design"
 ASSET = ROOT / "frontend/godot-ui/assets/snes/m2_2"
 SCENE = ROOT / "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn"
-RUNTIME = ROOT / "frontend/godot-ui/scripts/snes_na_cartridge_m2_2_v2.gd"
 WORKFLOW = ROOT / ".github/workflows/m2-2-snes-front.yml"
-ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v2"
-PRIOR_ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v1"
-
+ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v3"
+PRIOR_ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v2"
+SOURCE = "original-parametric-multi-section-loft-rebuild"
+SURFACE_MODEL = "multi-section-loft-with-molded-front-patch"
 
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(f"RETROLIFE_M2_2_FRONT_FAILED: {message}")
 
-
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def parse_obj(path: Path) -> tuple[list[tuple[float, float, float]], list[tuple[float, float]], list[tuple[int, int, int]]]:
+    vertices: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+    faces: list[tuple[int, int, int]] = []
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if line.startswith("v "):
+            _, x, y, z = line.split()
+            vertices.append((float(x), float(y), float(z)))
+        elif line.startswith("vt "):
+            _, u, v = line.split()
+            uvs.append((float(u), float(v)))
+        elif line.startswith("f "):
+            parts = line.split()[1:]
+            require(len(parts) == 3, f"non-triangle face in {path.name}")
+            face = tuple(int(part.split("/")[0]) - 1 for part in parts)
+            require(all(0 <= index < len(vertices) for index in face), f"face index in {path.name}")
+            faces.append(face)  # type: ignore[arg-type]
+    require(vertices, f"no vertices in {path.name}")
+    require(faces, f"no faces in {path.name}")
+    return vertices, uvs, faces
 
 def bounds(vertices: list[tuple[float, float, float]]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-    return (
-        tuple(min(vertex[index] for vertex in vertices) for index in range(3)),
-        tuple(max(vertex[index] for vertex in vertices) for index in range(3)),
-    )
-
+    minimum = tuple(min(vertex[index] for vertex in vertices) for index in range(3))
+    maximum = tuple(max(vertex[index] for vertex in vertices) for index in range(3))
+    return minimum, maximum
 
 def near(value: float, expected: float, tolerance: float) -> bool:
     return abs(value - expected) <= tolerance
 
-
-def verify_watertight_and_connected(vertices: list[tuple[float, float, float]], faces: list[tuple[int, int, int]]) -> None:
-    edge_counts: collections.Counter[tuple[int, int]] = collections.Counter()
-    adjacency: list[set[int]] = [set() for _ in vertices]
+def manifold_and_components(vertex_count: int, faces: list[tuple[int, int, int]]) -> tuple[bool, int]:
+    edges: Counter[tuple[int, int]] = Counter()
+    adjacency: list[set[int]] = [set() for _ in range(vertex_count)]
     used: set[int] = set()
-    for face in faces:
-        for vertex in face:
-            used.add(vertex)
-        for a, b in ((face[0], face[1]), (face[1], face[2]), (face[2], face[0])):
-            edge_counts[tuple(sorted((a, b)))] += 1
-            adjacency[a].add(b)
-            adjacency[b].add(a)
-    bad_edges = [edge for edge, count in edge_counts.items() if count != 2]
-    require(not bad_edges, f"continuous shell is not watertight; {len(bad_edges)} boundary/non-manifold edges")
-    start = next(iter(used))
-    visited = {start}
-    stack = [start]
-    while stack:
-        current = stack.pop()
-        for neighbor in adjacency[current]:
-            if neighbor in used and neighbor not in visited:
-                visited.add(neighbor)
-                stack.append(neighbor)
-    require(visited == used, f"continuous shell has {len(used - visited)} disconnected used vertices")
+    for a, b, c in faces:
+        used.update((a, b, c))
+        for left, right in ((a, b), (b, c), (c, a)):
+            edge = (left, right) if left < right else (right, left)
+            edges[edge] += 1
+            adjacency[left].add(right)
+            adjacency[right].add(left)
+    manifold = bool(edges) and all(count == 2 for count in edges.values())
+    components = 0
+    remaining = set(used)
+    while remaining:
+        components += 1
+        start = remaining.pop()
+        queue = deque([start])
+        while queue:
+            current = queue.popleft()
+            for neighbour in adjacency[current]:
+                if neighbour in remaining:
+                    remaining.remove(neighbour)
+                    queue.append(neighbour)
+    return manifold, components
 
-
-def load_generator():
-    source = ROOT / "scripts/generate-m2-2-snes-front.py"
-    spec = importlib.util.spec_from_file_location("retrolife_m2_2_generator", source)
-    require(spec is not None and spec.loader is not None, "cannot load generator module")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
+def png_dimensions(path: Path) -> tuple[int, int]:
+    data = path.read_bytes()
+    require(data.startswith(b"\x89PNG\r\n\x1a\n"), f"PNG signature {path.name}")
+    require(data[12:16] == b"IHDR", f"PNG IHDR {path.name}")
+    return struct.unpack(">II", data[16:24])
 
 def main() -> None:
-    subprocess.run(
-        [sys.executable, str(ROOT / "scripts/generate-m2-2-snes-front.py"), "--root", str(ROOT), "--check"],
-        check=True,
-    )
-
+    subprocess.run([sys.executable, str(ROOT / "scripts/generate-m2-2-snes-front.py"), "--root", str(ROOT), "--check"], check=True)
     reference = json.loads((DESIGN / "m2-snes-reference-manifest.json").read_text())
     manifest = json.loads((DESIGN / "m2-2-snes-front-manifest.json").read_text())
-    require(manifest["schemaVersion"] == 2, "schema version")
+    require(manifest["schemaVersion"] == 3, "manifest schema")
     require(manifest["assetId"] == ASSET_ID, "asset id")
     require(manifest["priorAssetId"] == PRIOR_ASSET_ID, "prior asset id")
-    require(manifest["priorGeometryAccepted"] is False, "prior geometry rejection")
+    require(PRIOR_ASSET_ID in manifest["rejectedAssetIds"], "v2 rejection")
+    require("retrolife.snes.na-cartridge.m2.2.front.v1" in manifest["rejectedAssetIds"], "v1 rejection")
     require(manifest["license"] == "CC0-1.0", "license")
-    require(manifest["source"] == "original-parametric-continuous-surface-rebuild", "source")
-    require(manifest["runtimeRepresentation"] == "deterministic-godot-generated-mesh", "runtime representation")
-    require(manifest["status"] == "provisional-continuous-surface-rebuild", "status")
+    require(manifest["source"] == SOURCE, "source")
+    require(manifest["surfaceModel"] == SURFACE_MODEL, "surface model")
+    require(manifest["heightFieldOnly"] is False, "height-field-only rejection")
+    require(manifest["surfaceTopology"] == "single-connected-watertight-shell", "topology contract")
     require(manifest["referenceId"] == reference["referenceId"], "reference linkage")
-    require(manifest["alphaGeometryReused"] is False, "alpha/v1 reuse")
-    require(manifest["consoleVisible"] is False, "console exclusion")
     require(manifest["physicalCalibrationComplete"] is False, "calibration honesty")
-    require(manifest["mayApproveFinalGeometry"] is False, "final approval gate")
+    require(manifest["externalGeometryCopied"] is False, "external geometry boundary")
+    require(manifest["externalMediaEmbedded"] is False, "external media boundary")
+    require(manifest["physicalVisualComparisonRecorded"] is True, "physical comparison record")
+    require(manifest["consoleVisible"] is False, "console exclusion")
+    require(manifest["mayApproveFinalGeometry"] is False, "approval gate")
     require(manifest["mayStartM2_3Blockout"] is False, "M2.3 gate")
     require(manifest["mayStartM3"] is False, "M3 gate")
-    require(manifest["surfaceTopology"] == "single-connected-watertight-shell", "surface topology")
     require(manifest["physicalEnvelopeMm"] == [136.0, 88.0, 20.0], "envelope")
-    require(manifest["labelUvBounds"] == [[0.0, 0.0], [1.0, 1.0]], "label UV contract")
-    require(manifest["referenceLandmarks"]["sideGripGrooveCountEach"] == 5, "five wing grooves")
-
-    generator = load_generator()
-    shell, label, _metadata = generator.build_shell(reference)
-    verify_watertight_and_connected(shell.vertices, shell.faces)
-    minimum, maximum = bounds(shell.vertices)
+    require(manifest["frontHalfDepthMm"] == 10.4, "front depth")
+    require(manifest["sideGripGrooveCountEach"] == 5, "five grooves")
+    require(manifest["labelUvBounds"] == [[0.0, 0.0], [1.0, 1.0]], "UV contract")
+    require(len(manifest["loftSectionDepthsMm"]) >= 5, "loft sections")
+    require(len(manifest["externalVisualReferences"]) >= 4, "external comparison references")
+    for entry in manifest["externalVisualReferences"]:
+        require(entry.get("geometryCopied", False) is False, "external geometry copied")
+        require(entry.get("mediaEmbedded", False) is False, "external media embedded")
+        require(str(entry.get("url", "")).startswith("https://"), "reference URL")
+    shell_path = ASSET / "snes_ntsc_u_front_shell_v3.obj"
+    label_path = ASSET / "snes_ntsc_u_label_surface_v3.obj"
+    shell_vertices, shell_uvs, shell_faces = parse_obj(shell_path)
+    label_vertices, label_uvs, label_faces = parse_obj(label_path)
+    require(not shell_uvs, "shell should not claim texture UVs")
+    require(label_uvs, "label UVs")
+    shell_component = manifest["components"]["continuous_shell"]
+    require(shell_component["vertices"] == len(shell_vertices), "shell vertex manifest")
+    require(shell_component["triangles"] == len(shell_faces), "shell triangle manifest")
+    require(12000 <= len(shell_faces) <= 80000, f"shell triangle budget {len(shell_faces)}")
+    require(6000 <= len(shell_vertices) <= 50000, f"shell vertex budget {len(shell_vertices)}")
+    minimum, maximum = bounds(shell_vertices)
     size = tuple(maximum[index] - minimum[index] for index in range(3))
-    require(near(size[0], 0.136, 0.0011), f"shell width {size[0]}")
-    require(near(size[1], 0.088, 0.0011), f"shell height {size[1]}")
-    require(0.0090 <= size[2] <= 0.0106, f"front depth {size[2]}")
-    require(near(minimum[2], 0.0, 0.00001), "seam plane origin")
-    require(10_000 <= shell.triangles <= 35_000, f"LOD0 triangle budget {shell.triangles}")
-    require(manifest["components"]["continuous_shell"] == {"vertices": len(shell.vertices), "triangles": shell.triangles}, "shell manifest counts")
-    require(manifest["components"]["label_surface"] == {"vertices": len(label.vertices), "triangles": label.triangles}, "label manifest counts")
-    require(label.uvs == [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], "label UVs")
-
-    for obsolete in [
-        "snes_ntsc_u_front_shell.obj",
-        "snes_ntsc_u_front_features.obj",
-        "snes_ntsc_u_front_grooves.obj",
-        "snes_ntsc_u_label_surface.obj",
-        "snes_ntsc_u_screw_wells.obj",
-        "materials/snes_m2_2_shell_clay.tres",
-        "materials/snes_m2_2_detail_clay.tres",
-        "materials/snes_m2_2_label_placeholder.tres",
-    ]:
-        require(not (ASSET / obsolete).exists(), f"obsolete v1 output remains: {obsolete}")
-
+    require(near(size[0], 0.136, 0.0012), f"shell width {size[0]}")
+    require(near(size[1], 0.088, 0.0012), f"shell height {size[1]}")
+    require(near(size[2], 0.0104, 0.0010), f"shell depth {size[2]}")
+    require(near(minimum[2], 0.0, 0.0001), f"seam origin {minimum[2]}")
+    require(maximum[2] >= 0.0101, f"front crown {maximum[2]}")
+    manifold, components = manifold_and_components(len(shell_vertices), shell_faces)
+    require(manifold, "shell is not edge-manifold/watertight")
+    require(components == 1, f"shell components {components}")
+    min_uv = (min(uv[0] for uv in label_uvs), min(uv[1] for uv in label_uvs))
+    max_uv = (max(uv[0] for uv in label_uvs), max(uv[1] for uv in label_uvs))
+    require(min_uv[0] <= 0.001 and min_uv[1] <= 0.001, f"UV minimum {min_uv}")
+    require(max_uv[0] >= 0.999 and max_uv[1] >= 0.999, f"UV maximum {max_uv}")
+    label_min, label_max = bounds(label_vertices)
+    label_size = tuple(label_max[index] - label_min[index] for index in range(3))
+    require(near(label_size[0], 0.083, 0.0012), f"label width {label_size[0]}")
+    require(near(label_size[1], 0.0385, 0.0012), f"label height {label_size[1]}")
+    stale_paths = [ASSET / "snes_ntsc_u_front_shell.obj", ASSET / "snes_ntsc_u_front_features.obj", ASSET / "snes_ntsc_u_front_grooves.obj", ASSET / "snes_ntsc_u_label_surface.obj", ASSET / "snes_ntsc_u_screw_wells.obj", ROOT / "frontend/godot-ui/scripts/snes_na_cartridge_m2_2_v2.gd"]
+    for path in stale_paths:
+        require(not path.exists(), f"stale v1/v2 generated asset {path}")
+    source = (ROOT / "scripts/generate-m2-2-snes-front.py").read_text()
+    require("SECTION_DEPTHS_MM" in source, "loft sections in source")
+    require("boundary_section_point" in source, "loft boundary source")
+    require("height_field_only=false" in source, "height-field rejection marker")
+    require("external_geometry_copied=false" in source, "external geometry marker")
+    require("BoxMesh" not in source, "generic BoxMesh")
+    require(PRIOR_ASSET_ID in source, "prior asset rejection in generator")
     generated = manifest.get("generatedFiles", {})
-    require(len(generated) == 9, f"generated file count {len(generated)}")
+    require(len(generated) >= 20, f"generated file count {len(generated)}")
     for relative, expected_hash in generated.items():
         path = ROOT / relative
         require(path.is_file(), f"missing generated file {relative}")
         require(sha256(path) == expected_hash, f"generated hash {relative}")
-
-    scene = SCENE.read_text()
-    require('res://scripts/snes_na_cartridge_m2_2_v2.gd' in scene, "runtime generator scene link")
-    require("ArrayMesh" not in scene, "scene must not embed plate meshes")
-    runtime = RUNTIME.read_text()
-    for marker in [
-        f'const ASSET_ID := "{ASSET_ID}"',
-        f'const PRIOR_ASSET_ID := "{PRIOR_ASSET_ID}"',
-        "single-connected-watertight-shell",
-        f"const EXPECTED_SHELL_TRIANGLES := {shell.triangles}",
-        "_front_surface_z",
-        "_rounded_box_sdf",
-        "_build_label_mesh",
-        'set_meta("may_start_m2_3_blockout", false)',
-        'set_meta("may_start_m3", false)',
-    ]:
-        require(marker in runtime, f"runtime generator missing marker: {marker}")
-    for rejected in ["FrontFeatures", "FrontGrooves", "ScrewWells", "snes_ntsc_u_front_features.obj"]:
-        require(rejected not in runtime, f"runtime reintroduced v1 plate form: {rejected}")
-
-    source = (ROOT / "scripts/generate-m2-2-snes-front.py").read_text()
-    require("continuous-surface rebuild" in source.lower(), "continuous rebuild marker")
-    require(PRIOR_ASSET_ID in source, "prior rejection marker")
-    require("CC0-1.0" in source, "source license")
-    require("BoxMesh" not in source, "generic BoxMesh")
-
+    mobile_files = {
+        "front": DESIGN / "mobile/m2-2-snes-v3-front.png",
+        "three-quarter": DESIGN / "mobile/m2-2-snes-v3-three-quarter.png",
+        "side": DESIGN / "mobile/m2-2-snes-v3-side.png",
+        "top": DESIGN / "mobile/m2-2-snes-v3-top.png",
+        "mobile sheet": DESIGN / "mobile/m2-2-snes-v3-mobile-review.png",
+    }
+    for name, path in mobile_files.items():
+        require(path.is_file(), f"missing {name} PNG")
+        width, height = png_dimensions(path)
+        require(width >= 1000, f"mobile width {name}")
+        require(height >= 700, f"mobile height {name}")
+    require(png_dimensions(mobile_files["mobile sheet"])[1] >= 2500, "mobile sheet height")
     docs = (DESIGN / "m2-2-snes-front-shell.md").read_text()
-    require("rejected as plate-stacked production geometry" in docs, "v1 rejection documentation")
-    require("one connected watertight surface" in docs, "continuous topology documentation")
-    require("physical calibration" in docs.lower(), "physical calibration documentation")
-    require("M2.3 and M3" in docs and "blocked" in docs.lower(), "later milestone gates")
-    require("rather than committing a multi-megabyte intermediate OBJ" in docs, "compact runtime representation documentation")
-
-    for name in [
-        "m2-2-snes-front-clay.svg",
-        "m2-2-snes-front-overlay.svg",
-        "m2-2-snes-front-top-side-overlay.svg",
-        "m2-2-snes-alpha-comparison.svg",
-        "m2-2-snes-m1-poses.svg",
-    ]:
-        content = (DESIGN / name).read_text()
-        require(content.startswith("<svg"), f"invalid SVG {name}")
-        require("M2.2" in content, f"review identity {name}")
-
-    require("CC0 1.0 Universal" in (ASSET / "LICENSE-CC0.md").read_text(), "CC0 record")
-    provenance = (ASSET / "PROVENANCE.md").read_text()
-    require("not imported, copied, or used as a modeling source" in provenance, "v1 provenance boundary")
-    require("Physical cartridge calibration is still required" in provenance, "calibration provenance")
-
+    comparison = (DESIGN / "m2-2-snes-v3-physical-comparison.md").read_text()
+    require("multi-section loft" in docs.lower(), "loft documentation")
+    require("physical calibration" in docs.lower(), "calibration documentation")
+    require("No third-party vertices" in docs, "external boundary documentation")
+    require("Sketchfab" in comparison and "Wikimedia" in comparison and "USD343833S" in comparison, "comparison sources")
+    require("No vertices" in comparison, "no-copy comparison statement")
+    scene = SCENE.read_text()
+    for node in ["ContinuousShell", "LabelSurface", "DockPivot", "CenterOfMass", "LabelAnchor", "ConnectorAnchor", "BrowseFocusedAnchor", "DockApproachAnchor"]:
+        require(f'name="{node}"' in scene, f"scene node {node}")
+    require(ASSET_ID in scene, "scene asset id")
+    require("metadata/height_field_only = false" in scene, "scene height-field marker")
+    require("metadata/external_geometry_copied = false" in scene, "scene external boundary")
+    require("metadata/may_start_m2_3_blockout = false" in scene, "scene M2.3 gate")
+    require("metadata/may_start_m3 = false" in scene, "scene M3 gate")
+    require("snes_na_cartridge_m2_2_v2.gd" not in scene, "runtime v2 script reference")
     smoke = (ROOT / "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd").read_text()
     require("RETROLIFE_M2_2_FRONT_GODOT_OK" in smoke, "Godot marker")
-    require("continuous=true" in smoke, "Godot topology marker")
-    require("m2_3=false" in smoke, "Godot M2.3 gate marker")
-
+    require("height_field_only=false" in smoke, "Godot height-field marker")
     workflow = WORKFLOW.read_text()
-    require("runs-on: ubuntu-24.04" in workflow, "hosted Linux runner")
-    require("runs-on: macos-15" in workflow, "hosted macOS runner")
-    require("scripts/verify-m2-2-snes-front.py" in workflow, "source validator in workflow")
-    require("m2_2_snes_front_smoke_test.gd" in workflow, "Godot smoke in workflow")
+    require("runs-on: ubuntu-24.04" in workflow, "Linux runner")
+    require("runs-on: macos-15" in workflow, "macOS runner")
+    require("scripts/verify-m2-2-snes-front.py" in workflow, "validator in workflow")
+    require("m2_2_snes_front_smoke_test.gd" in workflow, "smoke in workflow")
     require("permissions:\n  contents: read" in workflow, "read-only workflow")
-
-    print(
-        "RETROLIFE_M2_2_FRONT_OK "
-        f"asset={ASSET_ID} envelope=136x88 shell_triangles={shell.triangles} "
-        "continuous=true watertight=true runtime=godot uv=true prior_rejected=true "
-        "physical_calibrated=false final_approval=false m2_3=false m3=false"
-    )
+    print("RETROLIFE_M2_2_FRONT_OK " + f"asset={ASSET_ID} envelope=136x88 front_depth_mm=10.4 shell_vertices={len(shell_vertices)} shell_triangles={len(shell_faces)} loft_sections={len(manifest['loftSectionDepthsMm'])} connected_components={components} " + "height_field_only=false watertight=true physical_comparison=true external_geometry_copied=false physical_calibrated=false final_approval=false m2_3=false m3=false")
 
 if __name__ == "__main__":
     main()

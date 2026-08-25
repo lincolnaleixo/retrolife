@@ -10,7 +10,7 @@ This public repository contains only the new frontend source and its reproducibl
 - Platform-independent Rust domain models
 - Godot GDExtension and launch bridges
 - SNES-first visual and interaction contracts
-- Original procedural M2 and M2.2 assets with their own CC0 notices
+- Original procedural M2 and M2.2 v3 assets with their own CC0 notices
 
 The M2.2 cartridge front is a provisional continuous-surface v2 rebuild. The earlier plate-stacked v1 blockout is rejected; physical calibration and owner approval are still required before v2 can be treated as final geometry.
 

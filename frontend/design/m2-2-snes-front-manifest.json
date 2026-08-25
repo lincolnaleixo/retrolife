@@ -1,38 +1,77 @@
 {
-  "alphaGeometryReused": false,
-  "assetId": "retrolife.snes.na-cartridge.m2.2.front.v2",
+  "assetId": "retrolife.snes.na-cartridge.m2.2.front.v3",
+  "centralUpperBodyWidthMm": 83.0,
   "components": {
     "continuous_shell": {
-      "triangles": 33460,
-      "vertices": 16732
+      "path": "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v3.obj",
+      "triangles": 22442,
+      "vertices": 11223
     },
     "label_surface": {
-      "triangles": 2,
-      "vertices": 4
+      "path": "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v3.obj",
+      "triangles": 57,
+      "vertices": 58
     }
   },
   "consoleVisible": false,
-  "engineeringBlockoutOnly": {
-    "lowerGripChannel": {
-      "centerYmm": 28.0,
-      "heightMm": 5.2,
-      "widthMm": 72.0
+  "externalGeometryCopied": false,
+  "externalMediaEmbedded": false,
+  "externalVisualReferences": [
+    {
+      "geometryCopied": false,
+      "kind": "physical-scan-visual-check",
+      "url": "https://sketchfab.com/3d-models/super-mario-world-game-cartridge-a102d3e7fe5c4770912a56e69b04898a"
     },
-    "surfaceCrownMm": 0.34,
-    "surfaceEdgeEaseMm": 0.18
+    {
+      "kind": "public-domain-cartridge-photography",
+      "mediaEmbedded": false,
+      "url": "https://commons.wikimedia.org/wiki/File:SNES-SFAM-Cartridges.jpg"
+    },
+    {
+      "kind": "bottom-photography",
+      "mediaEmbedded": false,
+      "url": "https://commons.wikimedia.org/wiki/File:North_American_SNES_cartridge_bottom.jpg"
+    },
+    {
+      "kind": "design-patent-orthographic",
+      "mediaEmbedded": false,
+      "url": "https://patents.google.com/patent/USD343833S/en"
+    }
+  ],
+  "frontGrid": {
+    "columns": 97,
+    "rows": 96
   },
   "frontHalfDepthMm": 10.4,
   "generatedFiles": {
-    "frontend/design/m2-2-snes-alpha-comparison.svg": "1b36d4d6591e96b2ac2276c111cf42ea958b00a0529cc198159d6d148426b744",
-    "frontend/design/m2-2-snes-front-clay.svg": "c908b8ea014efe098f2ff9bf8af7c1e0290f018e4bcf09add0d9b34edde3f42e",
-    "frontend/design/m2-2-snes-front-overlay.svg": "2f86523e2485706056d0b2272bd97e2b07f9c52af09b061235d1655df84dcb65",
-    "frontend/design/m2-2-snes-front-shell.md": "3482c3d17ddbd9e06bd48916e5437cf8d93bfc1f10d5ae3c0e815e0f1566b344",
-    "frontend/design/m2-2-snes-front-top-side-overlay.svg": "7f22c3ae91eb4a4382f7098a3437d8d9bada9e075c92cec7c77805b2993c0fa9",
-    "frontend/design/m2-2-snes-m1-poses.svg": "da805438898be78c0a991679ee12984e686cf2fdad7287a3f6cf65650cb73d8e",
-    "frontend/godot-ui/assets/snes/m2_2/LICENSE-CC0.md": "ab78b4023c19a54eec0610a8f7893772bf8ce4d5ca98c3cf96743be4f4acad61",
-    "frontend/godot-ui/assets/snes/m2_2/PROVENANCE.md": "f8270cef7732eff78f93fc385db6f3efd28bff3234bebf98f525f323a88b9b40",
-    "frontend/godot-ui/assets/snes/m2_2/README.md": "5dee827dcf3ad4529f74ba5ff9cfecda8999dbc79bcc6770c3c70bae1d1251a3"
+    "frontend/design/m2-2-snes-alpha-comparison.svg": "bf7114b80ea88e16272ee582d855a6bfde21dd975d273444e11d55dbe262f7b6",
+    "frontend/design/m2-2-snes-front-clay.svg": "ad6762994cd7cd35e8d5795eff19d8a1a9258a4229efe87f816f8b0b1933ab74",
+    "frontend/design/m2-2-snes-front-overlay.svg": "cac9fc65141bd2ba746f1c6cd9ab00c15c339d9ee1338f9fd0c62873acc72b7b",
+    "frontend/design/m2-2-snes-front-shell.md": "8bd28c15d144c455744837584371ab64a5cd3c7c4997a0aed13691b2f761ca5a",
+    "frontend/design/m2-2-snes-front-top-side-overlay.svg": "d58bcbd5918336b6f5a53533df82ebfe4cadfbf83301e5177243b87c8bd841a2",
+    "frontend/design/m2-2-snes-m1-poses.svg": "c3fdb9125d55e6d5bbf199a20a280a72330f012f53cccaab40bcfdf48f81314f",
+    "frontend/design/m2-2-snes-v3-physical-comparison.md": "8cb552f80477399568967e18632faed6bd4eed4a562bf9445cd8944fe340efda",
+    "frontend/design/mobile/m2-2-snes-v3-front.png": "36f3bff637aa2422067cd2786f3c4f2f1043434a446f30a1be8b6ef8f24b48c7",
+    "frontend/design/mobile/m2-2-snes-v3-mobile-review.png": "2cf5fb8bd29de5522dd9419e5f6834dcd3fb78f30acd8968a9ad43a0da29718e",
+    "frontend/design/mobile/m2-2-snes-v3-side.png": "da5b94967ee9b0132ca5aabf9072fec97d0e136f9c30de91c0044d7d44c66608",
+    "frontend/design/mobile/m2-2-snes-v3-three-quarter.png": "a3979f593503667214df8bc145ae360a9a6257db635fb5cc9479d2e352a32fe9",
+    "frontend/design/mobile/m2-2-snes-v3-top.png": "cb7e3836a917622824a38db44a02fe83496c8ee3199f99551dfddf4f38c25067",
+    "frontend/godot-ui/assets/snes/m2_2/LICENSE-CC0.md": "c8e7bc17ee3ce95b69dcd4051a5a6ddc27a16357b72376f8115228c7c7afcbc0",
+    "frontend/godot-ui/assets/snes/m2_2/PROVENANCE.md": "0fdee78fbce923aaeca761e9091a47940379ce34369897eaaf17fc8d98c8c4e6",
+    "frontend/godot-ui/assets/snes/m2_2/README.md": "4775bbfd5ef3f7b05ec141b998021369d0899231693add85c992859bddd4ce48",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v3_label_placeholder.tres": "5227adb17d5c2faf80e75014c20ccd99a6b1de5c3f93843389b6f6687b9e2e40",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v3_shell_clay.tres": "8451164a0bbe731ccfea11629de72ace1861fe6dc23c5588c5e02a51092a6968",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v3.obj": "95c6ea7c4acccee3b3e98020a601325d6cf0637fde64ab7b6dda11716ff3c968",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v3.obj": "a3d0750cc42f12df0f8d38c3e5e14d9a826d5bbd861f5d228dff0be3e4e0aa0e",
+    "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn": "402c4aad24f99d69861732626f529f144b7ed4270f238873d26305b6b2c206b4",
+    "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd": "3788d79f166673f98cdf457d5913f769c9f45b67b7924a156363444452e22291"
   },
+  "heightFieldOnly": false,
+  "labelRecessMm": [
+    83.0,
+    38.5,
+    47.0
+  ],
   "labelUvBounds": [
     [
       0.0,
@@ -44,6 +83,13 @@
     ]
   ],
   "license": "CC0-1.0",
+  "loftSectionDepthsMm": [
+    0.0,
+    0.55,
+    2.0,
+    4.6,
+    7.4
+  ],
   "m3TextureSlot": "snes-front-label",
   "mayApproveFinalGeometry": false,
   "mayStartM2_3Blockout": false,
@@ -54,30 +100,21 @@
     88.0,
     20.0
   ],
-  "priorAssetId": "retrolife.snes.na-cartridge.m2.2.front.v1",
-  "priorGeometryAccepted": false,
+  "physicalVisualComparisonRecorded": true,
+  "priorAssetId": "retrolife.snes.na-cartridge.m2.2.front.v2",
   "referenceId": "retrolife.m2.1.snes-ntsc-u.reference.v1",
-  "referenceLandmarks": {
-    "centralUpperBodyWidthMm": 83.0,
-    "labelRecessMm": [
-      83.0,
-      38.5,
-      47.0
-    ],
-    "securityScrewCentersMm": [
-      54.5,
-      10.0
-    ],
-    "sideGripGrooveCountEach": 5,
-    "sideWingWidthEachMm": 26.5
-  },
   "region": "NTSC-U/C",
+  "rejectedAssetIds": [
+    "retrolife.snes.na-cartridge.m2.2.front.v1",
+    "retrolife.snes.na-cartridge.m2.2.front.v2"
+  ],
   "rootPivot": "bottom connector center",
-  "runtimeRepresentation": "deterministic-godot-generated-mesh",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "shellPart": "front",
-  "source": "original-parametric-continuous-surface-rebuild",
-  "status": "provisional-continuous-surface-rebuild",
+  "sideGripGrooveCountEach": 5,
+  "source": "original-parametric-multi-section-loft-rebuild",
+  "status": "provisional-multi-section-loft-rebuild",
+  "surfaceModel": "multi-section-loft-with-molded-front-patch",
   "surfaceTopology": "single-connected-watertight-shell",
   "systemId": "snes"
 }

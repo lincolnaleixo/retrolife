@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://q0tv4aqxr45w"
+path="res://.godot/imported/snes_ntsc_u_label_surface_v3.obj-653a5ac975398725e2aaaec1efabae9b.mesh"
+
+[deps]
+
+files=["res://.godot/imported/snes_ntsc_u_label_surface_v3.obj-653a5ac975398725e2aaaec1efabae9b.mesh"]
+
+source_file="res://assets/snes/m2_2/snes_ntsc_u_label_surface_v3.obj"
+dest_files=["res://.godot/imported/snes_ntsc_u_label_surface_v3.obj-653a5ac975398725e2aaaec1efabae9b.mesh", "res://.godot/imported/snes_ntsc_u_label_surface_v3.obj-653a5ac975398725e2aaaec1efabae9b.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false
