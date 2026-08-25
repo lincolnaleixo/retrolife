@@ -20,7 +20,7 @@ python3 scripts/verify-m1-snes-contract.py
 
 The first procedural cartridge remains an engineering blockout and is rejected as final geometry. The replacement is built from an authentic NTSC-U reference contract without third-party meshes, photos, branding, artwork or ROM content.
 
-The M2.1 package records the provisional dimensions, confidence levels and remaining physical-calibration gate. The M2.2 package provides a deterministic clean-room front shell and Godot scene. Both remain provisional until physical calibration and explicit owner review are complete.
+The M2.1 package records the provisional dimensions, confidence levels and remaining physical-calibration gate. M2.2 v1 is rejected as plate-stacked production geometry; M2.2 v2 provides the deterministic continuous-surface front-shell generator and Godot scene. The v2 rebuild remains provisional until physical calibration and explicit owner review are complete.
 
 Validate them with:
 

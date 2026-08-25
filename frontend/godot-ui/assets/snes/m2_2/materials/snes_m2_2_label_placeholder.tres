@@ -1,7 +1,0 @@
-[gd_resource type="StandardMaterial3D" format=3]
-
-[resource]
-resource_name = "M2.2 label calibration placeholder"
-albedo_color = Color(0.572549, 0.596078, 0.647059, 1)
-metallic = 0.0
-roughness = 0.680

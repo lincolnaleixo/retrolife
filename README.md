@@ -12,7 +12,7 @@ This public repository contains only the new frontend source and its reproducibl
 - SNES-first visual and interaction contracts
 - Original procedural M2 and M2.2 assets with their own CC0 notices
 
-The M2.2 cartridge front is a provisional dimensional blockout. Physical calibration and owner approval are still required before it can be treated as final geometry.
+The M2.2 cartridge front is a provisional continuous-surface v2 rebuild. The earlier plate-stacked v1 blockout is rejected; physical calibration and owner approval are still required before v2 can be treated as final geometry.
 
 ## Build
 

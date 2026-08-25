@@ -1,7 +1,5 @@
-# M2.2 provenance
+# M2.2 v2 provenance
 
-This package is original parametric RetroLife geometry generated from the M2.1 measurement manifest by `scripts/generate-m2-2-snes-front.py`. It is released under CC0-1.0.
+Original RetroLife geometry from the public M2.1 manifest. `retrolife.snes.na-cartridge.m2.2.front.v1` is not imported, copied, or used as a modeling source. No third-party mesh, embedded photograph, game art, ROM or console geometry is included.
 
-No third-party mesh, embedded photograph, trademark, game artwork, ROM or console geometry is included. The rejected alpha geometry is not copied or imported.
-
-Patent drawings and open reference photography recorded by M2.1 inform proportions only. Physical cartridge calibration is still required.
+Physical cartridge calibration is still required.

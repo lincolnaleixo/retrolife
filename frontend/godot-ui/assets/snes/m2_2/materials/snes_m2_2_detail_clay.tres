@@ -1,7 +1,0 @@
-[gd_resource type="StandardMaterial3D" format=3]
-
-[resource]
-resource_name = "M2.2 molded detail clay"
-albedo_color = Color(0.450980, 0.474510, 0.525490, 1)
-metallic = 0.0
-roughness = 0.780
