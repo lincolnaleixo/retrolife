@@ -221,7 +221,7 @@ func _front_surface_z(x: float, y: float) -> float:
     var wing_inner := central_half + 1.8
     for center_y in GROOVE_CENTERS_MM:
         for sign_value in [-1.0, 1.0]:
-            var center_x := sign_value * ((wing_inner + WIDTH_MM * 0.5) * 0.5)
+            var center_x: float = float(sign_value) * ((wing_inner + WIDTH_MM * 0.5) * 0.5)
             var groove_width := WIDTH_MM * 0.5 - wing_inner - 1.4
             var groove_distance := _rounded_box_sdf(x, y, center_x, center_y, groove_width * 0.5, GROOVE_HEIGHT_MM * 0.5, GROOVE_HEIGHT_MM * 0.45)
             z -= 0.52 * _recess_weight(groove_distance, 0.40)
