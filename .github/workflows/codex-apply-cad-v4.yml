@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: codex-apply-cad-v4
+  group: codex-apply-cad-v4-current
   cancel-in-progress: false
 
 jobs:
@@ -67,10 +67,26 @@ jobs:
 
       - name: Generate authoritative CAD package and renders
         shell: bash
+        env:
+          PYTHONFAULTHANDLER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/cad-venv/bin/activate"
-          python scripts/generate-m2-2-snes-front.py
+          for attempt in 1 2 3; do
+            set +e
+            python -X faulthandler scripts/generate-m2-2-snes-front.py
+            status=$?
+            set -e
+            if [[ "$status" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$status" -ne 139 || "$attempt" -eq 3 ]]; then
+              exit "$status"
+            fi
+            echo "Transient CAD kernel crash on attempt $attempt; retrying"
+            sleep 2
+          done
           python scripts/verify-m1-snes-contract.py
           python scripts/verify-m2-snes-reference.py
           python scripts/generate-m2-2-snes-front.py --check --skip-renders
