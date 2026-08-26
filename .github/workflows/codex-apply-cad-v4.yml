@@ -1,0 +1,113 @@
+name: Codex apply validated M2.2 v4 CAD rebuild
+
+on:
+  push:
+    branches: [codex/m2-2-physical-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-apply-cad-v4
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out complete public history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply public CAD source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$RUNNER_TEMP/retrolife-cad-source.tar.gz"
+          work="$RUNNER_TEMP/retrolife-cad-source"
+          mkdir -p "$work"
+          base64 --decode .codex-payload/cad-v4-source.tar.gz.b64 > "$payload"
+          echo 'f51aae877d144e667d9ec16b3bdaa725e32ad4f1f91039038a33ecd18266c32a  '"$payload" | sha256sum --check --status
+          tar -xzf "$payload" -C "$work"
+          cp -a "$work/files/." .
+          while IFS= read -r path; do
+            [[ -z "$path" ]] || rm -rf -- "$path"
+          done < "$work/delete-paths.txt"
+          rm -rf .codex-payload
+          rm -f .github/workflows/codex-*.yml
+
+      - name: Install public CAD build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/cad-venv"
+          source "$RUNNER_TEMP/cad-venv/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install --requirement scripts/requirements-m2-cad.txt
+          python - <<'PY'
+          import cadquery, vtk
+          print('CadQuery', cadquery.__version__)
+          print('VTK', vtk.vtkVersion.GetVTKVersion())
+          PY
+
+      - name: Generate authoritative CAD package and renders
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/cad-venv/bin/activate"
+          python scripts/generate-m2-2-snes-front.py
+          python scripts/verify-m1-snes-contract.py
+          python scripts/verify-m2-snes-reference.py
+          python scripts/generate-m2-2-snes-front.py --check --skip-renders
+          python scripts/verify-m2-2-snes-front.py --skip-regeneration
+          git diff --check
+
+      - name: Install official Godot and Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/retrolife-tools"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/godot.zip" \
+            'https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip'
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/retrolife-tools"
+          chmod +x "$RUNNER_TEMP/retrolife-tools/Godot_v4.7-stable_linux.x86_64"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz" \
+            'https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz'
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/retrolife-tools" gitleaks
+          chmod +x "$RUNNER_TEMP/retrolife-tools/gitleaks"
+
+      - name: Commit the final tree before the mandatory pre-push gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'RetroLife public builder'
+          git config user.email '2906581+lincolnaleixo@users.noreply.github.com'
+          git add --all
+          git diff --cached --check
+          git commit -m 'feat: rebuild M2.2 front shell as Open CASCADE CAD solid'
+
+      - name: Run the complete pre-push gate on the exact commit
+        shell: bash
+        env:
+          CARGO_BIN: cargo
+          PYTHON_BIN: ${{ runner.temp }}/cad-venv/bin/python
+          GODOT_BIN: ${{ runner.temp }}/retrolife-tools/Godot_v4.7-stable_linux.x86_64
+          GITLEAKS_BIN: ${{ runner.temp }}/retrolife-tools/gitleaks
+        run: |
+          set -euo pipefail
+          scripts/verify-before-push.sh | tee "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
+          grep -Fq 'RETROLIFE_PRE_PUSH_OK' "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
+          test -z "$(git status --porcelain)"
+
+      - name: Push only after every gate passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:codex/m2-2-physical-rebuild
