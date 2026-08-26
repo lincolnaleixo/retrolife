@@ -1,0 +1,70 @@
+name: Codex temporary public runner tools
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [codex/m2-2-physical-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out immutable commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare Cargo registry cache
+        run: |
+          set -euo pipefail
+          cargo fetch --locked
+          cargo fmt --all -- --check
+
+      - name: Download official Godot and Gitleaks
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/retrolife-tools/bin" "$RUNNER_TEMP/retrolife-tools/cargo"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/retrolife-tools/bin"
+          chmod +x "$RUNNER_TEMP/retrolife-tools/bin/Godot_v4.7-stable_linux.x86_64"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/retrolife-tools/bin" gitleaks
+          chmod +x "$RUNNER_TEMP/retrolife-tools/bin/gitleaks"
+
+      - name: Pack minimal Rust toolchain and offline Cargo cache
+        run: |
+          set -euo pipefail
+          toolchain="$(rustup show active-toolchain | awk '{print $1}')"
+          toolchain_dir="$(rustc --print sysroot)"
+          cp -a "$toolchain_dir" "$RUNNER_TEMP/retrolife-tools/rust-toolchain"
+          cp -a "$HOME/.cargo/registry" "$RUNNER_TEMP/retrolife-tools/cargo/registry"
+          if [ -d "$HOME/.cargo/git" ]; then cp -a "$HOME/.cargo/git" "$RUNNER_TEMP/retrolife-tools/cargo/git"; fi
+          printf '%s\n' "$toolchain" > "$RUNNER_TEMP/retrolife-tools/RUST_TOOLCHAIN.txt"
+          "$RUNNER_TEMP/retrolife-tools/rust-toolchain/bin/cargo" --version
+          "$RUNNER_TEMP/retrolife-tools/bin/Godot_v4.7-stable_linux.x86_64" --version
+          "$RUNNER_TEMP/retrolife-tools/bin/gitleaks" version
+
+      - name: Archive runner tools
+        run: |
+          set -euo pipefail
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/retrolife-public-runner-tools.tar.gz" retrolife-tools
+
+      - name: Upload runner tools
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retrolife-public-runner-tools
+          path: ${{ runner.temp }}/retrolife-public-runner-tools.tar.gz
+          if-no-files-found: error
+          retention-days: 1
