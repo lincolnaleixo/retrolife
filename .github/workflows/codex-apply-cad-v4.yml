@@ -31,7 +31,17 @@ jobs:
           payload="$RUNNER_TEMP/retrolife-cad-source.tar.gz"
           work="$RUNNER_TEMP/retrolife-cad-source"
           mkdir -p "$work"
-          base64 --decode .codex-payload/cad-v4-source.tar.gz.b64 > "$payload"
+          cat \
+            .codex-payload/cad-v4-source.b64.part-00a \
+            .codex-payload/cad-v4-source.b64.part-00b \
+            .codex-payload/cad-v4-source.b64.part-01 \
+            .codex-payload/cad-v4-source.b64.part-02 \
+            .codex-payload/cad-v4-source.b64.part-03 \
+            .codex-payload/cad-v4-source.b64.part-04 \
+            .codex-payload/cad-v4-source.b64.part-05 \
+            .codex-payload/cad-v4-source.b64.part-06 \
+            | tr -d '\r\n ' \
+            | base64 --decode > "$payload"
           echo 'f51aae877d144e667d9ec16b3bdaa725e32ad4f1f91039038a33ecd18266c32a  '"$payload" | sha256sum --check --status
           tar -xzf "$payload" -C "$work"
           cp -a "$work/files/." .
