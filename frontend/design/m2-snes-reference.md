@@ -2,11 +2,9 @@
 
 ## Status
 
-This package replaces visual guesswork with a reproducible provisional baseline for the early North American `SNS-006` wide-shell cartridge.
+This package is the public provisional visual and envelope baseline for the early North American `SNS-006` wide-shell cartridge.
 
-The current M2 procedural cartridge is classified as `M2-alpha-blockout`. It is excluded as a production shape reference.
-
-The package is strong enough to begin M2.2 blockout and topology, but M2.1 remains open until the provisional B and C measurements are spot-checked against one authentic cartridge with digital calipers.
+The M2 alpha and M2.2 v1 through v3 shapes are rejected as production geometry. The v2 reference corrects their visible proportions using authentic NTSC-U/C cartridge photography and USD343833S silhouette relationships. It still requires a physical specimen and digital-caliper measurements before M2.1 closes.
 
 ## Locked reference
 
@@ -25,28 +23,28 @@ The package is strong enough to begin M2.2 blockout and topology, but M2.1 remai
 | Width | 136.0 mm | ±1.0 mm | A |
 | Height | 88.0 mm | ±1.0 mm | A |
 | Maximum depth | 20.0 mm | ±0.8 mm | A |
+| Provisional front-shell depth | 10.4 mm | ±0.8 mm | B |
 
-The envelope comes from the published NTSC Game Pak dimensions and is cross-checked against patent and authentic-cartridge photography.
-
-## Provisional anatomical landmarks
+## Provisional front landmarks
 
 | Landmark | Baseline | Uncertainty | Confidence |
 | --- | ---: | ---: | --- |
-| Central upper body width | 83.0 mm | ±2.0 mm | B |
-| Side-wing width, each | 26.5 mm | ±1.0 mm | B |
-| Side-wing top drop | 6.5 mm | ±1.0 mm | B |
-| Label recess | 83.0 × 38.5 mm | ±1.5 / ±2.0 mm | B |
-| Label recess bottom | 47.0 mm above connector origin | ±1.5 mm | B |
-| Lower-front grip field | 83.0 × 37.0 mm | ±1.5 / ±2.0 mm | B |
-| Screw centers | X ±54.5 mm, Y 10.0 mm | ±1.0 mm | B |
-| Connector mouth | 88.0 × 7.0 mm | ±2.0 / ±1.0 mm | B |
-| Rear warning field | 83.0 × 28.0 mm | ±2.0 mm | B |
+| Central front-body width | 96.0 mm | ±2.0 mm | B |
+| Central top width | 82.0 mm | ±2.0 mm | B |
+| Side-wing width, each | 20.0 mm | ±1.5 mm | B |
+| Side-wing top | Y 81.4 mm | ±0.8 mm | B |
+| Label recess | 91.5 × 39.0 mm | ±1.5 mm | B |
+| Label recess bottom | Y 47.0 mm | ±1.2 mm | B |
+| Lower grip channel | 93.0 × 7.2 mm | ±2.0 / ±1.0 mm | B |
+| Grip-channel center | Y 35.0 mm | ±1.5 mm | B |
+| Screw centers | X ±56.0 mm, Y 6.8 mm | ±1.0 mm | B |
+| Screw-well diameter | 6.1 mm | ±0.8 mm | C |
 
-Five horizontal groove centers are provisionally located at Y 17.5, 31.5, 45.5, 59.5, and 73.5 mm on each side wing.
+Four recessed side divisions are provisionally centred at Y 25.8, 42.0, 58.2 and 74.4 mm. They form five broad moulded bands on each side wing. This replaces the incorrect five-groove interpretation used by the rejected blockouts.
 
-These values are scaled from the known envelope using USD343833S orthographic relationships and open authentic-cartridge photographs. They are not presented as caliper measurements.
+These relationships are scaled from the known envelope using USD343833S and authentic-cartridge photographs. They are not represented as caliper measurements.
 
-## PCB clearance
+## PCB and connector clearance
 
 Open MouseBiteLabs boards establish the following internal constraints:
 
@@ -57,57 +55,33 @@ Open MouseBiteLabs boards establish the following internal constraints:
 
 PCB values validate cavity and board clearance only. They do not define the exterior shell.
 
-## Tolerance classes
-
-- critical connector and dock landmarks: 0.6 mm
-- overall envelope: 1.0 mm
-- major silhouette landmarks: 1.5 mm
-- label recess: 1.0 mm
-- decorative moulded detail: 2.0 mm
-
-Physical caliper results replace provisional B and C values. They do not change the approved M1 pivot, dock path, state machine, or visibility rule.
-
-## Alpha rejection record
-
-The alpha got the rough envelope close, but its anatomy is unsuitable:
-
-- height is 1.8 percent short
-- label recess is about 19.5 percent too short vertically
-- side wings are narrow add-on prisms instead of broad shell masses
-- side grips are ladder-like ribs instead of full-width horizontal grooves
-- the lower-front field is far too small
-- the rear is a generic inset panel
-- the connector is not a true recessed cavity
-
-See `m2-snes-alpha-deviation.svg` and the machine-readable `alphaDeviation` section in the manifest.
-
 ## Source authority
 
-1. Nintendo design patent USD343833S for the complete orthographic relationship.
-2. Nintendo design patent family member USD344504S for perspective cross-checking.
-3. Public-domain Evan-Amos cartridge photography for the NTSC-U silhouette.
-4. CC BY-SA Anomie bottom photography for the connector and notches.
-5. MouseBiteLabs CC BY-SA 4.0 boards for PCB and gold-finger constraints.
+1. Nintendo USD343833S for front, rear, top, bottom and side relationships.
+2. Authentic NTSC-U/C Super Mario World cartridge photography for the visible front-shell proportions.
+3. Public-domain Evan-Amos cartridge photography for region and shell-family cross-checking.
+4. CC BY-SA cartridge-bottom photography for connector and notch relationships.
+5. MouseBiteLabs CC BY-SA 4.0 boards for internal PCB clearance.
 6. Published NTSC Game Pak envelope dimensions.
 
-The repository does not embed third-party photographs in this CC0 reference package. The SVGs are original diagrams derived from the recorded dimensions and relationships.
+No third-party image pixels or mesh vertices are embedded in the CC0 generated package.
 
 ## Physical validation still required
 
-Before M2.1 closes, measure one authentic early NTSC-U cartridge and record:
+Before M2.1 closes, measure one authentic early NTSC-U/C cartridge and record:
 
 - shell revision and photographed specimen
-- width, height, and maximum depth
-- label recess dimensions and depth
-- side-wing width and groove centers
-- lower-front grip field
-- screw-center coordinates
-- connector mouth and bottom notches
-- front/rear half depths and seam position
-- top tabs and feet
+- overall width, height and maximum depth
+- front and rear half depths
+- central-body and top widths
+- label recess dimensions, radius and depth
+- lower grip-channel dimensions and bridge positions
+- side-band division positions and depths
+- screw-well coordinates and diameters
+- connector mouth, bottom notches, top tabs and feet
 
-Use a digital caliper with 0.1 mm resolution or better. Record each value, repeated readings, uncertainty, and any shell-revision variation.
+Use a digital caliper with 0.1 mm resolution or better. Repeated readings and shell-revision variation must be recorded.
 
 ## M2.2 gate
 
-M2.2 may begin a clean front-shell blockout from this package. It may not receive final approval until the physical spot-check is committed and the manifest is revised from `provisional-orthographic-baseline` to `physical-calibrated`.
+M2.2 may continue as an original CAD B-rep rebuild from this package. Final approval, M2.3 and M3 remain blocked until physical calibration and explicit owner visual approval are recorded.

@@ -1,9 +1,11 @@
-# RetroLife M2.2 v3 SNES front shell
+# RetroLife M2.2 v4 front shell
 
-Original deterministic CC0 geometry for the provisional NTSC-U/C front shell.
+This directory contains the original procedural `retrolife.snes.na-cartridge.m2.2.front.v4` package.
 
-Asset: `retrolife.snes.na-cartridge.m2.2.front.v3`
-Source: `original-parametric-multi-section-loft-rebuild`
-Surface model: `multi-section-loft-with-molded-front-patch`
+- `snes_ntsc_u_front_shell_v4.step`: canonical CAD B-rep export
+- `snes_ntsc_u_front_shell_v4.stl`: deterministic tessellation in millimetres
+- `snes_ntsc_u_front_shell_v4.obj`: Godot mesh in metres
+- `snes_ntsc_u_label_surface_v4.obj`: separate label surface with stable UVs
+- `materials/`: neutral review materials
 
-The package contains the front half only. Physical calibration, rear-shell work, final materials, LODs and active-runtime replacement remain separate gates.
+The geometry is provisional and requires physical calibration.

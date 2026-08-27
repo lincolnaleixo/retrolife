@@ -18,15 +18,16 @@ python3 scripts/verify-m1-snes-contract.py
 
 ## M2 cartridge rebuild
 
-The first procedural cartridge remains an engineering blockout and is rejected as final geometry. The replacement is built from an authentic NTSC-U reference contract without third-party meshes, photos, branding, artwork or ROM content.
+The first procedural cartridge and M2.2 v1 through v3 are rejected as production geometry. M2.1 v2 records the visual-calibrated provisional envelope and landmarks. M2.2 v4 builds the active front shell as a CadQuery/Open CASCADE boundary-representation solid with drafted boolean features.
 
-The M2.1 package records the provisional dimensions, confidence levels and remaining physical-calibration gate. M2.2 v1 is rejected as plate-stacked production geometry; M2.2 v2 provides the deterministic continuous-surface front-shell generator and Godot scene. The v2 rebuild remains provisional until physical calibration and explicit owner review are complete.
+The primary engineering artifact is the STEP file. The Godot runtime uses the deterministic OBJ tessellation. Mobile review uses PNG renders made from the generated CAD tessellation. SVG is no longer the primary M2.2 geometry or review medium.
 
-Validate them with:
+Validate the current package with:
 
 ```bash
+python3 -m pip install -r scripts/requirements-m2-cad.txt
 python3 scripts/verify-m2-snes-reference.py
-python3 scripts/generate-m2-2-snes-front.py --check
+python3 scripts/generate-m2-2-snes-front.py --check --skip-renders
 python3 scripts/verify-m2-2-snes-front.py
 ```
 
@@ -34,4 +35,6 @@ The normal product flow displays no console. Confirm seats the selected cartridg
 
 ## Mobile review
 
-The deterministic PNG review sheet at `mobile/m2-2-snes-v3-mobile-review.png` mirrors the current generated v3 geometry for mobile browsers that do not render repository SVGs reliably.
+The active mobile sheet is `mobile/m2-2-snes-v4-mobile-review.png`. It is a direct render of the committed v4 CAD tessellation and is intended for mobile browsers that do not display engineering files reliably.
+
+Physical calibration and explicit owner approval remain open. M2.3 and M3 stay blocked until those gates close.

@@ -1,1 +1,2 @@
 *.patch whitespace=-blank-at-eol,-space-before-tab
+*.step whitespace=-blank-at-eol

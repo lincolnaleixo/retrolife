@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "referenceId": "retrolife.m2.1.snes-ntsc-u.reference.v1",
-  "status": "provisional-orthographic-baseline",
+  "schemaVersion": 2,
+  "referenceId": "retrolife.m2.1.snes-ntsc-u.reference.v2",
+  "status": "provisional-visual-and-envelope-baseline",
   "systemId": "snes",
   "region": "NTSC-U/C",
   "shellFamily": "SNS-006 early wide-shell family",
@@ -28,9 +28,17 @@
       "source": "Super Nintendo Entertainment System Game Pak",
       "url": "https://en.wikipedia.org/wiki/Super_Nintendo_Entertainment_System_Game_Pak",
       "use": "overall NTSC shell envelope",
-      "values": {"width": 136.0, "height": 88.0, "depth": 20.0},
+      "values": {
+        "width": 136.0,
+        "height": 88.0,
+        "depth": 20.0
+      },
       "confidence": "A",
-      "uncertaintyMm": {"width": 1.0, "height": 1.0, "depth": 0.8}
+      "uncertaintyMm": {
+        "width": 1.0,
+        "height": 1.0,
+        "depth": 0.8
+      }
     },
     {
       "id": "patent-USD343833S",
@@ -47,6 +55,15 @@
       "url": "https://patents.google.com/patent/USD344504S/en",
       "use": "perspective cross-check for shell family and alternate embodiment details",
       "confidence": "B"
+    },
+    {
+      "id": "authentic-smw-photo",
+      "type": "authentic cartridge photography",
+      "source": "Super Mario World NTSC-U/C cartridge listing",
+      "url": "https://www.ebay.com/itm/155342209898",
+      "use": "front silhouette, central-body width, label recess, channel, screw and side-band relationships",
+      "confidence": "B",
+      "mediaEmbedded": false
     },
     {
       "id": "evan-amos-public-domain-photo",
@@ -74,8 +91,14 @@
       "use": "PCB thickness, board envelope range and connector chamfer only",
       "license": "CC BY-SA 4.0",
       "values": {
-        "boardWidthRange": [77.7, 79.2],
-        "boardLengthRange": [110.2, 116.2],
+        "boardWidthRange": [
+          77.7,
+          79.2
+        ],
+        "boardLengthRange": [
+          110.2,
+          116.2
+        ],
         "pcbThickness": 1.2,
         "goldFingerChamferDegrees": 30.0
       },
@@ -83,57 +106,207 @@
     }
   ],
   "envelope": {
-    "width": {"value": 136.0, "uncertainty": 1.0, "confidence": "A"},
-    "height": {"value": 88.0, "uncertainty": 1.0, "confidence": "A"},
-    "depth": {"value": 20.0, "uncertainty": 0.8, "confidence": "A"}
+    "width": {
+      "value": 136.0,
+      "uncertainty": 1.0,
+      "confidence": "A"
+    },
+    "height": {
+      "value": 88.0,
+      "uncertainty": 1.0,
+      "confidence": "A"
+    },
+    "depth": {
+      "value": 20.0,
+      "uncertainty": 0.8,
+      "confidence": "A"
+    }
   },
   "provisionalLandmarks": {
-    "centralUpperBodyWidth": {"value": 83.0, "uncertainty": 2.0, "confidence": "B"},
-    "sideWingWidthEach": {"value": 26.5, "uncertainty": 1.0, "confidence": "B"},
-    "sideWingTopDrop": {"value": 6.5, "uncertainty": 1.0, "confidence": "B"},
-    "outerCornerRadius": {"value": 4.0, "uncertainty": 1.0, "confidence": "B"},
-    "labelRecess": {
-      "width": {"value": 83.0, "uncertainty": 1.5, "confidence": "B"},
-      "height": {"value": 38.5, "uncertainty": 2.0, "confidence": "B"},
-      "bottomY": {"value": 47.0, "uncertainty": 1.5, "confidence": "B"},
-      "cornerRadius": {"value": 4.0, "uncertainty": 1.0, "confidence": "B"},
-      "depth": {"value": 0.6, "uncertainty": 0.3, "confidence": "C"}
+    "centralUpperBodyWidth": {
+      "value": 96.0,
+      "uncertainty": 2.0,
+      "confidence": "B"
     },
-    "lowerFrontGripField": {
-      "width": {"value": 83.0, "uncertainty": 1.5, "confidence": "B"},
-      "height": {"value": 37.0, "uncertainty": 2.0, "confidence": "B"},
-      "bottomY": {"value": 4.5, "uncertainty": 1.0, "confidence": "B"}
+    "sideWingWidthEach": {
+      "value": 20.0,
+      "uncertainty": 1.5,
+      "confidence": "B"
+    },
+    "sideWingTopDrop": {
+      "value": 6.6,
+      "uncertainty": 0.8,
+      "confidence": "B"
+    },
+    "outerCornerRadius": {
+      "value": 3.4,
+      "uncertainty": 0.8,
+      "confidence": "B"
+    },
+    "labelRecess": {
+      "width": {
+        "value": 91.5,
+        "uncertainty": 1.5,
+        "confidence": "B"
+      },
+      "height": {
+        "value": 39.0,
+        "uncertainty": 1.5,
+        "confidence": "B"
+      },
+      "bottomY": {
+        "value": 47.0,
+        "uncertainty": 1.2,
+        "confidence": "B"
+      },
+      "cornerRadius": {
+        "value": 3.8,
+        "uncertainty": 0.8,
+        "confidence": "B"
+      },
+      "depth": {
+        "value": 0.93,
+        "uncertainty": 0.3,
+        "confidence": "C"
+      }
     },
     "securityScrewCenters": {
-      "xAbsolute": {"value": 54.5, "uncertainty": 1.0, "confidence": "B"},
-      "y": {"value": 10.0, "uncertainty": 1.0, "confidence": "B"},
-      "wellDiameter": {"value": 5.2, "uncertainty": 0.8, "confidence": "C"}
-    },
-    "sideGripGrooves": {
-      "count": 5,
-      "centerY": [17.5, 31.5, 45.5, 59.5, 73.5],
-      "centerYUncertainty": 1.5,
-      "grooveHeight": {"value": 1.2, "uncertainty": 0.5, "confidence": "C"},
-      "confidence": "B for count and spacing relationship"
+      "xAbsolute": {
+        "value": 56.0,
+        "uncertainty": 1.0,
+        "confidence": "B"
+      },
+      "y": {
+        "value": 6.8,
+        "uncertainty": 1.0,
+        "confidence": "B"
+      },
+      "wellDiameter": {
+        "value": 6.1,
+        "uncertainty": 0.8,
+        "confidence": "C"
+      }
     },
     "connectorCavity": {
-      "mouthWidth": {"value": 88.0, "uncertainty": 2.0, "confidence": "B"},
-      "mouthHeight": {"value": 7.0, "uncertainty": 1.0, "confidence": "B"},
+      "mouthWidth": {
+        "value": 88.0,
+        "uncertainty": 2.0,
+        "confidence": "B"
+      },
+      "mouthHeight": {
+        "value": 7.0,
+        "uncertainty": 1.0,
+        "confidence": "B"
+      },
       "centerX": 0.0,
-      "depth": {"value": 10.0, "uncertainty": 2.0, "confidence": "C"}
+      "depth": {
+        "value": 10.0,
+        "uncertainty": 2.0,
+        "confidence": "C"
+      }
     },
     "rearWarningField": {
-      "width": {"value": 83.0, "uncertainty": 2.0, "confidence": "B"},
-      "height": {"value": 28.0, "uncertainty": 2.0, "confidence": "B"},
-      "bottomY": {"value": 49.0, "uncertainty": 2.0, "confidence": "B"}
+      "width": {
+        "value": 83.0,
+        "uncertainty": 2.0,
+        "confidence": "B"
+      },
+      "height": {
+        "value": 28.0,
+        "uncertainty": 2.0,
+        "confidence": "B"
+      },
+      "bottomY": {
+        "value": 49.0,
+        "uncertainty": 2.0,
+        "confidence": "B"
+      }
     },
-    "rearMouldedBandCount": {"value": 5, "confidence": "B"},
-    "topTabCentersX": {"value": [-46.0, 46.0], "uncertainty": 2.0, "confidence": "C"},
-    "shellPartingPlaneZ": {"value": 0.0, "uncertainty": 1.0, "confidence": "C"}
+    "rearMouldedBandCount": {
+      "value": 5,
+      "confidence": "B"
+    },
+    "topTabCentersX": {
+      "value": [
+        -46.0,
+        46.0
+      ],
+      "uncertainty": 2.0,
+      "confidence": "C"
+    },
+    "shellPartingPlaneZ": {
+      "value": 0.0,
+      "uncertainty": 1.0,
+      "confidence": "C"
+    },
+    "frontShellDepth": {
+      "value": 10.4,
+      "uncertainty": 0.8,
+      "confidence": "B"
+    },
+    "centralTopWidth": {
+      "value": 82.0,
+      "uncertainty": 2.0,
+      "confidence": "B"
+    },
+    "sideWingTopY": {
+      "value": 81.4,
+      "uncertainty": 0.8,
+      "confidence": "B"
+    },
+    "lowerFrontGripChannel": {
+      "width": {
+        "value": 93.0,
+        "uncertainty": 2.0,
+        "confidence": "B"
+      },
+      "height": {
+        "value": 7.2,
+        "uncertainty": 1.0,
+        "confidence": "B"
+      },
+      "centerY": {
+        "value": 35.0,
+        "uncertainty": 1.5,
+        "confidence": "B"
+      },
+      "depth": {
+        "value": 1.58,
+        "uncertainty": 0.4,
+        "confidence": "C"
+      },
+      "bridgeCount": {
+        "value": 3,
+        "confidence": "B"
+      }
+    },
+    "sideMouldedBands": {
+      "bandCount": 5,
+      "divisionCount": 4,
+      "divisionCenterY": [
+        25.8,
+        42.0,
+        58.2,
+        74.4
+      ],
+      "divisionYUncertainty": 1.2,
+      "divisionHeight": {
+        "value": 1.25,
+        "uncertainty": 0.4,
+        "confidence": "C"
+      },
+      "confidence": "B for count and spacing relationship"
+    }
   },
   "pcbClearance": {
-    "boardWidthRange": [77.7, 79.2],
-    "boardLengthRange": [110.2, 116.2],
+    "boardWidthRange": [
+      77.7,
+      79.2
+    ],
+    "boardLengthRange": [
+      110.2,
+      116.2
+    ],
     "pcbThickness": 1.2,
     "goldFingerChamferDegrees": 30.0,
     "rule": "PCB values validate internal clearance only and do not define the exterior shell."
@@ -151,15 +324,60 @@
     "classification": "M2-alpha-blockout",
     "finalGeometryAccepted": false,
     "majorFindings": [
-      {"id": "envelope-height", "alpha": 86.4, "reference": 88.0, "differencePercent": -1.82},
-      {"id": "envelope-width", "alpha": 135.0, "reference": 136.0, "differencePercent": -0.74},
-      {"id": "label-recess-width", "alpha": 79.5, "reference": 83.0, "differencePercent": -4.22},
-      {"id": "label-recess-height", "alpha": 31.0, "reference": 38.5, "differencePercent": -19.48},
-      {"id": "side-wings", "alpha": "narrow auxiliary prisms", "reference": "two broad 26.5 mm shell masses", "severity": "critical"},
-      {"id": "grip-bands", "alpha": "small ladder-like ribs", "reference": "five full-width horizontal grooves per wing", "severity": "critical"},
-      {"id": "lower-front", "alpha": "58 x 7.2 mm narrow feature", "reference": "approximately 83 x 37 mm moulded grip field", "severity": "critical"},
-      {"id": "rear-shell", "alpha": "generic inset panel with fine ribs", "reference": "broad moulded bands and distinct warning field", "severity": "critical"},
-      {"id": "connector", "alpha": "solid bar and exposed contact boxes", "reference": "true recessed cavity with PCB edge clearance", "severity": "critical"}
+      {
+        "id": "envelope-height",
+        "alpha": 86.4,
+        "reference": 88.0,
+        "differencePercent": -1.82
+      },
+      {
+        "id": "envelope-width",
+        "alpha": 135.0,
+        "reference": 136.0,
+        "differencePercent": -0.74
+      },
+      {
+        "id": "label-recess-width",
+        "alpha": 79.5,
+        "reference": 83.0,
+        "differencePercent": -4.22
+      },
+      {
+        "id": "label-recess-height",
+        "alpha": 31.0,
+        "reference": 38.5,
+        "differencePercent": -19.48
+      },
+      {
+        "id": "side-wings",
+        "alpha": "narrow auxiliary prisms",
+        "reference": "two broad 26.5 mm shell masses",
+        "severity": "critical"
+      },
+      {
+        "id": "grip-bands",
+        "alpha": "small ladder-like ribs",
+        "reference": "four recessed divisions forming five broad moulded bands per wing",
+        "severity": "critical"
+      },
+      {
+        "id": "lower-front",
+        "alpha": "58 x 7.2 mm narrow feature",
+        "reference": "approximately 93 x 7.2 mm continuous lower grip channel",
+        "severity": "critical"
+      },
+      {
+        "id": "rear-shell",
+        "alpha": "generic inset panel with fine ribs",
+        "reference": "broad moulded bands and distinct warning field",
+        "severity": "critical"
+      },
+      {
+        "id": "connector",
+        "alpha": "solid bar and exposed contact boxes",
+        "reference": "true recessed cavity with PCB edge clearance",
+        "severity": "critical"
+      }
     ]
   },
   "modelingGate": {
@@ -167,9 +385,15 @@
     "mayApproveFinalM2_2Geometry": false,
     "mayStartM3": false,
     "conditions": [
-      "M2.2 must be built from this reference package, not by polishing the alpha.",
-      "The first front-shell overlay must preserve the provisional envelope and landmarks.",
+      "M2.2 must be built from this reference package, not by polishing rejected v1-v3 geometry.",
+      "The active front shell must be a real CAD B-rep with drafted recesses and a STEP export.",
       "Final M2.2 sign-off waits for the physical caliper spot-check recorded in M2.1."
     ]
+  },
+  "visualCalibration": {
+    "completed": true,
+    "method": "scaled comparison against authentic NTSC-U/C cartridge photography and USD343833S orthographic relationships",
+    "physicalMeasurement": false,
+    "rule": "Visual calibration may replace rejected blockout proportions, but does not close the physical caliper gate."
   }
 }

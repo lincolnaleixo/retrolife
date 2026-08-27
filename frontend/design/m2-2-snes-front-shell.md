@@ -1,35 +1,50 @@
-# M2.2 v3 provisional NTSC-U SNES front shell
+# M2.2 v4 provisional NTSC-U SNES front shell
 
 ## Decision
 
-The v1 plate stack and v2 height-field-only presentation are rejected as production geometry. This v3 source replaces them with an original multi-section loft and an integrated molded front patch.
+The v1 plate stack, v2 height field and v3 loft-only presentation are rejected. The v4 package is rebuilt as a real CadQuery/Open CASCADE boundary-representation solid with drafted boolean features. SVG is no longer the primary geometry or review medium.
 
-The geometry remains provisional. It does not claim physical calibration or final owner approval.
+The geometry remains provisional. It does not claim physical caliper calibration or final owner approval.
 
 ## Generated contract
 
-- Asset ID: `retrolife.snes.na-cartridge.m2.2.front.v3`
-- Prior asset ID: `retrolife.snes.na-cartridge.m2.2.front.v2`
+- Asset ID: `retrolife.snes.na-cartridge.m2.2.front.v4`
+- Prior asset ID: `retrolife.snes.na-cartridge.m2.2.front.v3`
 - License: `CC0-1.0`
-- Source: `original-parametric-multi-section-loft-rebuild`
-- Surface model: `multi-section-loft-with-molded-front-patch`
-- Envelope: `136 x 88 x 20 mm`
-- Front-half depth: `10.4 mm`
-- Connected shell vertices: `11223`
-- Connected shell triangles: `22442`
-- Loft sections: `5` plus the molded face
-- Label surface: separate rounded planar mesh with stable `0..1` UVs
+- CAD source: `original-cadquery-opencascade-brep-rebuild`
+- CAD tool: `CadQuery 2.8.0`
+- Kernel: `Open CASCADE 7.9`
+- Surface model: `cadquery-opencascade-brep-with-drafted-booleans`
+- Envelope: `136.0 x 88.0 x 20.0 mm`
+- Front-shell depth: `10.4 mm`
+- B-rep volume: `31836.7 mm3`
+- B-rep faces: `478`
+- B-rep edges: `1420`
+- Tessellated triangles: `13062`
+- Primary engineering artifact: `snes_ntsc_u_front_shell_v4.step`
+- Godot artifact: `snes_ntsc_u_front_shell_v4.obj`
+- Review artifacts: deterministic PNG renders from the tessellated CAD solid
+- Label surface: separate rounded mesh with stable `0..1` UVs
 - Root pivot: bottom connector center
-- Console, branding, legal text, game artwork, ROMs and external mesh data: excluded
+- Console, branding, legal text, commercial artwork, ROMs and external mesh data: excluded
+
+## Molded features
+
+- A real side-wall roll is formed by the B-rep section stack.
+- The front body is a fused solid, not a stack of visible feature plates.
+- Label recess and grip channel are drafted boolean pockets.
+- Four recessed side divisions create five broad molded bands per wing.
+- Screw wells use conical countersinks and through openings.
+- The back is opened by an internal cavity cut, so the artifact is a front-shell body rather than a solid billet.
 
 ## Physical comparison boundary
 
-The visual comparison record links an authentic-cartridge scan, public-domain cartridge photography, bottom photography and the design patent. Those sources are used only to challenge silhouette, shoulder roll, label recess, side taper and molded-detail relationships. No third-party vertices, textures or photographs are embedded in this CC0 package.
+The comparison record links authentic cartridge photography, the cartridge bottom, the USD343833S design patent and a public physical scan. No vertices, textures or photographs from those references are embedded in the CC0 asset.
 
 ## Remaining gates
 
 - Measure one authentic early NTSC-U/C `SNS-006` cartridge with digital calipers.
-- Reconcile the provisional M2.1 B and C dimensions.
-- Review the mobile PNG sheet against the physical specimen.
+- Reconcile all provisional B and C dimensions in M2.1.
+- Compare the v4 PNG sheet and STEP file against the physical specimen.
 - Obtain explicit owner visual approval.
 - Keep M2.3 and M3 blocked until those gates close.
