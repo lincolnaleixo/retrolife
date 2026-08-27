@@ -51,16 +51,29 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("scripts/generate-m2-2-snes-front.py")
-          source = path.read_text(encoding="utf-8")
-          old = "vtk.vtkEGLRenderWindow()"
-          occurrences = source.count(old)
+          generator_path = Path("scripts/generate-m2-2-snes-front.py")
+          generator_source = generator_path.read_text(encoding="utf-8")
+          explicit_egl = "vtk.vtkEGLRenderWindow()"
+          occurrences = generator_source.count(explicit_egl)
           if occurrences != 1:
               raise SystemExit(
                   f"expected exactly one explicit EGL render window, found {occurrences}"
               )
-          path.write_text(
-              source.replace(old, "vtk.vtkRenderWindow()", 1),
+          generator_path.write_text(
+              generator_source.replace(explicit_egl, "vtk.vtkRenderWindow()", 1),
+              encoding="utf-8",
+          )
+
+          verifier_path = Path("scripts/verify-m2-2-snes-front.py")
+          verifier_source = verifier_path.read_text(encoding="utf-8")
+          egl_marker = "vtk.vtkEGLRenderWindow"
+          marker_occurrences = verifier_source.count(egl_marker)
+          if marker_occurrences < 1:
+              raise SystemExit(
+                  f"expected EGL verifier marker, found {marker_occurrences}"
+              )
+          verifier_path.write_text(
+              verifier_source.replace(egl_marker, "vtk.vtkRenderWindow"),
               encoding="utf-8",
           )
           PY
