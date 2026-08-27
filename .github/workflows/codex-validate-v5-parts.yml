@@ -1,0 +1,201 @@
+name: Codex validate M2.2 v5 parts
+
+on:
+  push:
+    branches: [codex/m2-2-v5-validation-stage]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-m2-2-v5-parts
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out validation transport
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: transport
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out complete public target history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: codex/m2-2-physical-rebuild
+          path: work
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply verified public v5 source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          git rev-parse HEAD > "$RUNNER_TEMP/retrolife-v5-base-sha"
+          payload="$RUNNER_TEMP/retrolife-v5-source.tar.gz"
+          cat \
+            ../transport/.codex-v5/parts/part-00 \
+            ../transport/.codex-v5/parts/part-01 \
+            ../transport/.codex-v5/parts/part-02 \
+            ../transport/.codex-v5/parts/part-03 \
+            ../transport/.codex-v5/parts/part-04 \
+            ../transport/.codex-v5/parts/part-05 \
+            ../transport/.codex-v5/parts/part-06 \
+            ../transport/.codex-v5/parts/part-07 \
+            | tr -d '\r\n ' \
+            | base64 --decode > "$payload"
+          echo 'f78b26a0cd6ea5fb5b87b1a16f7c5a62e8a62311aa0ed5f965ae1ca71f54ed97  '"$payload" \
+            | sha256sum --check --status
+          tar -xzf "$payload" -C .
+          rm -f \
+            .github/workflows/codex-apply-cad-v4.yml \
+            .github/workflows/codex-export-public-checkout.yml
+          test ! -e .codex-v5
+          git diff --check
+
+      - name: Install pinned CAD environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libgl1-mesa-dri libglx-mesa0 mesa-utils xauth xvfb
+          python3 -m venv "$RUNNER_TEMP/cad-venv"
+          source "$RUNNER_TEMP/cad-venv/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install --requirement work/scripts/requirements-m2-cad.txt
+          python - <<'PY'
+          import cadquery, vtk
+          print('CadQuery', cadquery.__version__)
+          print('VTK', vtk.vtkVersion.GetVTKVersion())
+          PY
+
+      - name: Generate and verify v5 CAD package
+        shell: bash
+        env:
+          PYTHONFAULTHANDLER: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          VTK_DEFAULT_OPENGL_WINDOW: vtkXOpenGLRenderWindow
+          VTK_FORCE_MSAA: "0"
+        run: |
+          set -euo pipefail
+          cd work
+          source "$RUNNER_TEMP/cad-venv/bin/activate"
+          xvfb-run \
+            --auto-servernum \
+            --server-args="-screen 0 1920x1080x24 -nolisten tcp" \
+            python -X faulthandler scripts/generate-m2-2-snes-front.py
+          python scripts/verify-m1-snes-contract.py
+          python scripts/verify-m2-snes-reference.py
+          python scripts/generate-m2-2-snes-front.py --check --skip-renders
+          python scripts/verify-m2-2-snes-front.py --skip-regeneration
+          git diff --check
+
+      - name: Install official Godot and pinned Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/retrolife-tools"
+          mkdir -p "$tools"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/godot.zip" \
+            'https://github.com/godotengine/godot-builds/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip'
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$tools"
+          chmod +x "$tools/Godot_v4.7-stable_linux.x86_64"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz" \
+            'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz'
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  '"$RUNNER_TEMP/gitleaks.tar.gz" \
+            | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$tools" gitleaks
+          chmod +x "$tools/gitleaks"
+
+      - name: Commit exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          git config user.name 'RetroLife public builder'
+          git config user.email '2906581+lincolnaleixo@users.noreply.github.com'
+          git config commit.gpgsign false
+          git add --all
+          git diff --cached --check
+          git commit -m 'feat: rebuild M2.2 front shell from photo-normalized CAD reference'
+          test -z "$(git status --porcelain)"
+
+      - name: Run mandatory complete pre-push gate
+        shell: bash
+        env:
+          CARGO_BIN: cargo
+          PYTHON_BIN: ${{ runner.temp }}/cad-venv/bin/python
+          GODOT_BIN: ${{ runner.temp }}/retrolife-tools/Godot_v4.7-stable_linux.x86_64
+          GITLEAKS_BIN: ${{ runner.temp }}/retrolife-tools/gitleaks
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          VTK_DEFAULT_OPENGL_WINDOW: vtkXOpenGLRenderWindow
+          VTK_FORCE_MSAA: "0"
+        run: |
+          set -euo pipefail
+          cd work
+          xvfb-run \
+            --auto-servernum \
+            --server-args="-screen 0 1920x1080x24 -nolisten tcp" \
+            scripts/verify-before-push.sh \
+            | tee "$RUNNER_TEMP/retrolife-v5-prepush.log"
+          grep -Fq 'RETROLIFE_PRE_PUSH_OK' "$RUNNER_TEMP/retrolife-v5-prepush.log"
+          test -z "$(git status --porcelain)"
+          {
+            echo 'payload_sha256=f78b26a0cd6ea5fb5b87b1a16f7c5a62e8a62311aa0ed5f965ae1ca71f54ed97'
+            echo "candidate_sha=$(git rev-parse HEAD)"
+            echo "candidate_tree=$(git rev-parse HEAD^{tree})"
+            echo 'prepush=RETROLIFE_PRE_PUSH_OK'
+          } | tee "$RUNNER_TEMP/retrolife-v5-validation-receipt.txt"
+          cp .github/workflows/ci.yml "$RUNNER_TEMP/final-ci.yml"
+          cp .github/workflows/m2-2-snes-front.yml "$RUNNER_TEMP/final-m2-2-snes-front.yml"
+
+      - name: Prepare workflow-neutral transport commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          base_sha="$(cat "$RUNNER_TEMP/retrolife-v5-base-sha")"
+          git checkout "$base_sha" -- .github/workflows
+          git add .github/workflows
+          git diff --cached --check
+          git commit --amend --no-edit
+          test -z "$(git status --porcelain)"
+          echo "transport_sha=$(git rev-parse HEAD)" \
+            | tee -a "$RUNNER_TEMP/retrolife-v5-validation-receipt.txt"
+          echo "transport_tree=$(git rev-parse HEAD^{tree})" \
+            | tee -a "$RUNNER_TEMP/retrolife-v5-validation-receipt.txt"
+
+      - name: Push only after every gate passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          git push origin HEAD:codex/m2-2-physical-rebuild
+
+      - name: Upload validation receipt and mobile renders
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retrolife-m2-2-v5-validation-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/retrolife-v5-prepush.log
+            ${{ runner.temp }}/retrolife-v5-validation-receipt.txt
+            ${{ runner.temp }}/final-ci.yml
+            ${{ runner.temp }}/final-m2-2-snes-front.yml
+            work/frontend/design/mobile/m2-2-snes-v5-front.png
+            work/frontend/design/mobile/m2-2-snes-v5-three-quarter.png
+            work/frontend/design/mobile/m2-2-snes-v5-side.png
+            work/frontend/design/mobile/m2-2-snes-v5-top.png
+            work/frontend/design/mobile/m2-2-snes-v5-dimensions.png
+            work/frontend/design/mobile/m2-2-snes-v5-mobile-review.png
+          if-no-files-found: error
+          retention-days: 7
