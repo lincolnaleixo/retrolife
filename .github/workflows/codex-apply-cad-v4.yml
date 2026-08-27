@@ -24,7 +24,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Detect staged payload
+        id: payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f .codex-payload/cad-v4-source.b64.part-00a ]]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Apply public CAD source payload
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -93,9 +105,10 @@ jobs:
               )
           PY
           rm -rf .codex-payload
-          rm -f .github/workflows/codex-*.yml
+          git checkout "$GITHUB_SHA" -- .github/workflows
 
       - name: Install public CAD build dependencies
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -117,6 +130,7 @@ jobs:
           PY
 
       - name: Generate authoritative CAD package and renders
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         env:
           PYTHONFAULTHANDLER: "1"
@@ -155,6 +169,7 @@ jobs:
           git diff --check
 
       - name: Install official Godot and Gitleaks
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -171,6 +186,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/retrolife-tools/gitleaks"
 
       - name: Commit the final tree before the mandatory pre-push gate
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -182,6 +198,7 @@ jobs:
           git commit -m 'feat: rebuild M2.2 front shell as Open CASCADE CAD solid'
 
       - name: Run the complete pre-push gate on the exact commit
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         env:
           CARGO_BIN: cargo
@@ -202,6 +219,7 @@ jobs:
           test -z "$(git status --porcelain)"
 
       - name: Push only after every gate passes
+        if: steps.payload.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
