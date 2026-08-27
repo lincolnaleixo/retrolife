@@ -105,7 +105,6 @@ jobs:
               )
           PY
           rm -rf .codex-payload
-          git checkout "$GITHUB_SHA" -- .github/workflows
 
       - name: Install public CAD build dependencies
         if: steps.payload.outputs.present == 'true'
@@ -216,6 +215,17 @@ jobs:
             scripts/verify-before-push.sh \
             | tee "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
           grep -Fq 'RETROLIFE_PRE_PUSH_OK' "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
+          test -z "$(git status --porcelain)"
+
+      - name: Prepare transport-safe commit
+        if: steps.payload.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout "$GITHUB_SHA" -- .github/workflows
+          git add .github/workflows
+          git diff --cached --check
+          git commit --amend --no-edit
           test -z "$(git status --porcelain)"
 
       - name: Push only after every gate passes
