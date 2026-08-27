@@ -27,10 +27,10 @@ fi
 
 "$python_bin" scripts/verify-m1-snes-contract.py
 "$python_bin" scripts/verify-m2-snes-reference.py
-"$python_bin" scripts/generate-m2-2-snes-front.py --check --skip-renders
+"$python_bin" scripts/generate-m2-2-snes-front.py --check
 "$python_bin" scripts/verify-m2-2-snes-front.py --skip-regeneration
 
-"$gitleaks_bin" git --no-banner --redact .
+"$gitleaks_bin" git --no-banner --redact --log-opts=--all .
 "$gitleaks_bin" dir --no-banner --redact .
 
 ./scripts/build-phase4-launch.sh debug

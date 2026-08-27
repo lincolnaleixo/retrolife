@@ -1,7 +1,7 @@
 extends SceneTree
 
 const SCENE := preload("res://scenes/SnesNaCartridgeFrontM2_2.tscn")
-const EXPECTED_ASSET := "retrolife.snes.na-cartridge.m2.2.front.v4"
+const EXPECTED_ASSET := "retrolife.snes.na-cartridge.m2.2.front.v5"
 
 func _initialize() -> void:
     var instance := SCENE.instantiate()
@@ -9,7 +9,7 @@ func _initialize() -> void:
     await process_frame
     var failures: Array[String] = []
     _require(instance.get_meta("asset_id", "") == EXPECTED_ASSET, "asset id", failures)
-    _require(instance.get_meta("source", "") == "original-cadquery-opencascade-brep-rebuild", "source", failures)
+    _require(instance.get_meta("source", "") == "original-cadquery-opencascade-photo-normalized-brep-rebuild", "source", failures)
     _require(instance.get_meta("step_exported", false), "STEP export", failures)
     _require(not instance.get_meta("height_field_only", true), "height field rejected", failures)
     _require(not instance.get_meta("multi_section_loft_only", true), "loft-only rejected", failures)
@@ -26,7 +26,7 @@ func _initialize() -> void:
     for marker_name in ["DockPivot", "CenterOfMass", "LabelAnchor", "ConnectorAnchor", "BrowseFocusedAnchor", "DockApproachAnchor"]:
         _require(instance.get_node_or_null(marker_name) != null, marker_name, failures)
     if failures.is_empty():
-        print("RETROLIFE_M2_2_FRONT_GODOT_OK asset=v4 cad=opencascade step=true")
+        print("RETROLIFE_M2_2_FRONT_GODOT_OK asset=v5 cad=opencascade step=true")
         quit(0)
         return
     for failure in failures:

@@ -10,9 +10,9 @@ This public repository contains only the new frontend source and its reproducibl
 - Platform-independent Rust domain models
 - Godot GDExtension and launch bridges
 - SNES-first visual and interaction contracts
-- Original procedural M2 and CadQuery/Open CASCADE M2.2 v4 assets with their own CC0 notices
+- Original procedural M2 and CadQuery/Open CASCADE M2.2 v5 assets with their own CC0 notices
 
-The M2.2 v1 plate stack, v2 height field and v3 loft-only presentation are rejected. The active v4 front shell is a provisional CAD B-rep with STEP, STL, OBJ and mobile PNG review artifacts. Physical caliper calibration and explicit owner approval are still required before it can be treated as final geometry.
+The M2.2 v1 plate stack, v2 height field, v3 loft-only presentation and visually rejected v4 CAD shell are retained only in public history. The active v5 front shell is a photo-normalized provisional CAD B-rep with STEP, STL, OBJ and mobile PNG review artifacts. Physical caliper calibration and explicit owner approval are still required before it can be treated as final geometry.
 
 ## Build
 

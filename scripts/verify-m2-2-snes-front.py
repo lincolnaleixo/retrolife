@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import struct
 import subprocess
 import sys
@@ -18,11 +17,11 @@ SCENE = ROOT / "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn"
 WORKFLOW = ROOT / ".github/workflows/m2-2-snes-front.yml"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 MANIFEST = DESIGN / "m2-2-snes-front-manifest.json"
-ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v4"
-PRIOR_ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v3"
-REFERENCE_ID = "retrolife.m2.1.snes-ntsc-u.reference.v2"
-SOURCE = "original-cadquery-opencascade-brep-rebuild"
-SURFACE_MODEL = "cadquery-opencascade-brep-with-drafted-booleans"
+ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v5"
+PRIOR_ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v4"
+REFERENCE_ID = "retrolife.m2.1.snes-ntsc-u.reference.v3"
+SOURCE = "original-cadquery-opencascade-photo-normalized-brep-rebuild"
+SURFACE_MODEL = "cadquery-opencascade-brep-with-continuous-draft-and-shallow-molded-features"
 
 
 def fail(message: str) -> None:
@@ -79,7 +78,7 @@ def parse_obj(path: Path) -> tuple[list[tuple[float, float, float]], list[tuple[
         elif line.startswith("f "):
             refs = line.split()[1:]
             require(len(refs) == 3, f"non-triangle OBJ face in {path.name}")
-            indices = []
+            indices: list[int] = []
             for ref in refs:
                 index = int(ref.split("/")[0])
                 require(index > 0, "OBJ must use positive indices")
@@ -136,16 +135,21 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", data[16:24])
 
 
-def check_non_black_png(path: Path) -> None:
+def check_review_png(path: Path, require_color: bool = False) -> None:
     try:
-        from PIL import Image
+        from PIL import Image, ImageStat
     except ImportError:
         require(path.stat().st_size > 12_000, f"render too small {path.name}")
         return
     image = Image.open(path).convert("RGB")
-    sample = image.resize((64, 64))
+    sample = image.resize((96, 96))
     extrema = sample.getextrema()
-    require(any(high - low > 16 for low, high in extrema), f"render appears blank {path.name}")
+    require(any(high - low > 22 for low, high in extrema), f"render appears blank {path.name}")
+    require(path.stat().st_size > 18_000, f"render is unexpectedly small {path.name}")
+    if require_color:
+        statistics = ImageStat.Stat(sample)
+        channel_means = statistics.mean
+        require(max(channel_means) - min(channel_means) > 4.0, "front review label art is not visible")
 
 
 def main() -> None:
@@ -165,18 +169,20 @@ def main() -> None:
 
     require(MANIFEST.is_file(), "manifest missing")
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    require(manifest.get("schemaVersion") == 4, "manifest schema")
+    require(manifest.get("schemaVersion") == 5, "manifest schema")
     require(manifest.get("assetId") == ASSET_ID, "asset ID")
     require(manifest.get("priorAssetId") == PRIOR_ASSET_ID, "prior asset ID")
     for rejected in [
         "retrolife.snes.na-cartridge.m2.2.front.v1",
         "retrolife.snes.na-cartridge.m2.2.front.v2",
+        "retrolife.snes.na-cartridge.m2.2.front.v3",
         PRIOR_ASSET_ID,
     ]:
         require(rejected in manifest.get("rejectedAssetIds", []), f"rejected asset {rejected}")
     require(manifest.get("referenceId") == REFERENCE_ID, "M2.1 reference linkage")
     require(manifest.get("source") == SOURCE, "CAD source")
     require(manifest.get("surfaceModel") == SURFACE_MODEL, "CAD surface model")
+    require(manifest.get("status") == "provisional-photo-normalized-cad-brep-rebuild", "provisional status")
     require(manifest.get("cadTool") == "CadQuery 2.8.0", "CadQuery version")
     require(manifest.get("cadKernel") == "Open CASCADE 7.9", "CAD kernel")
     require(manifest.get("stepExported") is True, "STEP export flag")
@@ -184,19 +190,25 @@ def main() -> None:
     require(manifest.get("multiSectionLoftOnly") is False, "loft-only rejection")
     require(manifest.get("externalGeometryCopied") is False, "external geometry boundary")
     require(manifest.get("externalMediaEmbedded") is False, "external media boundary")
+    require(manifest.get("reviewLabelArtOriginal") is True, "original review label declaration")
+    require(manifest.get("visualCalibrationRevision") == 3, "visual calibration revision")
     require(manifest.get("physicalCalibrationComplete") is False, "physical calibration honesty")
     require(manifest.get("mayApproveFinalGeometry") is False, "approval gate")
     require(manifest.get("mayStartM2_3Blockout") is False, "M2.3 gate")
     require(manifest.get("mayStartM3") is False, "M3 gate")
     require(manifest.get("physicalEnvelopeMm") == [136.0, 88.0, 20.0], "physical envelope")
-    require(manifest.get("frontShellDepthMm") == 10.4, "nominal front-shell depth")
-    require(manifest.get("actualCadBoundsMm") == [136.0, 88.0, 10.4], "actual CAD bounds")
-    require(manifest.get("actualCadExtentsMm") == [[-68.0, 68.0], [0.0, 88.0], [0.0, 10.4]], "actual CAD extents")
+    require(manifest.get("frontShellDepthMm") == 10.0, "nominal front-shell depth")
+    require(manifest.get("actualCadBoundsMm") == [136.0, 88.0, 10.0], "actual CAD bounds")
+    require(manifest.get("actualCadExtentsMm") == [[-68.0, 68.0], [0.0, 88.0], [0.0, 10.0]], "actual CAD extents")
+    require(manifest.get("labelRecessMm") == [84.5, 38.0, 45.0, 0.42], "label dimensions")
+    require(manifest.get("lowerGripChannelMm") == [87.0, 6.3, 29.8, 0.78], "grip dimensions")
+    require(manifest.get("lowerGripBridgeWidthMm") == 18.0, "grip bridge width")
     require(manifest.get("frontBandDivisionCountEach") == 4, "front band divisions")
-    require(manifest.get("frontMouldedBandCountEach") == 5, "front moulded bands")
-    require(manifest.get("frontBandDivisionCenterYmm") == [25.8, 42.0, 58.2, 74.4], "band positions")
+    require(manifest.get("frontMouldedBandCountEach") == 5, "front molded bands")
+    require(manifest.get("frontBandDivisionCenterYmm") == [24.3, 38.8, 53.3, 67.8], "band positions")
+    require(manifest.get("screwWellCentersMm") == [[-56.7, 7.4], [56.7, 7.4]], "screw positions")
     require(manifest.get("labelUvBounds") == [[0.0, 0.0], [1.0, 1.0]], "label UV contract")
-    require(len(manifest.get("externalVisualReferences", [])) >= 5, "physical comparison references")
+    require(len(manifest.get("externalVisualReferences", [])) >= 6, "physical comparison references")
     for reference in manifest["externalVisualReferences"]:
         require(reference.get("geometryCopied") is False, "external geometry copied")
         require(reference.get("mediaEmbedded") is False, "external media embedded")
@@ -206,13 +218,13 @@ def main() -> None:
     stl_path = ROOT / manifest["components"]["cadStl"]["path"]
     obj_path = ROOT / manifest["components"]["godotMesh"]["path"]
     label_path = ROOT / manifest["components"]["labelSurface"]["path"]
-    for path in [step_path, stl_path, obj_path, label_path]:
-        require(path.is_file(), f"missing generated component {path.relative_to(ROOT)}")
+    for component_path in [step_path, stl_path, obj_path, label_path]:
+        require(component_path.is_file(), f"missing generated component {component_path.relative_to(ROOT)}")
     require(step_path.stat().st_size > 1_000_000, "STEP file is unexpectedly small")
     step = step_path.read_text(encoding="utf-8")
     for marker in [
         "ISO-10303-21;",
-        "FILE_NAME('RetroLife M2.2 v4 front shell','2000-01-01T00:00:00'",
+        "FILE_NAME('RetroLife M2.2 v5 front shell','2000-01-01T00:00:00'",
         "ADVANCED_BREP_SHAPE_REPRESENTATION",
         "MANIFOLD_SOLID_BREP",
         "CadQuery 2.8.0 / Open CASCADE 7.9",
@@ -221,14 +233,14 @@ def main() -> None:
     require("2026-" not in step.split("ENDSEC;", 1)[0], "STEP header contains a runtime timestamp")
 
     stl_triangles, stl_vertices = parse_binary_stl(stl_path)
-    component = manifest["components"]["cadStl"]
-    require(stl_triangles == component["triangles"], "STL triangle manifest")
-    require(8_000 <= stl_triangles <= 80_000, f"STL triangle budget {stl_triangles}")
+    stl_component = manifest["components"]["cadStl"]
+    require(stl_triangles == stl_component["triangles"], "STL triangle manifest")
+    require(10_000 <= stl_triangles <= 90_000, f"STL triangle budget {stl_triangles}")
     stl_min, stl_max = bounds(stl_vertices)
     stl_size = tuple(stl_max[index] - stl_min[index] for index in range(3))
     require(near(stl_size[0], 136.0, 0.01), f"STL width {stl_size[0]}")
     require(near(stl_size[1], 88.0, 0.01), f"STL height {stl_size[1]}")
-    require(10.0 <= stl_size[2] <= 10.41, f"STL depth {stl_size[2]}")
+    require(near(stl_size[2], 10.0, 0.01), f"STL depth {stl_size[2]}")
     require(near(stl_min[0], -68.0, 0.01) and near(stl_max[0], 68.0, 0.01), "STL X origin")
     require(near(stl_min[1], 0.0, 0.001) and near(stl_min[2], 0.0, 0.001), "STL bottom/seam origin")
 
@@ -240,7 +252,7 @@ def main() -> None:
     obj_size = tuple(obj_max[index] - obj_min[index] for index in range(3))
     require(near(obj_size[0], 0.136, 0.00002), f"OBJ width {obj_size[0]}")
     require(near(obj_size[1], 0.088, 0.00002), f"OBJ height {obj_size[1]}")
-    require(0.0100 <= obj_size[2] <= 0.01041, f"OBJ depth {obj_size[2]}")
+    require(near(obj_size[2], 0.010, 0.00002), f"OBJ depth {obj_size[2]}")
     require(near(obj_min[1], 0.0, 0.000001) and near(obj_min[2], 0.0, 0.000001), "OBJ bottom/seam origin")
     manifold, components = topology(len(obj_vertices), obj_faces)
     require(manifold, "OBJ topology is not edge-manifold")
@@ -250,8 +262,8 @@ def main() -> None:
     require(label_vertices and label_faces and label_uvs, "label OBJ is incomplete")
     label_min, label_max = bounds(label_vertices)
     label_size = tuple(label_max[index] - label_min[index] for index in range(3))
-    require(near(label_size[0], 0.0915, 0.0002), f"label width {label_size[0]}")
-    require(near(label_size[1], 0.0390, 0.0002), f"label height {label_size[1]}")
+    require(near(label_size[0], 0.0845, 0.0002), f"label width {label_size[0]}")
+    require(near(label_size[1], 0.0380, 0.0002), f"label height {label_size[1]}")
     min_uv = (min(uv[0] for uv in label_uvs), min(uv[1] for uv in label_uvs))
     max_uv = (max(uv[0] for uv in label_uvs), max(uv[1] for uv in label_uvs))
     require(min_uv[0] <= 0.001 and min_uv[1] <= 0.001, f"label UV minimum {min_uv}")
@@ -266,73 +278,89 @@ def main() -> None:
         "mobileReview": (1400, 3300),
     }
     for key, expected_dimensions in render_expectations.items():
-        entry = manifest["reviewRenders"][key]
-        path = ROOT / entry["path"]
-        require(path.is_file(), f"missing review render {key}")
-        require(png_dimensions(path) == expected_dimensions, f"PNG dimensions {key}")
-        check_non_black_png(path)
-        require(sha256(path) == entry["sha256"], f"render hash {key}")
+        entry = manifest["reviewRenders"].get(key, {})
+        review_path = ROOT / str(entry.get("path", ""))
+        require(review_path.is_file(), f"missing review render {key}")
+        require(png_dimensions(review_path) == expected_dimensions, f"PNG dimensions {key}")
+        check_review_png(review_path, require_color=key in {"front", "threeQuarter", "mobileReview"})
+        require(sha256(review_path) == entry.get("sha256"), f"render hash {key}")
 
     generated = manifest.get("generatedFiles", {})
     require(len(generated) >= 18, f"generated file count {len(generated)}")
     for relative, expected_hash in generated.items():
-        path = ROOT / relative
-        require(path.is_file(), f"missing generated file {relative}")
-        require(sha256(path) == expected_hash, f"generated hash {relative}")
+        generated_path = ROOT / relative
+        require(generated_path.is_file(), f"missing generated file {relative}")
+        require(sha256(generated_path) == expected_hash, f"generated hash {relative}")
 
     stale_paths = [
-        ASSET / "snes_ntsc_u_front_shell_v3.obj",
-        ASSET / "snes_ntsc_u_label_surface_v3.obj",
-        ASSET / "materials/snes_m2_2_v3_shell_clay.tres",
-        ASSET / "materials/snes_m2_2_v3_label_placeholder.tres",
+        *ASSET.glob("snes_ntsc_u_front_shell_v[1-4].*"),
+        *ASSET.glob("snes_ntsc_u_label_surface_v[1-4].*"),
+        *ASSET.glob("materials/snes_m2_2_v[1-4]_*.tres"),
+        *DESIGN.glob("mobile/m2-2-snes-v[1-4]-*.png"),
+        *DESIGN.glob("m2-2-snes-v[1-4]-physical-comparison.md"),
         DESIGN / "m2-2-snes-front-clay.svg",
         DESIGN / "m2-2-snes-front-overlay.svg",
         DESIGN / "m2-2-snes-front-top-side-overlay.svg",
         DESIGN / "m2-2-snes-alpha-comparison.svg",
         DESIGN / "m2-2-snes-m1-poses.svg",
     ]
-    for path in stale_paths:
-        require(not path.exists(), f"stale active v3/SVG asset {path.relative_to(ROOT)}")
+    for stale_path in stale_paths:
+        require(not stale_path.exists(), f"stale active asset {stale_path.relative_to(ROOT)}")
 
-    source = (ROOT / "scripts/generate-m2-2-snes-front.py").read_text(encoding="utf-8")
+    generator_source = (ROOT / "scripts/generate-m2-2-snes-front.py").read_text(encoding="utf-8")
     for marker in [
         "import cadquery as cq",
         "cq.Solid.makeLoft",
         "tapered_pocket",
+        "reference_label_image",
+        "vtk_texture_from_image",
+        "pocket_gap = dimensions.channel_bridge_width",
         "canonicalize_step",
         "write_binary_stl",
         "vtk.vtkRenderWindow",
         "height_field=false",
         "loft_only=false",
     ]:
-        require(marker in source, f"generator marker {marker}")
-    require("BoxMesh" not in source, "generic Godot BoxMesh generator")
+        require(marker in generator_source, f"generator marker {marker}")
+    require("BoxMesh" not in generator_source, "generic Godot BoxMesh generator")
 
     documentation = (DESIGN / "m2-2-snes-front-shell.md").read_text(encoding="utf-8")
-    comparison = (DESIGN / "m2-2-snes-v4-physical-comparison.md").read_text(encoding="utf-8")
-    for marker in ["CadQuery/Open CASCADE", "STEP", "SVG is no longer the primary", "physical caliper"]:
+    comparison = (DESIGN / "m2-2-snes-v5-physical-comparison.md").read_text(encoding="utf-8")
+    for marker in ["v4 CAD shell", "CadQuery/Open CASCADE", "STEP", "SVG is no longer the primary", "photo", "physical caliper"]:
         require(marker in documentation, f"documentation marker {marker}")
-    for marker in ["Super Mario World", "Wikimedia", "USD343833S", "No vertices"]:
+    for marker in ["Super Mario World", "GameStop", "Wikimedia", "USD343833S", "No vertices", "original"]:
         require(marker in comparison, f"comparison marker {marker}")
 
     scene = SCENE.read_text(encoding="utf-8")
-    for marker in [ASSET_ID, "CadShell", "LabelSurface", "metadata/step_exported = true", "metadata/height_field_only = false", "metadata/multi_section_loft_only = false"]:
+    for marker in [
+        ASSET_ID,
+        PRIOR_ASSET_ID,
+        "CadShell",
+        "LabelSurface",
+        'metadata/status = "provisional-photo-normalized-cad-brep-rebuild"',
+        "metadata/step_exported = true",
+        "metadata/height_field_only = false",
+        "metadata/multi_section_loft_only = false",
+    ]:
         require(marker in scene, f"scene marker {marker}")
     smoke = (ROOT / "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd").read_text(encoding="utf-8")
-    require("RETROLIFE_M2_2_FRONT_GODOT_OK asset=v4" in smoke, "Godot smoke marker")
+    require("RETROLIFE_M2_2_FRONT_GODOT_OK asset=v5" in smoke, "Godot smoke marker")
     require("quit(0)\n        return" in smoke, "Godot smoke success must return before failure path")
 
     requirements = (ROOT / "scripts/requirements-m2-cad.txt").read_text(encoding="utf-8")
     for marker in ["cadquery==2.8.0", "numpy==2.3.5", "Pillow==12.3.0", "vtk==9.6.2"]:
         require(marker in requirements, f"CAD requirements marker {marker}")
     for workflow in [WORKFLOW, CI_WORKFLOW]:
+        require(workflow.is_file(), f"workflow missing {workflow.name}")
         text = workflow.read_text(encoding="utf-8")
         require("scripts/verify-m2-2-snes-front.py" in text, f"verifier in {workflow.name}")
         require("permissions:\n  contents: read" in text, f"read-only permissions in {workflow.name}")
+        require("scripts/requirements-m2-cad.txt" in text, f"CAD requirements in {workflow.name}")
     m2_workflow_text = WORKFLOW.read_text(encoding="utf-8")
     require(m2_workflow_text.count("./scripts/build-phase4-launch.sh debug") == 2, "native bridge build in Linux and macOS M2.2 jobs")
+    require("xvfb-run" in m2_workflow_text and "LIBGL_ALWAYS_SOFTWARE" in m2_workflow_text, "Linux software rendering gate")
     ci_text = CI_WORKFLOW.read_text(encoding="utf-8")
-    require("gitleaks" in ci_text.lower() and " git --no-banner --redact ." in ci_text, "Gitleaks history gate")
+    require("gitleaks" in ci_text.lower() and "--log-opts=--all" in ci_text, "Gitleaks history gate")
     require(not (ROOT / ".codex-payload").exists(), "temporary payload directory remains")
     temporary_workflows = sorted(path.name for path in (ROOT / ".github/workflows").glob("codex-*.yml"))
     require(not temporary_workflows, f"temporary workflows remain: {temporary_workflows}")
@@ -341,7 +369,7 @@ def main() -> None:
         "RETROLIFE_M2_2_FRONT_OK "
         f"asset={ASSET_ID} cad=opencascade step=true brep_faces={manifest['brepFaces']} "
         f"mesh_vertices={len(obj_vertices)} mesh_triangles={len(obj_faces)} "
-        "bands=5 divisions=4 height_field=false loft_only=false "
+        "reference=v3 bands=5 divisions=4 height_field=false loft_only=false "
         "external_geometry_copied=false physical_calibrated=false final_approval=false m2_3=false m3=false"
     )
 

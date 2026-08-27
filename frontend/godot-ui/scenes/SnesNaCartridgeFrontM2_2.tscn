@@ -1,17 +1,17 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="ArrayMesh" path="res://assets/snes/m2_2/snes_ntsc_u_front_shell_v4.obj" id="1_shell"]
-[ext_resource type="ArrayMesh" path="res://assets/snes/m2_2/snes_ntsc_u_label_surface_v4.obj" id="2_label"]
-[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_v4_shell_clay.tres" id="3_shell_material"]
-[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_v4_label_placeholder.tres" id="4_label_material"]
+[ext_resource type="ArrayMesh" path="res://assets/snes/m2_2/snes_ntsc_u_front_shell_v5.obj" id="1_shell"]
+[ext_resource type="ArrayMesh" path="res://assets/snes/m2_2/snes_ntsc_u_label_surface_v5.obj" id="2_label"]
+[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_v5_shell_clay.tres" id="3_shell_material"]
+[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_v5_label_placeholder.tres" id="4_label_material"]
 
 [node name="SnesNaCartridgeFrontM2_2" type="Node3D"]
-metadata/asset_id = "retrolife.snes.na-cartridge.m2.2.front.v4"
-metadata/prior_asset_id = "retrolife.snes.na-cartridge.m2.2.front.v3"
-metadata/source = "original-cadquery-opencascade-brep-rebuild"
+metadata/asset_id = "retrolife.snes.na-cartridge.m2.2.front.v5"
+metadata/prior_asset_id = "retrolife.snes.na-cartridge.m2.2.front.v4"
+metadata/source = "original-cadquery-opencascade-photo-normalized-brep-rebuild"
 metadata/license = "CC0-1.0"
-metadata/status = "provisional-cad-brep-rebuild"
-metadata/surface_model = "cadquery-opencascade-brep-with-drafted-booleans"
+metadata/status = "provisional-photo-normalized-cad-brep-rebuild"
+metadata/surface_model = "cadquery-opencascade-brep-with-continuous-draft-and-shallow-molded-features"
 metadata/cad_tool = "CadQuery 2.8.0"
 metadata/cad_kernel = "Open CASCADE 7.9"
 metadata/step_exported = true
@@ -31,8 +31,8 @@ metadata/may_start_m3 = false
 mesh = ExtResource("1_shell")
 material_override = ExtResource("3_shell_material")
 metadata/surface_topology = "single-connected-watertight-cad-shell"
-metadata/surface_model = "cadquery-opencascade-brep-with-drafted-booleans"
-metadata/triangle_count = 13062
+metadata/surface_model = "cadquery-opencascade-brep-with-continuous-draft-and-shallow-molded-features"
+metadata/triangle_count = 17934
 [node name="LabelSurface" type="MeshInstance3D" parent="VisualRoot"]
 mesh = ExtResource("2_label")
 material_override = ExtResource("4_label_material")
@@ -40,9 +40,9 @@ metadata/m3_texture_slot = "snes-front-label"
 [node name="DockPivot" type="Marker3D" parent="."]
 position = Vector3(0, 0, 0)
 [node name="CenterOfMass" type="Marker3D" parent="."]
-position = Vector3(-0.000000, 0.041824, 0.007408)
+position = Vector3(-0.000000, 0.043359, 0.007330)
 [node name="LabelAnchor" type="Marker3D" parent="."]
-position = Vector3(0, 0.066500, 0.009488)
+position = Vector3(0, 0.064000, 0.009598)
 [node name="ConnectorAnchor" type="Marker3D" parent="."]
 position = Vector3(0, 0, 0)
 [node name="BrowseFocusedAnchor" type="Marker3D" parent="."]

@@ -2,9 +2,9 @@
 
 ## Status
 
-This package is the public provisional visual and envelope baseline for the early North American `SNS-006` wide-shell cartridge.
+This package is the public provisional visual baseline for the early North American `SNS-006` wide-shell cartridge.
 
-The M2 alpha and M2.2 v1 through v3 shapes are rejected as production geometry. The v2 reference corrects their visible proportions using authentic NTSC-U/C cartridge photography and USD343833S silhouette relationships. It still requires a physical specimen and digital-caliper measurements before M2.1 closes.
+Reference v3 replaces the visibly incorrect v2 front proportions. It was normalized against a clean frontal photograph of an authentic NTSC-U/C cartridge and cross-checked against the front, top and side relationships in USD343833S. It still requires a physical specimen and digital-caliper measurements before M2.1 closes.
 
 ## Locked reference
 
@@ -23,26 +23,34 @@ The M2 alpha and M2.2 v1 through v3 shapes are rejected as production geometry. 
 | Width | 136.0 mm | ±1.0 mm | A |
 | Height | 88.0 mm | ±1.0 mm | A |
 | Maximum depth | 20.0 mm | ±0.8 mm | A |
-| Provisional front-shell depth | 10.4 mm | ±0.8 mm | B |
+| Provisional front-shell depth | 10.0 mm | ±0.8 mm | B |
 
 ## Provisional front landmarks
 
 | Landmark | Baseline | Uncertainty | Confidence |
 | --- | ---: | ---: | --- |
-| Central front-body width | 96.0 mm | ±2.0 mm | B |
-| Central top width | 82.0 mm | ±2.0 mm | B |
-| Side-wing width, each | 20.0 mm | ±1.5 mm | B |
-| Side-wing top | Y 81.4 mm | ±0.8 mm | B |
-| Label recess | 91.5 × 39.0 mm | ±1.5 mm | B |
-| Label recess bottom | Y 47.0 mm | ±1.2 mm | B |
-| Lower grip channel | 93.0 × 7.2 mm | ±2.0 / ±1.0 mm | B |
-| Grip-channel center | Y 35.0 mm | ±1.5 mm | B |
-| Screw centers | X ±56.0 mm, Y 6.8 mm | ±1.0 mm | B |
-| Screw-well diameter | 6.1 mm | ±0.8 mm | C |
+| Central front-body width | 92.0 mm | ±1.5 mm | B |
+| Central top width | 84.0 mm | ±1.5 mm | B |
+| Side-wing width, each | 22.0 mm | ±1.0 mm | B |
+| Side-wing top | Y 83.0 mm | ±0.8 mm | B |
+| Label recess | 84.5 × 38.0 mm | ±1.2 mm | B |
+| Label recess bottom | Y 45.0 mm | ±1.0 mm | B |
+| Lower grip field | 87.0 × 6.3 mm | ±1.5 / ±0.8 mm | B |
+| Grip-field center | Y 29.8 mm | ±1.2 mm | B |
+| Central grip bridge | 18.0 mm | ±2.0 mm | B |
+| Screw centers | X ±56.7 mm, Y 7.4 mm | ±0.8 mm | B |
+| Screw-well diameter | 5.2 mm | ±0.6 mm | C |
 
-Four recessed side divisions are provisionally centred at Y 25.8, 42.0, 58.2 and 74.4 mm. They form five broad moulded bands on each side wing. This replaces the incorrect five-groove interpretation used by the rejected blockouts.
+Four narrow recessed divisions are provisionally centred at Y 24.3, 38.8, 53.3 and 67.8 mm. They create five broad molded bands on each side wing. This replaces the high, over-spaced divisions used by the rejected v4 shell.
 
-These relationships are scaled from the known envelope using USD343833S and authentic-cartridge photographs. They are not represented as caliper measurements.
+The visual ratio checks recorded in the manifest are:
+
+- central body to overall width: 0.676471
+- label to overall width: 0.621324
+- side-wing top drop to overall height: 0.056818
+- grip field to overall width: 0.639706
+
+These are photo-normalized relationships, not caliper measurements.
 
 ## PCB and connector clearance
 
@@ -58,13 +66,13 @@ PCB values validate cavity and board clearance only. They do not define the exte
 ## Source authority
 
 1. Nintendo USD343833S for front, rear, top, bottom and side relationships.
-2. Authentic NTSC-U/C Super Mario World cartridge photography for the visible front-shell proportions.
+2. Authentic NTSC-U/C frontal cartridge photography for normalized visible proportions.
 3. Public-domain Evan-Amos cartridge photography for region and shell-family cross-checking.
 4. CC BY-SA cartridge-bottom photography for connector and notch relationships.
 5. MouseBiteLabs CC BY-SA 4.0 boards for internal PCB clearance.
 6. Published NTSC Game Pak envelope dimensions.
 
-No third-party image pixels or mesh vertices are embedded in the CC0 generated package.
+No third-party photograph pixels or mesh vertices are embedded in the CC0 generated package.
 
 ## Physical validation still required
 
@@ -75,7 +83,7 @@ Before M2.1 closes, measure one authentic early NTSC-U/C cartridge and record:
 - front and rear half depths
 - central-body and top widths
 - label recess dimensions, radius and depth
-- lower grip-channel dimensions and bridge positions
+- lower grip dimensions and bridge width
 - side-band division positions and depths
 - screw-well coordinates and diameters
 - connector mouth, bottom notches, top tabs and feet
