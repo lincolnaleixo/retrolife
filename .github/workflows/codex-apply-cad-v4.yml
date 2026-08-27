@@ -48,6 +48,22 @@ jobs:
           while IFS= read -r path; do
             [[ -z "$path" ]] || rm -rf -- "$path"
           done < "$work/delete-paths.txt"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/generate-m2-2-snes-front.py")
+          source = path.read_text(encoding="utf-8")
+          old = "vtk.vtkEGLRenderWindow()"
+          occurrences = source.count(old)
+          if occurrences != 1:
+              raise SystemExit(
+                  f"expected exactly one explicit EGL render window, found {occurrences}"
+              )
+          path.write_text(
+              source.replace(old, "vtk.vtkRenderWindow()", 1),
+              encoding="utf-8",
+          )
+          PY
           rm -rf .codex-payload
           rm -f .github/workflows/codex-*.yml
 
@@ -55,6 +71,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libgl1-mesa-dri \
+            libglx-mesa0 \
+            mesa-utils \
+            xauth \
+            xvfb
           python3 -m venv "$RUNNER_TEMP/cad-venv"
           source "$RUNNER_TEMP/cad-venv/bin/activate"
           python -m pip install --upgrade pip
@@ -70,12 +93,22 @@ jobs:
         env:
           PYTHONFAULTHANDLER: "1"
           LIBGL_ALWAYS_SOFTWARE: "1"
+          VTK_DEFAULT_OPENGL_WINDOW: vtkXOpenGLRenderWindow
+          VTK_FORCE_MSAA: "0"
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/cad-venv/bin/activate"
+          run_with_xvfb() {
+            xvfb-run \
+              --auto-servernum \
+              --server-args="-screen 0 1920x1080x24 -nolisten tcp" \
+              "$@"
+          }
+          run_with_xvfb glxinfo -B
           for attempt in 1 2 3; do
             set +e
-            python -X faulthandler scripts/generate-m2-2-snes-front.py
+            run_with_xvfb \
+              python -X faulthandler scripts/generate-m2-2-snes-front.py
             status=$?
             set -e
             if [[ "$status" -eq 0 ]]; then
@@ -84,7 +117,7 @@ jobs:
             if [[ "$status" -ne 139 || "$attempt" -eq 3 ]]; then
               exit "$status"
             fi
-            echo "Transient CAD kernel crash on attempt $attempt; retrying"
+            echo "Transient CAD renderer crash on attempt $attempt; retrying"
             sleep 2
           done
           python scripts/verify-m1-snes-contract.py
@@ -126,9 +159,16 @@ jobs:
           PYTHON_BIN: ${{ runner.temp }}/cad-venv/bin/python
           GODOT_BIN: ${{ runner.temp }}/retrolife-tools/Godot_v4.7-stable_linux.x86_64
           GITLEAKS_BIN: ${{ runner.temp }}/retrolife-tools/gitleaks
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          VTK_DEFAULT_OPENGL_WINDOW: vtkXOpenGLRenderWindow
+          VTK_FORCE_MSAA: "0"
         run: |
           set -euo pipefail
-          scripts/verify-before-push.sh | tee "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
+          xvfb-run \
+            --auto-servernum \
+            --server-args="-screen 0 1920x1080x24 -nolisten tcp" \
+            scripts/verify-before-push.sh \
+            | tee "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
           grep -Fq 'RETROLIFE_PRE_PUSH_OK' "$RUNNER_TEMP/retrolife-cad-v4-prepush.log"
           test -z "$(git status --porcelain)"
 
