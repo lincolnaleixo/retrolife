@@ -1,0 +1,51 @@
+name: Codex export public checkout
+
+on:
+  push:
+    branches: [codex/m2-2-physical-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-export-public-checkout
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete public history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify public checkout and package it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          git remote -v
+          git log -1 --oneline
+          tar \
+            --exclude='./.git/index.lock' \
+            --exclude='./.git/objects/pack/*.keep' \
+            -czf "$RUNNER_TEMP/retrolife-public-checkout.tar.gz" \
+            .
+          sha256sum "$RUNNER_TEMP/retrolife-public-checkout.tar.gz" \
+            > "$RUNNER_TEMP/retrolife-public-checkout.tar.gz.sha256"
+
+      - name: Upload public checkout
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retrolife-public-checkout-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/retrolife-public-checkout.tar.gz
+            ${{ runner.temp }}/retrolife-public-checkout.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

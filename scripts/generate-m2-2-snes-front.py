@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the provisional M2.2 NTSC-U SNES front-shell package.
+"""Generate the public M2.2 v5 CadQuery front-shell package.
 
-The geometry is original RetroLife work released under CC0-1.0. It reads the
-M2.1 reference manifest and does not import or adapt the rejected alpha mesh.
-Final dimensional approval still requires physical cartridge calibration.
+The v5 asset is an original Open CASCADE B-rep rebuilt from the committed
+public reference contract. External photographs, patent drawings and a public
+scan are comparison references only. Their geometry and media are not copied.
 """
 from __future__ import annotations
 
@@ -11,1020 +11,1420 @@ import argparse
 import hashlib
 import json
 import math
+import re
+import shutil
+import struct
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Sequence
 
+import cadquery as cq
+import numpy as np
+from cadquery import exporters
+from PIL import Image, ImageDraw, ImageFont
 
-ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v1"
+ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v5"
+PRIOR_ASSET_ID = "retrolife.snes.na-cartridge.m2.2.front.v4"
+REJECTED_ASSET_IDS = [
+    "retrolife.snes.na-cartridge.m2.2.front.v1",
+    "retrolife.snes.na-cartridge.m2.2.front.v2",
+    "retrolife.snes.na-cartridge.m2.2.front.v3",
+    PRIOR_ASSET_ID,
+]
+REFERENCE_ID = "retrolife.m2.1.snes-ntsc-u.reference.v3"
 LICENSE = "CC0-1.0"
-SOURCE = "original-parametric-clean-rebuild"
-
-
-@dataclass
-class Mesh:
-    vertices: list[tuple[float, float, float]] = field(default_factory=list)
-    faces: list[tuple[int, int, int]] = field(default_factory=list)
-    uvs: list[tuple[float, float]] = field(default_factory=list)
-    face_uvs: list[tuple[int, int, int]] = field(default_factory=list)
-
-    def add(self, other: "Mesh") -> None:
-        vertex_offset = len(self.vertices)
-        uv_offset = len(self.uvs)
-        self.vertices.extend(other.vertices)
-        self.faces.extend(
-            tuple(index + vertex_offset for index in face) for face in other.faces
-        )
-        self.uvs.extend(other.uvs)
-        self.face_uvs.extend(
-            tuple(index + uv_offset for index in face) for face in other.face_uvs
-        )
-
-    @property
-    def triangles(self) -> int:
-        return len(self.faces)
-
-
-def ensure_ccw(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    area = sum(
-        points[index][0] * points[(index + 1) % len(points)][1]
-        - points[(index + 1) % len(points)][0] * points[index][1]
-        for index in range(len(points))
-    )
-    return points if area > 0 else list(reversed(points))
-
-
-def rounded_rectangle_points(
-    width_mm: float,
-    height_mm: float,
-    radius_mm: float,
-    center_x_mm: float,
-    bottom_y_mm: float,
-    segments: int = 12,
-) -> list[tuple[float, float]]:
-    radius_mm = min(radius_mm, width_mm * 0.5, height_mm * 0.5)
-    center_y = bottom_y_mm + height_mm * 0.5
-    corners = [
-        (
-            center_x_mm + width_mm * 0.5 - radius_mm,
-            center_y + height_mm * 0.5 - radius_mm,
-            0.0,
-            90.0,
-        ),
-        (
-            center_x_mm - width_mm * 0.5 + radius_mm,
-            center_y + height_mm * 0.5 - radius_mm,
-            90.0,
-            180.0,
-        ),
-        (
-            center_x_mm - width_mm * 0.5 + radius_mm,
-            center_y - height_mm * 0.5 + radius_mm,
-            180.0,
-            270.0,
-        ),
-        (
-            center_x_mm + width_mm * 0.5 - radius_mm,
-            center_y - height_mm * 0.5 + radius_mm,
-            270.0,
-            360.0,
-        ),
-    ]
-    points: list[tuple[float, float]] = []
-    for corner_index, (center_x, corner_y, start, end) in enumerate(corners):
-        for index in range(segments + 1):
-            if corner_index and index == 0:
-                continue
-            angle = math.radians(start + (end - start) * index / segments)
-            points.append(
-                (
-                    center_x + radius_mm * math.cos(angle),
-                    corner_y + radius_mm * math.sin(angle),
-                )
-            )
-    return ensure_ccw(points)
-
-
-def scale_inset(
-    points: list[tuple[float, float]], inset_mm: float
-) -> list[tuple[float, float]]:
-    center_x = sum(point[0] for point in points) / len(points)
-    center_y = sum(point[1] for point in points) / len(points)
-    extent_x = max(abs(point[0] - center_x) for point in points)
-    extent_y = max(abs(point[1] - center_y) for point in points)
-    scale_x = max(0.88, (extent_x - inset_mm) / extent_x)
-    scale_y = max(0.88, (extent_y - inset_mm) / extent_y)
-    return [
-        (
-            center_x + (x - center_x) * scale_x,
-            center_y + (y - center_y) * scale_y,
-        )
-        for x, y in points
-    ]
-
-
-def extruded_polygon(
-    points_mm: list[tuple[float, float]],
-    z_back_mm: float,
-    z_front_mm: float,
-    bevel_mm: float = 0.45,
-) -> Mesh:
-    points_mm = ensure_ccw(points_mm)
-    inner = scale_inset(points_mm, bevel_mm)
-    loops = [
-        (inner, z_back_mm),
-        (points_mm, z_back_mm + bevel_mm),
-        (points_mm, z_front_mm - bevel_mm),
-        (inner, z_front_mm),
-    ]
-    mesh = Mesh()
-    count = len(points_mm)
-    for loop, z_value in loops:
-        mesh.vertices.extend(
-            (x / 1000.0, y / 1000.0, z_value / 1000.0) for x, y in loop
-        )
-    for layer in range(3):
-        lower = layer * count
-        upper = (layer + 1) * count
-        for index in range(count):
-            following = (index + 1) % count
-            mesh.faces.extend(
-                (
-                    (lower + index, lower + following, upper + following),
-                    (lower + index, upper + following, upper + index),
-                )
-            )
-    center_x = sum(x for x, _ in points_mm) / count
-    center_y = sum(y for _, y in points_mm) / count
-    back_center = len(mesh.vertices)
-    mesh.vertices.append((center_x / 1000.0, center_y / 1000.0, z_back_mm / 1000.0))
-    front_center = len(mesh.vertices)
-    mesh.vertices.append((center_x / 1000.0, center_y / 1000.0, z_front_mm / 1000.0))
-    front_offset = 3 * count
-    for index in range(count):
-        following = (index + 1) % count
-        mesh.faces.append((back_center, following, index))
-        mesh.faces.append((front_center, front_offset + index, front_offset + following))
-    return mesh
-
-
-def rounded_prism(
-    width_mm: float,
-    height_mm: float,
-    depth_mm: float,
-    radius_mm: float,
-    center_x_mm: float,
-    bottom_y_mm: float,
-    z_center_mm: float,
-    segments: int = 12,
-    bevel_mm: float = 0.12,
-) -> Mesh:
-    points = rounded_rectangle_points(
-        width_mm,
-        height_mm,
-        radius_mm,
-        center_x_mm,
-        bottom_y_mm,
-        segments,
-    )
-    return extruded_polygon(
-        points,
-        z_center_mm - depth_mm * 0.5,
-        z_center_mm + depth_mm * 0.5,
-        min(bevel_mm, depth_mm * 0.3),
-    )
-
-
-def cylinder(
-    radius_mm: float,
-    depth_mm: float,
-    center_mm: tuple[float, float, float],
-    segments: int = 40,
-) -> Mesh:
-    center_x, center_y, center_z = center_mm
-    mesh = Mesh()
-    for z_value in (center_z - depth_mm * 0.5, center_z + depth_mm * 0.5):
-        for index in range(segments):
-            angle = math.tau * index / segments
-            mesh.vertices.append(
-                (
-                    (center_x + radius_mm * math.cos(angle)) / 1000.0,
-                    (center_y + radius_mm * math.sin(angle)) / 1000.0,
-                    z_value / 1000.0,
-                )
-            )
-    back_center = len(mesh.vertices)
-    mesh.vertices.append(
-        (center_x / 1000.0, center_y / 1000.0, (center_z - depth_mm * 0.5) / 1000.0)
-    )
-    front_center = len(mesh.vertices)
-    mesh.vertices.append(
-        (center_x / 1000.0, center_y / 1000.0, (center_z + depth_mm * 0.5) / 1000.0)
-    )
-    for index in range(segments):
-        following = (index + 1) % segments
-        mesh.faces.extend(
-            (
-                (index, following, segments + following),
-                (index, segments + following, segments + index),
-                (back_center, following, index),
-                (front_center, segments + index, segments + following),
-            )
-        )
-    return mesh
-
-
-def outer_outline(
-    width_mm: float, height_mm: float, central_width_mm: float, top_drop_mm: float
-) -> list[tuple[float, float]]:
-    half_width = width_mm * 0.5
-    center_half = central_width_mm * 0.5
-    wing_top = height_mm - top_drop_mm
-    return ensure_ccw(
-        [
-            (-half_width + 4.0, 0.0),
-            (half_width - 4.0, 0.0),
-            (half_width - 1.5, 1.2),
-            (half_width, 4.2),
-            (half_width, wing_top - 4.0),
-            (half_width - 1.2, wing_top - 1.4),
-            (half_width - 4.0, wing_top),
-            (center_half + 2.5, wing_top),
-            (center_half + 0.9, wing_top + 1.4),
-            (center_half + 0.9, height_mm - 2.2),
-            (center_half - 1.0, height_mm),
-            (-center_half + 1.0, height_mm),
-            (-center_half - 0.9, height_mm - 2.2),
-            (-center_half - 0.9, wing_top + 1.4),
-            (-center_half - 2.5, wing_top),
-            (-half_width + 4.0, wing_top),
-            (-half_width + 1.2, wing_top - 1.4),
-            (-half_width, wing_top - 4.0),
-            (-half_width, 4.2),
-            (-half_width + 1.5, 1.2),
-        ]
-    )
-
-
-def value(entry: dict) -> float:
-    return float(entry["value"])
-
-
-def build(reference: dict) -> tuple[dict[str, Mesh], dict]:
-    envelope = reference["envelope"]
-    landmarks = reference["provisionalLandmarks"]
-    width = value(envelope["width"])
-    height = value(envelope["height"])
-    depth = value(envelope["depth"])
-    central_width = value(landmarks["centralUpperBodyWidth"])
-    wing_width = value(landmarks["sideWingWidthEach"])
-    top_drop = value(landmarks["sideWingTopDrop"])
-    front_depth = depth * 0.52
-    front_z = front_depth
-
-    shell = extruded_polygon(
-        outer_outline(width, height, central_width, top_drop),
-        0.0,
-        front_depth,
-        0.62,
-    )
-    features = Mesh()
-    grooves = Mesh()
-    screw_wells = Mesh()
-
-    grip = landmarks["sideGripGrooves"]
-    groove_centers = [float(center) for center in grip["centerY"]]
-    groove_height = value(grip["grooveHeight"])
-    band_bounds = [4.5] + groove_centers + [height - top_drop - 0.9]
-    for side in (-1.0, 1.0):
-        center_x = side * (central_width * 0.5 + wing_width * 0.5)
-        for index in range(len(band_bounds) - 1):
-            lower = band_bounds[index] + (groove_height * 0.55 if index else 0.0)
-            upper = band_bounds[index + 1] - groove_height * 0.55
-            features.add(
-                rounded_prism(
-                    wing_width - 2.0,
-                    max(1.0, upper - lower),
-                    0.48,
-                    1.0,
-                    center_x,
-                    lower,
-                    front_z + 0.14,
-                    8,
-                    0.08,
-                )
-            )
-        for center_y in groove_centers:
-            grooves.add(
-                rounded_prism(
-                    wing_width - 1.2,
-                    groove_height,
-                    0.24,
-                    0.42,
-                    center_x,
-                    center_y - groove_height * 0.5,
-                    front_z + 0.39,
-                    8,
-                    0.04,
-                )
-            )
-
-    label = landmarks["labelRecess"]
-    label_width = value(label["width"])
-    label_height = value(label["height"])
-    label_bottom = value(label["bottomY"])
-    label_radius = value(label["cornerRadius"])
-    features.add(
-        rounded_prism(
-            label_width + 2.2,
-            label_height + 2.2,
-            0.58,
-            label_radius + 0.9,
-            0.0,
-            label_bottom - 1.1,
-            front_z + 0.17,
-            18,
-            0.08,
-        )
-    )
-    label_surface = rounded_prism(
-        label_width,
-        label_height,
-        0.18,
-        label_radius,
-        0.0,
-        label_bottom,
-        front_z + 0.35,
-        20,
-        0.03,
-    )
-    label_surface.uvs = [
-        (
-            min(1.0, max(0.0, (x * 1000.0 + label_width * 0.5) / label_width)),
-            min(1.0, max(0.0, (y * 1000.0 - label_bottom) / label_height)),
-        )
-        for x, y, _ in label_surface.vertices
-    ]
-    label_surface.face_uvs = list(label_surface.faces)
-
-    lower = landmarks["lowerFrontGripField"]
-    lower_width = value(lower["width"])
-    lower_height = value(lower["height"])
-    lower_bottom = value(lower["bottomY"])
-    rail_width = 2.4
-    features.add(
-        rounded_prism(
-            lower_width,
-            2.4,
-            0.54,
-            1.1,
-            0.0,
-            lower_bottom + lower_height - 2.4,
-            front_z + 0.16,
-            14,
-            0.08,
-        )
-    )
-    for x_position in (
-        -lower_width * 0.5 + rail_width * 0.5,
-        lower_width * 0.5 - rail_width * 0.5,
-    ):
-        features.add(
-            rounded_prism(
-                rail_width,
-                lower_height - 1.0,
-                0.50,
-                0.85,
-                x_position,
-                lower_bottom,
-                front_z + 0.15,
-                12,
-                0.07,
-            )
-        )
-    channel_width = lower_width - 13.0
-    channel_height = 5.2
-    channel_bottom = lower_bottom + lower_height - 14.2
-    grooves.add(
-        rounded_prism(
-            channel_width,
-            channel_height,
-            0.26,
-            2.6,
-            0.0,
-            channel_bottom,
-            front_z + 0.40,
-            20,
-            0.04,
-        )
-    )
-    features.add(
-        rounded_prism(
-            1.2,
-            max(7.0, channel_bottom - lower_bottom - 0.7),
-            0.32,
-            0.45,
-            0.0,
-            lower_bottom + 0.5,
-            front_z + 0.19,
-            10,
-            0.04,
-        )
-    )
-
-    screws = landmarks["securityScrewCenters"]
-    screw_x = value(screws["xAbsolute"])
-    screw_y = value(screws["y"])
-    screw_radius = value(screws["wellDiameter"]) * 0.5
-    for x_position in (-screw_x, screw_x):
-        screw_wells.add(
-            cylinder(
-                screw_radius,
-                0.50,
-                (x_position, screw_y, front_z + 0.21),
-                48,
-            )
-        )
-        grooves.add(
-            cylinder(
-                screw_radius * 0.34,
-                0.18,
-                (x_position, screw_y, front_z + 0.52),
-                36,
-            )
-        )
-
-    features.add(
-        rounded_prism(
-            central_width + 2.0,
-            2.0,
-            0.34,
-            0.8,
-            0.0,
-            height - 2.25,
-            front_z + 0.11,
-            12,
-            0.05,
-        )
-    )
-    for x_position in (-width * 0.5 + 8.0, width * 0.5 - 8.0):
-        features.add(
-            rounded_prism(
-                11.0,
-                3.2,
-                0.42,
-                1.1,
-                x_position,
-                0.0,
-                front_z + 0.13,
-                12,
-                0.06,
-            )
-        )
-
-    meshes = {
-        "front_shell": shell,
-        "front_features": features,
-        "front_grooves": grooves,
-        "label_surface": label_surface,
-        "screw_wells": screw_wells,
-    }
-    manifest = {
-        "schemaVersion": 1,
-        "assetId": ASSET_ID,
-        "license": LICENSE,
-        "source": SOURCE,
-        "status": "provisional-front-shell-blockout",
-        "referenceId": reference["referenceId"],
-        "physicalCalibrationComplete": bool(
-            reference["physicalCalibration"]["completed"]
-        ),
-        "alphaGeometryReused": False,
-        "systemId": "snes",
-        "region": "NTSC-U/C",
-        "shellPart": "front",
-        "physicalEnvelopeMm": [width, height, depth],
-        "frontHalfDepthMm": front_depth,
-        "centralUpperBodyWidthMm": central_width,
-        "sideWingWidthEachMm": wing_width,
-        "sideGripGrooveCountEach": len(groove_centers),
-        "labelRecessMm": [label_width, label_height, label_bottom],
-        "lowerFrontGripFieldMm": [lower_width, lower_height, lower_bottom],
-        "rootPivot": "bottom connector center",
-        "consoleVisible": False,
-        "m3TextureSlot": "snes-front-label",
-        "labelUvBounds": [[0.0, 0.0], [1.0, 1.0]],
-        "mayApproveFinalGeometry": bool(
-            reference["modelingGate"]["mayApproveFinalM2_2Geometry"]
-        ),
-        "mayStartM2_3Blockout": True,
-        "mayStartM3": False,
-        "components": {
-            name: {
-                "vertices": len(mesh.vertices),
-                "triangles": mesh.triangles,
-            }
-            for name, mesh in meshes.items()
-        },
-    }
-    return meshes, manifest
-
-
-def obj_text(mesh: Mesh, object_name: str) -> str:
-    lines = [
-        f"# {object_name}",
-        "# SPDX-License-Identifier: CC0-1.0",
-        f"o {object_name}",
-    ]
-    lines.extend(f"v {x:.9f} {y:.9f} {z:.9f}" for x, y, z in mesh.vertices)
-    if mesh.uvs:
-        lines.extend(f"vt {u:.9f} {v:.9f}" for u, v in mesh.uvs)
-    for index, face in enumerate(mesh.faces):
-        if mesh.uvs:
-            uv_face = mesh.face_uvs[index]
-            lines.append(
-                "f "
-                + " ".join(
-                    f"{vertex + 1}/{uv + 1}"
-                    for vertex, uv in zip(face, uv_face)
-                )
-            )
-        else:
-            lines.append("f " + " ".join(str(vertex + 1) for vertex in face))
-    return "\n".join(lines) + "\n"
-
-
-def material_text(name: str, color: str, roughness: float) -> str:
-    red, green, blue = [int(color[index : index + 2], 16) / 255.0 for index in (1, 3, 5)]
-    return (
-        '[gd_resource type="StandardMaterial3D" format=3]\n\n'
-        "[resource]\n"
-        f'resource_name = "{name}"\n'
-        f"albedo_color = Color({red:.6f}, {green:.6f}, {blue:.6f}, 1)\n"
-        "metallic = 0.0\n"
-        f"roughness = {roughness:.3f}\n"
-    )
-
-
-def scene_text(manifest: dict) -> str:
-    components = [
-        ("front_shell", "FrontShell", "shell"),
-        ("front_features", "FrontFeatures", "shell"),
-        ("front_grooves", "FrontGrooves", "detail"),
-        ("label_surface", "LabelSurface", "label"),
-        ("screw_wells", "ScrewWells", "detail"),
-    ]
-    lines = ['[gd_scene load_steps=9 format=3]', ""]
-    for index, (component, _, _) in enumerate(components, 1):
-        lines.append(
-            f'[ext_resource type="ArrayMesh" path="res://assets/snes/m2_2/snes_ntsc_u_{component}.obj" id="{index}_mesh"]'
-        )
-    lines.extend(
-        [
-            '[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_shell_clay.tres" id="6_shell"]',
-            '[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_detail_clay.tres" id="7_detail"]',
-            '[ext_resource type="Material" path="res://assets/snes/m2_2/materials/snes_m2_2_label_placeholder.tres" id="8_label"]',
-            "",
-            '[node name="SnesNaCartridgeFrontM2_2" type="Node3D"]',
-            f'metadata/asset_id = "{manifest["assetId"]}"',
-            'metadata/system_id = "snes"',
-            'metadata/region = "NTSC-U/C"',
-            'metadata/license = "CC0-1.0"',
-            'metadata/source = "original-parametric-clean-rebuild"',
-            'metadata/status = "provisional-front-shell-blockout"',
-            "metadata/console_visible = false",
-            "metadata/physical_calibration_complete = false",
-            "metadata/may_approve_final_geometry = false",
-            "metadata/may_start_m2_3_blockout = true",
-            "metadata/may_start_m3 = false",
-            "",
-            '[node name="VisualRoot" type="Node3D" parent="."]',
-        ]
-    )
-    material_ids = {"shell": "6_shell", "detail": "7_detail", "label": "8_label"}
-    for index, (component, node_name, material) in enumerate(components, 1):
-        lines.extend(
-            [
-                "",
-                f'[node name="{node_name}" type="MeshInstance3D" parent="VisualRoot"]',
-                f'mesh = ExtResource("{index}_mesh")',
-                f'material_override = ExtResource("{material_ids[material]}")',
-                f'metadata/triangle_count = {manifest["components"][component]["triangles"]}',
-            ]
-        )
-        if node_name == "LabelSurface":
-            lines.append('metadata/m3_texture_slot = "snes-front-label"')
-    lines.extend(
-        [
-            "",
-            '[node name="DockPivot" type="Marker3D" parent="."]',
-            "position = Vector3(0, 0, 0)",
-            "",
-            '[node name="CenterOfMass" type="Marker3D" parent="."]',
-            "position = Vector3(0, 0.044, 0.0052)",
-            "",
-            '[node name="LabelAnchor" type="Marker3D" parent="."]',
-            "position = Vector3(0, 0.06625, 0.01062)",
-            "",
-            '[node name="ConnectorAnchor" type="Marker3D" parent="."]',
-            "position = Vector3(0, 0, 0)",
-            "",
-            '[node name="BrowseFocusedAnchor" type="Marker3D" parent="."]',
-            "rotation_degrees = Vector3(-5, -9, 0)",
-            "",
-            '[node name="DockApproachAnchor" type="Marker3D" parent="."]',
-            "rotation_degrees = Vector3(-2, -2, 0)",
-            "",
-        ]
-    )
-    return "\n".join(lines)
-
-
-def smoke_test_text() -> str:
-    return '''extends SceneTree
-
-const FRONT := preload("res://scenes/SnesNaCartridgeFrontM2_2.tscn")
-
-
-func _initialize() -> void:
-    call_deferred("_run")
-
-
-func _run() -> void:
-    var asset := FRONT.instantiate()
-    root.add_child(asset)
-    await process_frame
-    await process_frame
-
-    _require(str(asset.get_meta("asset_id", "")) == "retrolife.snes.na-cartridge.m2.2.front.v1", "asset id")
-    _require(str(asset.get_meta("license", "")) == "CC0-1.0", "license")
-    _require(str(asset.get_meta("source", "")) == "original-parametric-clean-rebuild", "source")
-    _require(not bool(asset.get_meta("console_visible", true)), "console exclusion")
-    _require(not bool(asset.get_meta("physical_calibration_complete", true)), "calibration honesty")
-    _require(not bool(asset.get_meta("may_approve_final_geometry", true)), "approval gate")
-    _require(bool(asset.get_meta("may_start_m2_3_blockout", false)), "M2.3 blockout gate")
-    _require(not bool(asset.get_meta("may_start_m3", true)), "M3 gate")
-    _require(asset.find_child("Console", true, false) == null, "no console node")
-
-    for node_name in ["FrontShell", "FrontFeatures", "FrontGrooves", "LabelSurface", "ScrewWells"]:
-        var instance := asset.find_child(node_name, true, false) as MeshInstance3D
-        _require(instance != null and instance.mesh != null, "mesh %s" % node_name)
-        _require(int(instance.get_meta("triangle_count", 0)) > 0, "triangles %s" % node_name)
-
-    var shell := asset.find_child("FrontShell", true, false) as MeshInstance3D
-    var shell_size := shell.get_aabb().size
-    _require(absf(shell_size.x - 0.136) <= 0.0011, "width")
-    _require(absf(shell_size.y - 0.088) <= 0.0011, "height")
-    _require(absf(shell_size.z - 0.0104) <= 0.0008, "front depth")
-
-    var label := asset.find_child("LabelSurface", true, false) as MeshInstance3D
-    var arrays := label.mesh.surface_get_arrays(0)
-    var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-    _require(not uvs.is_empty(), "label UVs")
-    var minimum_uv := Vector2(100.0, 100.0)
-    var maximum_uv := Vector2(-100.0, -100.0)
-    for uv in uvs:
-        minimum_uv = minimum_uv.min(uv)
-        maximum_uv = maximum_uv.max(uv)
-    _require(minimum_uv.x <= 0.001 and minimum_uv.y <= 0.001, "UV minimum")
-    _require(maximum_uv.x >= 0.999 and maximum_uv.y >= 0.999, "UV maximum")
-    _require(str(label.get_meta("m3_texture_slot", "")) == "snes-front-label", "M3 texture slot")
-
-    for anchor_name in ["DockPivot", "CenterOfMass", "LabelAnchor", "ConnectorAnchor", "BrowseFocusedAnchor", "DockApproachAnchor"]:
-        _require(asset.find_child(anchor_name, true, false) != null, "anchor %s" % anchor_name)
-
-    print("RETROLIFE_M2_2_FRONT_GODOT_OK asset=true meshes=5 grooves=5 uv=true pivot=true console=false physical_calibrated=false final_approval=false m3=false")
-    quit(0)
-
-
-func _require(condition: bool, label_name: String) -> void:
-    if condition:
-        return
-    push_error("RETROLIFE_M2_2_FRONT_GODOT_FAILED: %s" % label_name)
-    quit(1)
-'''
-
-
-def svg_start(title: str, subtitle: str, width: int = 1600, height: int = 900) -> list[str]:
-    return [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        f"<title>{title}</title>",
-        '<rect width="100%" height="100%" fill="#080a0f"/>',
-        f'<text x="80" y="66" fill="#f4f6fb" font-family="system-ui" font-size="34" font-weight="700">{title}</text>',
-        f'<text x="80" y="98" fill="#98a2b5" font-family="system-ui" font-size="17">{subtitle}</text>',
-    ]
-
-
-def cartridge_front_group(x: float, y: float, scale: float, identifier: str) -> str:
-    outline = "M -64 0 L 64 0 L 66.5 1.2 L 68 4.2 L 68 77.5 L 66.8 80 L 44 81.5 L 42.4 83 L 42.4 85.8 L 40.5 88 L -40.5 88 L -42.4 85.8 L -42.4 83 L -44 81.5 L -66.8 80 L -68 77.5 L -68 4.2 L -66.5 1.2 Z"
-    grooves = []
-    for center in (17.5, 31.5, 45.5, 59.5, 73.5):
-        for side in (-1, 1):
-            grooves.append(
-                f'<rect x="{side * 54.75 - 11.8:.2f}" y="{center - 0.7:.2f}" width="23.6" height="1.4" rx=".6" fill="#737987"/>'
-            )
-    return (
-        f'<g id="{identifier}" transform="translate({x} {y}) scale({scale} {-scale})">'
-        f'<path d="{outline}" fill="#aeb2bb" stroke="#d8dbe2" stroke-width=".7"/>'
-        '<rect x="-42.6" y="45.9" width="85.2" height="40.7" rx="5" fill="#c3c6cd"/>'
-        '<rect x="-41.5" y="47" width="83" height="38.5" rx="4.2" fill="#9298a5"/>'
-        '<path d="M -41.5 41 H 41.5 V 38.6 H 39.1 V 4 H 41.5 V 41 Z M -41.5 38.6 H -39.1 V 4 H -41.5 Z" fill="#c1c4cb"/>'
-        '<rect x="-35" y="26.8" width="70" height="5.2" rx="2.6" fill="#7f8693"/>'
-        '<rect x="-.6" y="13.8" width="1.2" height="13" rx=".5" fill="#c1c4cb"/>'
-        + "".join(grooves)
-        + '<circle cx="-54.5" cy="10" r="3.1" fill="#707784"/><circle cx="54.5" cy="10" r="3.1" fill="#707784"/>'
-        + "</g>"
-    )
-
-
-def clay_svg() -> str:
-    parts = svg_start(
-        "M2.2 front clay review",
-        "Provisional clean rebuild, neutral clay, no label art, no console",
-    )
-    parts.extend(
-        [
-            '<rect x="60" y="135" width="1480" height="700" rx="28" fill="#11151e" stroke="#242b38"/>',
-            cartridge_front_group(420, 720, 5.6, "front-clay"),
-            '<text x="420" y="790" text-anchor="middle" fill="#f4f6fb" font-family="system-ui" font-size="24" font-weight="650">Front orthographic</text>',
-            '<g transform="translate(1130 710) skewY(-7) scale(.96 1)">',
-            cartridge_front_group(0, 0, 5.5, "three-quarter-clay"),
-            '</g>',
-            '<path d="M 1488 215 L 1530 244 L 1530 704 L 1488 720 Z" fill="#777e8b" opacity=".8"/>',
-            '<text x="1130" y="790" text-anchor="middle" fill="#f4f6fb" font-family="system-ui" font-size="24" font-weight="650">Front three-quarter mass check</text>',
-            '<text x="800" y="855" text-anchor="middle" fill="#a8b1c2" font-family="system-ui" font-size="16">Stepped top, broad side wings, five grooves, shallow label recess, lower grip field, screw wells</text>',
-            "</svg>\n",
-        ]
-    )
-    return "".join(parts)
-
-
-def overlay_svg() -> str:
-    parts = svg_start(
-        "M2.2 front orthographic overlay",
-        "Generated silhouette against the provisional M2.1 136 x 88 mm reference",
-    )
-    parts.extend(
-        [
-            '<rect x="170" y="140" width="1260" height="675" rx="24" fill="#10141c" stroke="#252d3a"/>',
-            cartridge_front_group(800, 745, 6.2, "generated-overlay"),
-            '<rect x="378.4" y="199.4" width="843.2" height="545.6" fill="none" stroke="#dc5df5" stroke-width="3" stroke-dasharray="14 10"/>',
-            '<line x1="378" y1="775" x2="1222" y2="775" stroke="#4de0d2" stroke-width="2"/><text x="800" y="805" text-anchor="middle" fill="#4de0d2" font-family="system-ui" font-size="18">136.0 mm</text>',
-            '<line x1="1330" y1="199" x2="1330" y2="745" stroke="#4de0d2" stroke-width="2"/><text x="1362" y="485" fill="#4de0d2" font-family="system-ui" font-size="18" transform="rotate(90 1362 485)">88.0 mm</text>',
-            '<text x="200" y="860" fill="#dc5df5" font-family="system-ui" font-size="16">Dashed: provisional envelope</text><text x="510" y="860" fill="#d8dbe2" font-family="system-ui" font-size="16">Clay: generated front shell</text>',
-            "</svg>\n",
-        ]
-    )
-    return "".join(parts)
-
-
-def top_side_overlay_svg() -> str:
-    parts = svg_start(
-        "M2.2 front top and side overlay",
-        "Front-half depth and stepped shoulder continuity, provisional until caliper calibration",
-    )
-    parts.extend(
-        [
-            '<rect x="80" y="145" width="1440" height="665" rx="26" fill="#10141c" stroke="#252d3a"/>',
-            '<text x="150" y="205" fill="#f4f6fb" font-family="system-ui" font-size="22" font-weight="650">Top profile</text>',
-            '<path d="M 190 300 L 360 300 L 380 282 L 1220 282 L 1240 300 L 1410 300 L 1410 365 L 190 365 Z" fill="#aeb2bb" stroke="#d8dbe2" stroke-width="2"/>',
-            '<rect x="190" y="300" width="1220" height="65" fill="none" stroke="#dc5df5" stroke-width="2" stroke-dasharray="12 8"/>',
-            '<text x="800" y="400" text-anchor="middle" fill="#4de0d2" font-family="system-ui" font-size="18">136.0 mm width, stepped center and shoulders</text>',
-            '<text x="150" y="505" fill="#f4f6fb" font-family="system-ui" font-size="22" font-weight="650">Side profile</text>',
-            '<path d="M 650 740 L 650 555 Q 652 535 670 530 L 735 530 Q 748 538 754 555 L 754 740 Z" fill="#aeb2bb" stroke="#d8dbe2" stroke-width="2"/>',
-            '<rect x="650" y="530" width="200" height="210" fill="none" stroke="#dc5df5" stroke-width="2" stroke-dasharray="12 8"/>',
-            '<text x="800" y="770" text-anchor="middle" fill="#4de0d2" font-family="system-ui" font-size="18">10.4 mm front half of the provisional 20.0 mm shell depth</text>',
-            "</svg>\n",
-        ]
-    )
-    return "".join(parts)
-
-
-def alpha_comparison_svg() -> str:
-    parts = svg_start(
-        "M2.2 silhouette comparison",
-        "Rejected alpha characteristics at left, clean NTSC-U front rebuild at right",
-    )
-    parts.extend(
-        [
-            '<rect x="70" y="140" width="700" height="680" rx="26" fill="#15131a" stroke="#3a263d"/>',
-            '<rect x="230" y="225" width="380" height="500" rx="32" fill="#787681" stroke="#d05b7c" stroke-width="3"/>',
-            '<rect x="290" y="310" width="260" height="138" rx="16" fill="#56545d" stroke="#d05b7c" stroke-width="6"/>',
-            '<g stroke="#d05b7c" stroke-width="8">' + ''.join(f'<line x1="250" y1="{480+i*28}" x2="300" y2="{480+i*28}"/><line x1="540" y1="{480+i*28}" x2="590" y2="{480+i*28}"/>' for i in range(6)) + '</g>',
-            '<text x="420" y="775" text-anchor="middle" fill="#f49ab3" font-family="system-ui" font-size="22" font-weight="650">Rejected alpha</text>',
-            '<text x="420" y="805" text-anchor="middle" fill="#bca6af" font-family="system-ui" font-size="15">Rounded slab, narrow ribs, heavy label frame</text>',
-            '<rect x="830" y="140" width="700" height="680" rx="26" fill="#11171a" stroke="#24403d"/>',
-            cartridge_front_group(1180, 735, 5.7, "clean-rebuild-comparison"),
-            '<text x="1180" y="775" text-anchor="middle" fill="#7ce8d8" font-family="system-ui" font-size="22" font-weight="650">M2.2 clean rebuild</text>',
-            '<text x="1180" y="805" text-anchor="middle" fill="#a8c0bc" font-family="system-ui" font-size="15">Stepped top, broad wings, five full-width grooves</text>',
-            "</svg>\n",
-        ]
-    )
-    return "".join(parts)
-
-
-def m1_poses_svg() -> str:
-    parts = svg_start(
-        "M2.2 front shell in M1 poses",
-        "Focused, dock approach and docked composition using the locked bottom-dock contract",
-    )
-    cards = [
-        (310, 620, 3.8, "focused", False, -5, -9),
-        (800, 665, 3.25, "dock approach", True, -2, -2),
-        (1290, 710, 2.9, "docked", True, -1, 0),
-    ]
-    for x_position, y_position, scale, caption, dock, rotation_x, rotation_y in cards:
-        parts.append(
-            f'<rect x="{x_position-220}" y="145" width="440" height="660" rx="24" fill="#10141c" stroke="#252d3a"/>'
-        )
-        parts.append(cartridge_front_group(x_position, y_position, scale, caption.replace(" ", "-")))
-        if dock:
-            parts.append(
-                f'<rect x="{x_position-170}" y="{y_position+8}" width="340" height="90" rx="24" fill="#252c39" stroke="#3a4558" stroke-width="3"/><rect x="{x_position-70}" y="{y_position-4}" width="140" height="24" rx="10" fill="#080a0f"/>'
-            )
-        parts.append(
-            f'<text x="{x_position}" y="760" text-anchor="middle" fill="#f4f6fb" font-family="system-ui" font-size="22" font-weight="650">{caption}</text><text x="{x_position}" y="790" text-anchor="middle" fill="#9ea8b9" font-family="system-ui" font-size="15">rotation x {rotation_x}, y {rotation_y} degrees</text>'
-        )
-    parts.append("</svg>\n")
-    return "".join(parts)
-
-
-def contract_text(manifest: dict) -> str:
-    triangles = sum(component["triangles"] for component in manifest["components"].values())
-    return f'''# M2.2 provisional NTSC-U SNES front shell
-
-## Status
-
-This package implements the clean M2.2 front-shell blockout. It is generated from the committed M2.1 provisional reference package and does not reuse the rejected alpha geometry.
-
-It is not final dimensional approval. M2.1 physical calibration and explicit owner approval remain required before the geometry can be finalized.
-
-## Generated contract
-
-- Asset ID: `{manifest["assetId"]}`
-- License: `CC0-1.0`
-- Source: `original-parametric-clean-rebuild`
-- Provisional envelope: `136 x 88 x 20 mm`
-- Front-half depth: `{manifest["frontHalfDepthMm"]:.1f} mm`
-- Generated triangles: `{triangles}`
-- Root pivot: bottom connector center
-- Side grip grooves: five per wing
-- Label surface: separate planar mesh with stable `0..1` UVs
-- Console, branding, legal text, game artwork, ROMs and third-party meshes: excluded
-
-## Godot interface
-
-`SnesNaCartridgeFrontM2_2.tscn` exposes five mesh nodes and the named `DockPivot`, `CenterOfMass`, `LabelAnchor`, `ConnectorAnchor`, `BrowseFocusedAnchor` and `DockApproachAnchor` markers.
-
-The scene is an independent M2.2 source asset. M2.5 owns replacement of the active alpha runtime scene.
-
-## Remaining gates
-
-- Measure one authentic early NTSC-U/C `SNS-006` cartridge with digital calipers.
-- Reconcile the M2.1 B and C confidence dimensions.
-- Rerun generation, overlays and platform smoke tests after calibration.
-- Obtain explicit owner approval of the corrected front clay and M1 poses.
-- Keep M3 blocked until the complete M2 gate closes.
-'''
-
-
-def asset_readme(manifest: dict) -> str:
-    return f'''# RetroLife M2.2 SNES front shell
-
-Original deterministic CC0 front-shell geometry for the M2.2 milestone.
-
-The package contains only the provisional front half of the early NTSC-U/C wide-shell cartridge. Rear shell, connector cavity, final materials, LODs and runtime replacement belong to M2.3 through M2.5.
-
-Asset: `{manifest["assetId"]}`
-Reference: `{manifest["referenceId"]}`
-Status: `{manifest["status"]}`
-'''
-
-
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-GENERATED_PATHS = [
-    "frontend/design/m2-2-snes-front-shell.md",
-    "frontend/design/m2-2-snes-front-manifest.json",
+SOURCE = "original-cadquery-opencascade-photo-normalized-brep-rebuild"
+SURFACE_MODEL = "cadquery-opencascade-brep-with-continuous-draft-and-shallow-molded-features"
+CAD_TOOL = "CadQuery 2.8.0"
+CAD_KERNEL = "Open CASCADE 7.9"
+
+STEP_REL = "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v5.step"
+STL_REL = "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v5.stl"
+OBJ_REL = "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v5.obj"
+LABEL_OBJ_REL = "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v5.obj"
+SHELL_MATERIAL_REL = "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v5_shell_clay.tres"
+LABEL_MATERIAL_REL = "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v5_label_placeholder.tres"
+SCENE_REL = "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn"
+SMOKE_REL = "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd"
+DOC_REL = "frontend/design/m2-2-snes-front-shell.md"
+COMPARISON_REL = "frontend/design/m2-2-snes-v5-physical-comparison.md"
+MANIFEST_REL = "frontend/design/m2-2-snes-front-manifest.json"
+PROVENANCE_REL = "frontend/godot-ui/assets/snes/m2_2/PROVENANCE.md"
+ASSET_README_REL = "frontend/godot-ui/assets/snes/m2_2/README.md"
+ASSET_LICENSE_REL = "frontend/godot-ui/assets/snes/m2_2/LICENSE-CC0.md"
+
+RENDER_RELATIVE = {
+    "front": "frontend/design/mobile/m2-2-snes-v5-front.png",
+    "threeQuarter": "frontend/design/mobile/m2-2-snes-v5-three-quarter.png",
+    "side": "frontend/design/mobile/m2-2-snes-v5-side.png",
+    "top": "frontend/design/mobile/m2-2-snes-v5-top.png",
+    "dimensions": "frontend/design/mobile/m2-2-snes-v5-dimensions.png",
+    "mobileReview": "frontend/design/mobile/m2-2-snes-v5-mobile-review.png",
+}
+
+GENERATED_RELATIVE = [
+    STEP_REL,
+    STL_REL,
+    OBJ_REL,
+    LABEL_OBJ_REL,
+    SHELL_MATERIAL_REL,
+    LABEL_MATERIAL_REL,
+    SCENE_REL,
+    SMOKE_REL,
+    DOC_REL,
+    COMPARISON_REL,
+    MANIFEST_REL,
+    PROVENANCE_REL,
+    ASSET_README_REL,
+    ASSET_LICENSE_REL,
+    *RENDER_RELATIVE.values(),
+]
+
+STALE_RELATIVE = [
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v4.step",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v4.stl",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v4.obj",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v4.obj",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v4_shell_clay.tres",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v4_label_placeholder.tres",
+    "frontend/design/mobile/m2-2-snes-v4-front.png",
+    "frontend/design/mobile/m2-2-snes-v4-three-quarter.png",
+    "frontend/design/mobile/m2-2-snes-v4-side.png",
+    "frontend/design/mobile/m2-2-snes-v4-top.png",
+    "frontend/design/mobile/m2-2-snes-v4-dimensions.png",
+    "frontend/design/mobile/m2-2-snes-v4-mobile-review.png",
+    "frontend/design/m2-2-snes-v4-physical-comparison.md",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v4.obj.import",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v4.obj.import",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v3.obj",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v3.obj",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v3_shell_clay.tres",
+    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_v3_label_placeholder.tres",
+    "frontend/design/mobile/m2-2-snes-v3-front.png",
+    "frontend/design/mobile/m2-2-snes-v3-three-quarter.png",
+    "frontend/design/mobile/m2-2-snes-v3-side.png",
+    "frontend/design/mobile/m2-2-snes-v3-top.png",
+    "frontend/design/mobile/m2-2-snes-v3-mobile-review.png",
+    "frontend/design/m2-2-snes-v3-physical-comparison.md",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell_v3.obj.import",
+    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface_v3.obj.import",
     "frontend/design/m2-2-snes-front-clay.svg",
     "frontend/design/m2-2-snes-front-overlay.svg",
     "frontend/design/m2-2-snes-front-top-side-overlay.svg",
     "frontend/design/m2-2-snes-alpha-comparison.svg",
     "frontend/design/m2-2-snes-m1-poses.svg",
-    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_shell.obj",
-    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_features.obj",
-    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_front_grooves.obj",
-    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_label_surface.obj",
-    "frontend/godot-ui/assets/snes/m2_2/snes_ntsc_u_screw_wells.obj",
-    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_shell_clay.tres",
-    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_detail_clay.tres",
-    "frontend/godot-ui/assets/snes/m2_2/materials/snes_m2_2_label_placeholder.tres",
-    "frontend/godot-ui/assets/snes/m2_2/LICENSE-CC0.md",
-    "frontend/godot-ui/assets/snes/m2_2/PROVENANCE.md",
-    "frontend/godot-ui/assets/snes/m2_2/README.md",
-    "frontend/godot-ui/scenes/SnesNaCartridgeFrontM2_2.tscn",
-    "frontend/godot-ui/scripts/m2_2_snes_front_smoke_test.gd",
 ]
 
 
-def write(root: Path) -> None:
-    design = root / "frontend/design"
-    asset = root / "frontend/godot-ui/assets/snes/m2_2"
-    materials = asset / "materials"
-    scene = root / "frontend/godot-ui/scenes"
-    scripts = root / "frontend/godot-ui/scripts"
-    for directory in (design, asset, materials, scene, scripts):
-        directory.mkdir(parents=True, exist_ok=True)
+@dataclass(frozen=True)
+class Dimensions:
+    width: float
+    height: float
+    depth: float
+    front_half_depth: float
+    central_body_width: float
+    central_top_width: float
+    wing_top: float
+    label_width: float
+    label_height: float
+    label_bottom: float
+    label_radius: float
+    label_depth: float
+    channel_width: float
+    channel_height: float
+    channel_center_y: float
+    channel_depth: float
+    channel_bridge_width: float
+    screw_x: float
+    screw_y: float
+    screw_well_diameter: float
+    band_divisions_y: tuple[float, ...]
 
-    reference = json.loads((design / "m2-snes-reference-manifest.json").read_text())
-    meshes, manifest = build(reference)
-    mesh_names = {
-        "front_shell": "snes_ntsc_u_front_shell.obj",
-        "front_features": "snes_ntsc_u_front_features.obj",
-        "front_grooves": "snes_ntsc_u_front_grooves.obj",
-        "label_surface": "snes_ntsc_u_label_surface.obj",
-        "screw_wells": "snes_ntsc_u_screw_wells.obj",
+
+@dataclass(frozen=True)
+class MeshData:
+    vertices_mm: np.ndarray
+    faces: np.ndarray
+
+
+@dataclass(frozen=True)
+class BuildResult:
+    solid: cq.Solid
+    mesh: MeshData
+    dimensions: Dimensions
+    volume_mm3: float
+    face_count: int
+    edge_count: int
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def value(entry: object) -> float:
+    if isinstance(entry, dict):
+        return float(entry["value"])
+    return float(entry)
+
+
+def load_dimensions(root: Path) -> Dimensions:
+    path = root / "frontend/design/m2-snes-reference-manifest.json"
+    reference = json.loads(path.read_text(encoding="utf-8"))
+    require(reference.get("referenceId") == REFERENCE_ID, "M2.1 reference ID is not v3")
+    envelope = reference["envelope"]
+    landmarks = reference["provisionalLandmarks"]
+    label = landmarks["labelRecess"]
+    channel = landmarks["lowerFrontGripChannel"]
+    screws = landmarks["securityScrewCenters"]
+    bands = landmarks["sideMouldedBands"]
+    return Dimensions(
+        width=value(envelope["width"]),
+        height=value(envelope["height"]),
+        depth=value(envelope["depth"]),
+        front_half_depth=value(landmarks["frontShellDepth"]),
+        central_body_width=value(landmarks["centralUpperBodyWidth"]),
+        central_top_width=value(landmarks["centralTopWidth"]),
+        wing_top=value(landmarks["sideWingTopY"]),
+        label_width=value(label["width"]),
+        label_height=value(label["height"]),
+        label_bottom=value(label["bottomY"]),
+        label_radius=value(label["cornerRadius"]),
+        label_depth=value(label["depth"]),
+        channel_width=value(channel["width"]),
+        channel_height=value(channel["height"]),
+        channel_center_y=value(channel["centerY"]),
+        channel_depth=value(channel["depth"]),
+        channel_bridge_width=value(channel["bridgeWidth"]),
+        screw_x=value(screws["xAbsolute"]),
+        screw_y=value(screws["y"]),
+        screw_well_diameter=value(screws["wellDiameter"]),
+        band_divisions_y=tuple(float(item) for item in bands["divisionCenterY"]),
+    )
+
+
+def arc_points(
+    center_x: float,
+    center_y: float,
+    radius: float,
+    start_degrees: float,
+    end_degrees: float,
+    segments: int,
+    include_start: bool = True,
+) -> list[tuple[float, float]]:
+    result: list[tuple[float, float]] = []
+    for index in range(segments + 1):
+        if index == 0 and not include_start:
+            continue
+        angle = math.radians(start_degrees + (end_degrees - start_degrees) * index / segments)
+        result.append((center_x + radius * math.cos(angle), center_y + radius * math.sin(angle)))
+    return result
+
+
+def bezier_points(
+    point0: tuple[float, float],
+    point1: tuple[float, float],
+    point2: tuple[float, float],
+    point3: tuple[float, float],
+    segments: int,
+    include_start: bool = True,
+) -> list[tuple[float, float]]:
+    result: list[tuple[float, float]] = []
+    for index in range(segments + 1):
+        if index == 0 and not include_start:
+            continue
+        t = index / segments
+        u = 1.0 - t
+        result.append(
+            (
+                u**3 * point0[0]
+                + 3 * u * u * t * point1[0]
+                + 3 * u * t * t * point2[0]
+                + t**3 * point3[0],
+                u**3 * point0[1]
+                + 3 * u * u * t * point1[1]
+                + 3 * u * t * t * point2[1]
+                + t**3 * point3[1],
+            )
+        )
+    return result
+
+
+def clean_points(points: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    result: list[tuple[float, float]] = []
+    for point in points:
+        if not result or math.hypot(point[0] - result[-1][0], point[1] - result[-1][1]) > 1e-7:
+            result.append(point)
+    if len(result) > 1 and math.hypot(result[0][0] - result[-1][0], result[0][1] - result[-1][1]) < 1e-7:
+        result.pop()
+    return result
+
+
+def outer_profile(
+    dimensions: Dimensions,
+    outer_half: float,
+    wing_top: float,
+    central_top_half: float,
+    central_top: float,
+    bottom_y: float,
+) -> list[tuple[float, float]]:
+    """Return the full early NTSC-U shell silhouette in the XY plane.
+
+    The v5 profile deliberately keeps the side wings broad and the central
+    crown only slightly taller. The previous v4 profile overstated both the
+    shoulder rise and the central-body width.
+    """
+    bottom_radius = 2.6
+    outer_top_radius = 2.35
+    shoulder_x = dimensions.central_body_width * 0.5
+    side_vertical_top = wing_top - outer_top_radius
+    points: list[tuple[float, float]] = [(-outer_half + bottom_radius, bottom_y)]
+    points.extend(
+        arc_points(
+            -outer_half + bottom_radius,
+            bottom_y + bottom_radius,
+            bottom_radius,
+            -90,
+            -180,
+            12,
+            False,
+        )
+    )
+    points.append((-outer_half, side_vertical_top))
+    points.extend(
+        arc_points(
+            -outer_half + outer_top_radius,
+            side_vertical_top,
+            outer_top_radius,
+            180,
+            90,
+            12,
+            False,
+        )
+    )
+    points.append((-shoulder_x - 2.1, wing_top))
+    points.extend(
+        bezier_points(
+            (-shoulder_x - 2.1, wing_top),
+            (-shoulder_x - 0.2, wing_top + 0.05),
+            (-central_top_half - 1.45, central_top - 1.0),
+            (-central_top_half, central_top),
+            18,
+            False,
+        )
+    )
+    points.append((central_top_half, central_top))
+    points.extend(
+        bezier_points(
+            (central_top_half, central_top),
+            (central_top_half + 1.45, central_top - 1.0),
+            (shoulder_x + 0.2, wing_top + 0.05),
+            (shoulder_x + 2.1, wing_top),
+            18,
+            False,
+        )
+    )
+    points.append((outer_half - outer_top_radius, wing_top))
+    points.extend(
+        arc_points(
+            outer_half - outer_top_radius,
+            side_vertical_top,
+            outer_top_radius,
+            90,
+            0,
+            12,
+            False,
+        )
+    )
+    points.append((outer_half, bottom_y + bottom_radius))
+    points.extend(
+        arc_points(
+            outer_half - bottom_radius,
+            bottom_y + bottom_radius,
+            bottom_radius,
+            0,
+            -90,
+            12,
+            False,
+        )
+    )
+    return clean_points(points)
+
+def central_profile(
+    dimensions: Dimensions,
+    width: float,
+    wing_top: float,
+    central_top_width: float,
+    central_top: float,
+    bottom_y: float,
+) -> list[tuple[float, float]]:
+    """Return the very shallow central molded face, not a separate plate."""
+    half_width = width * 0.5
+    top_half_width = central_top_width * 0.5
+    bottom_radius = 1.15
+    points: list[tuple[float, float]] = [(-half_width + bottom_radius, bottom_y)]
+    points.extend(
+        arc_points(
+            -half_width + bottom_radius,
+            bottom_y + bottom_radius,
+            bottom_radius,
+            -90,
+            -180,
+            10,
+            False,
+        )
+    )
+    points.append((-half_width, wing_top - 1.0))
+    points.extend(
+        bezier_points(
+            (-half_width, wing_top - 1.0),
+            (-half_width, wing_top - 0.1),
+            (-top_half_width - 1.0, central_top - 0.9),
+            (-top_half_width, central_top),
+            18,
+            False,
+        )
+    )
+    points.append((top_half_width, central_top))
+    points.extend(
+        bezier_points(
+            (top_half_width, central_top),
+            (top_half_width + 1.0, central_top - 0.9),
+            (half_width, wing_top - 0.1),
+            (half_width, wing_top - 1.0),
+            18,
+            False,
+        )
+    )
+    points.append((half_width, bottom_y + bottom_radius))
+    points.extend(
+        arc_points(
+            half_width - bottom_radius,
+            bottom_y + bottom_radius,
+            bottom_radius,
+            0,
+            -90,
+            10,
+            False,
+        )
+    )
+    return clean_points(points)
+
+def rounded_rectangle_points(
+    width: float,
+    height: float,
+    radius: float,
+    center_x: float,
+    center_y: float,
+    segments: int = 10,
+) -> list[tuple[float, float]]:
+    radius = min(radius, width * 0.5 - 1e-4, height * 0.5 - 1e-4)
+    points: list[tuple[float, float]] = [
+        (center_x - width * 0.5 + radius, center_y - height * 0.5),
+        (center_x + width * 0.5 - radius, center_y - height * 0.5),
+    ]
+    points.extend(
+        arc_points(
+            center_x + width * 0.5 - radius,
+            center_y - height * 0.5 + radius,
+            radius,
+            -90,
+            0,
+            segments,
+            False,
+        )
+    )
+    points.append((center_x + width * 0.5, center_y + height * 0.5 - radius))
+    points.extend(
+        arc_points(
+            center_x + width * 0.5 - radius,
+            center_y + height * 0.5 - radius,
+            radius,
+            0,
+            90,
+            segments,
+            False,
+        )
+    )
+    points.append((center_x - width * 0.5 + radius, center_y + height * 0.5))
+    points.extend(
+        arc_points(
+            center_x - width * 0.5 + radius,
+            center_y + height * 0.5 - radius,
+            radius,
+            90,
+            180,
+            segments,
+            False,
+        )
+    )
+    points.append((center_x - width * 0.5, center_y - height * 0.5 + radius))
+    points.extend(
+        arc_points(
+            center_x - width * 0.5 + radius,
+            center_y - height * 0.5 + radius,
+            radius,
+            180,
+            270,
+            segments,
+            False,
+        )
+    )
+    return clean_points(points)
+
+
+def wire(points: Sequence[tuple[float, float]], z: float) -> cq.Wire:
+    return cq.Workplane("XY").workplane(offset=z).polyline(list(points)).close().val()
+
+
+def loft_solid(profiles: Sequence[tuple[float, Sequence[tuple[float, float]]]]) -> cq.Solid:
+    return cq.Solid.makeLoft([wire(points, z) for z, points in profiles], False)
+
+
+def tapered_pocket(
+    top_width: float,
+    top_height: float,
+    top_radius: float,
+    bottom_width: float,
+    bottom_height: float,
+    bottom_radius: float,
+    center_x: float,
+    center_y: float,
+    z_bottom: float,
+    z_top: float,
+) -> cq.Solid:
+    return loft_solid(
+        [
+            (
+                z_bottom,
+                rounded_rectangle_points(
+                    bottom_width,
+                    bottom_height,
+                    bottom_radius,
+                    center_x,
+                    center_y,
+                ),
+            ),
+            (
+                z_top,
+                rounded_rectangle_points(
+                    top_width,
+                    top_height,
+                    top_radius,
+                    center_x,
+                    center_y,
+                ),
+            ),
+        ]
+    )
+
+
+
+def weld_mesh(vertices: np.ndarray, faces: np.ndarray, decimals: int = 6) -> MeshData:
+    mapping: dict[tuple[float, float, float], int] = {}
+    unique: list[tuple[float, float, float]] = []
+    remap = np.empty(len(vertices), dtype=np.int64)
+    for index, vertex in enumerate(vertices):
+        key = tuple(round(float(value), decimals) for value in vertex)
+        target = mapping.get(key)
+        if target is None:
+            target = len(unique)
+            mapping[key] = target
+            unique.append(key)
+        remap[index] = target
+    clean_faces: list[tuple[int, int, int]] = []
+    seen: set[tuple[int, int, int]] = set()
+    for face in faces:
+        mapped = tuple(int(remap[int(index)]) for index in face)
+        if len(set(mapped)) != 3:
+            continue
+        duplicate_key = tuple(sorted(mapped))
+        if duplicate_key in seen:
+            continue
+        seen.add(duplicate_key)
+        clean_faces.append(mapped)
+    return MeshData(
+        vertices_mm=np.asarray(unique, dtype=np.float64),
+        faces=np.asarray(clean_faces, dtype=np.int64),
+    )
+
+def build_cad(dimensions: Dimensions) -> BuildResult:
+    """Build the v5 front half as one valid Open CASCADE shell solid.
+
+    V5 separates three jobs that v4 conflated: the molded perimeter roll, the
+    nearly flush central face, and the shallow decorative pockets. This keeps
+    the silhouette broad and low while preserving real draft in Z.
+    """
+    half_width = dimensions.width * 0.5
+    central_top_half = dimensions.central_top_width * 0.5
+
+    # The perimeter carries the actual shell wall. The seam section is slightly
+    # inset, the mid-depth sections reach the locked envelope, and the front
+    # rolls inward by less than a millimetre instead of becoming a flat slab.
+    outer_sections = [
+        (
+            0.0,
+            outer_profile(
+                dimensions,
+                half_width - 1.30,
+                dimensions.wing_top - 0.55,
+                central_top_half - 0.75,
+                dimensions.height - 0.70,
+                0.45,
+            ),
+        ),
+        (
+            0.55,
+            outer_profile(
+                dimensions,
+                half_width - 0.55,
+                dimensions.wing_top - 0.18,
+                central_top_half - 0.25,
+                dimensions.height - 0.22,
+                0.12,
+            ),
+        ),
+        (
+            1.65,
+            outer_profile(
+                dimensions,
+                half_width,
+                dimensions.wing_top,
+                central_top_half,
+                dimensions.height,
+                0.0,
+            ),
+        ),
+        (
+            7.65,
+            outer_profile(
+                dimensions,
+                half_width,
+                dimensions.wing_top,
+                central_top_half,
+                dimensions.height,
+                0.0,
+            ),
+        ),
+        (
+            8.65,
+            outer_profile(
+                dimensions,
+                half_width - 0.22,
+                dimensions.wing_top - 0.10,
+                central_top_half - 0.10,
+                dimensions.height - 0.10,
+                0.08,
+            ),
+        ),
+        (
+            9.18,
+            outer_profile(
+                dimensions,
+                half_width - 0.58,
+                dimensions.wing_top - 0.28,
+                central_top_half - 0.32,
+                dimensions.height - 0.30,
+                0.24,
+            ),
+        ),
+    ]
+    solid = loft_solid(outer_sections)
+
+    # The front centre is only a subtle molded rise. It starts inside the
+    # perimeter roll and uses drafted profiles so the transition reads as one
+    # injection-molded surface rather than a plate glued to the wings.
+    panel_base_z = 8.78
+    panel_top_z = dimensions.front_half_depth
+    central_sections = [
+        (
+            panel_base_z,
+            central_profile(
+                dimensions,
+                dimensions.central_body_width + 0.7,
+                dimensions.wing_top - 0.05,
+                dimensions.central_top_width + 0.4,
+                dimensions.height - 0.08,
+                0.28,
+            ),
+        ),
+        (
+            9.42,
+            central_profile(
+                dimensions,
+                dimensions.central_body_width,
+                dimensions.wing_top - 0.22,
+                dimensions.central_top_width,
+                dimensions.height - 0.22,
+                0.45,
+            ),
+        ),
+        (
+            panel_top_z,
+            central_profile(
+                dimensions,
+                dimensions.central_body_width - 0.72,
+                dimensions.wing_top - 0.48,
+                dimensions.central_top_width - 0.70,
+                dimensions.height - 0.55,
+                0.72,
+            ),
+        ),
+    ]
+    solid = solid.fuse(loft_solid(central_sections)).clean()
+
+    label_center_y = dimensions.label_bottom + dimensions.label_height * 0.5
+    solid = solid.cut(
+        tapered_pocket(
+            dimensions.label_width + 0.48,
+            dimensions.label_height + 0.48,
+            dimensions.label_radius + 0.28,
+            dimensions.label_width,
+            dimensions.label_height,
+            dimensions.label_radius,
+            0.0,
+            label_center_y,
+            dimensions.front_half_depth - dimensions.label_depth,
+            dimensions.front_half_depth + 0.45,
+        )
+    )
+
+    # The authentic early shell reads as two shallow grip recesses separated by
+    # one broad centre bridge. V4's full-width trench and hanging centre cut are
+    # intentionally discarded.
+    pocket_gap = dimensions.channel_bridge_width
+    pocket_width = (dimensions.channel_width - pocket_gap) * 0.5
+    pocket_offset = pocket_gap * 0.5 + pocket_width * 0.5
+    grip_floor_z = dimensions.front_half_depth - dimensions.channel_depth
+    for center_x in (-pocket_offset, pocket_offset):
+        solid = solid.cut(
+            tapered_pocket(
+                pocket_width + 0.42,
+                dimensions.channel_height + 0.38,
+                dimensions.channel_height * 0.5 + 0.12,
+                pocket_width,
+                dimensions.channel_height,
+                dimensions.channel_height * 0.5,
+                center_x,
+                dimensions.channel_center_y,
+                grip_floor_z,
+                dimensions.front_half_depth + 0.42,
+            )
+        )
+
+    # Four narrow horizontal divisions create five broad side bands. Their ends
+    # stop inside the perimeter roll and central molded face.
+    wing_width = (dimensions.width - dimensions.central_body_width) * 0.5
+    groove_width = wing_width - 1.15
+    groove_center_x = dimensions.central_body_width * 0.5 + wing_width * 0.5
+    groove_height = 0.84
+    for center_y in dimensions.band_divisions_y:
+        for center_x in (-groove_center_x, groove_center_x):
+            solid = solid.cut(
+                tapered_pocket(
+                    groove_width + 0.25,
+                    groove_height + 0.18,
+                    0.28,
+                    groove_width,
+                    groove_height,
+                    0.22,
+                    center_x,
+                    center_y,
+                    8.52,
+                    dimensions.front_half_depth + 0.35,
+                )
+            )
+
+    # Small circular wells match the visible scale of genuine front screws.
+    screw_head_radius = 1.22
+    countersink_radius = dimensions.screw_well_diameter * 0.5
+    for center_x in (-dimensions.screw_x, dimensions.screw_x):
+        countersink = cq.Solid.makeCone(
+            screw_head_radius,
+            countersink_radius,
+            1.15,
+            cq.Vector(center_x, dimensions.screw_y, 8.72),
+            cq.Vector(0, 0, 1),
+        )
+        through = cq.Solid.makeCylinder(
+            screw_head_radius,
+            dimensions.front_half_depth + 0.4,
+            cq.Vector(center_x, dimensions.screw_y, 0),
+            cq.Vector(0, 0, 1),
+        )
+        solid = solid.cut(countersink).cut(through)
+
+    # Open the back to create a real front-shell part with continuous wall
+    # thickness. The cavity follows the same silhouette and leaves extra stock
+    # around the top crown and lower screw wells.
+    inner_sections = [
+        (
+            0.0,
+            outer_profile(
+                dimensions,
+                half_width - 3.85,
+                dimensions.wing_top - 2.60,
+                central_top_half - 2.65,
+                dimensions.height - 3.05,
+                2.10,
+            ),
+        ),
+        (
+            7.10,
+            outer_profile(
+                dimensions,
+                half_width - 2.75,
+                dimensions.wing_top - 1.90,
+                central_top_half - 1.95,
+                dimensions.height - 2.30,
+                1.55,
+            ),
+        ),
+    ]
+    solid = solid.cut(loft_solid(inner_sections)).clean()
+
+    envelope_clip = (
+        cq.Workplane("XY")
+        .box(
+            dimensions.width,
+            dimensions.height,
+            dimensions.front_half_depth,
+            centered=(True, False, False),
+        )
+        .val()
+    )
+    solid = solid.intersect(envelope_clip).clean()
+    require(solid.isValid(), "CadQuery produced an invalid B-rep solid")
+
+    vertices, triangles = solid.tessellate(0.045, 0.10)
+    vertex_array = np.asarray([[vertex.x, vertex.y, vertex.z] for vertex in vertices], dtype=np.float64)
+    vertex_array[:, 0] = np.clip(vertex_array[:, 0], -dimensions.width * 0.5, dimensions.width * 0.5)
+    vertex_array[:, 1] = np.clip(vertex_array[:, 1], 0.0, dimensions.height)
+    vertex_array[:, 2] = np.clip(vertex_array[:, 2], 0.0, dimensions.front_half_depth)
+    face_array = np.asarray(triangles, dtype=np.int64)
+    welded = weld_mesh(vertex_array, face_array)
+    require(len(welded.vertices_mm) > 1000 and len(welded.faces) > 2000, "CAD tessellation is unexpectedly small")
+    return BuildResult(
+        solid=solid,
+        mesh=welded,
+        dimensions=dimensions,
+        volume_mm3=float(solid.Volume()),
+        face_count=len(solid.Faces()),
+        edge_count=len(solid.Edges()),
+    )
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+
+
+def canonicalize_step(path: Path) -> None:
+    content = path.read_text(encoding="utf-8")
+    content = re.sub(
+        r"FILE_NAME\('Open CASCADE Shape Model','[^']*',\('Author'\),\(\s*'Open CASCADE'\),'Open CASCADE STEP processor 7\.9','Open CASCADE 7\.9'\s*,'Unknown'\);",
+        "FILE_NAME('RetroLife M2.2 v5 front shell','2000-01-01T00:00:00',('RetroLife public generator'),('RetroLife'),'CadQuery 2.8.0 / Open CASCADE 7.9','Open CASCADE 7.9','CC0-1.0');",
+        content,
+        flags=re.MULTILINE,
+    )
+    content = content.replace(
+        "PRODUCT('Open CASCADE STEP translator 7.9 1','Open CASCADE STEP translator 7.9 1','',(#8));",
+        "PRODUCT('RetroLife M2.2 v5 front shell','RetroLife M2.2 v5 front shell','',(#8));",
+    )
+    path.write_text(content.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
+
+
+def triangle_normal(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
+    normal = np.cross(b - a, c - a)
+    length = float(np.linalg.norm(normal))
+    if length < 1e-12:
+        return np.zeros(3, dtype=np.float64)
+    return normal / length
+
+
+def write_binary_stl(path: Path, mesh: MeshData) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = b"RetroLife M2.2 v5 CadQuery front shell CC0-1.0"
+    header = header[:80].ljust(80, b" ")
+    with path.open("wb") as stream:
+        stream.write(header)
+        stream.write(struct.pack("<I", len(mesh.faces)))
+        for face in mesh.faces:
+            a, b, c = (mesh.vertices_mm[int(index)] for index in face)
+            normal = triangle_normal(a, b, c)
+            values = [*normal, *a, *b, *c]
+            stream.write(struct.pack("<12fH", *[float(item) for item in values], 0))
+
+
+def vertex_normals(mesh: MeshData) -> np.ndarray:
+    normals = np.zeros_like(mesh.vertices_mm)
+    for face in mesh.faces:
+        a, b, c = (mesh.vertices_mm[int(index)] for index in face)
+        weighted = np.cross(b - a, c - a)
+        for index in face:
+            normals[int(index)] += weighted
+    lengths = np.linalg.norm(normals, axis=1)
+    lengths[lengths < 1e-12] = 1.0
+    return normals / lengths[:, None]
+
+
+def write_obj(path: Path, mesh: MeshData) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normals = vertex_normals(mesh)
+    lines = ["# RetroLife M2.2 v5 CadQuery front shell", "# SPDX-License-Identifier: CC0-1.0", "o front_shell_v5"]
+    for vertex in mesh.vertices_mm:
+        lines.append(f"v {vertex[0] / 1000.0:.9f} {vertex[1] / 1000.0:.9f} {vertex[2] / 1000.0:.9f}")
+    for normal in normals:
+        lines.append(f"vn {normal[0]:.9f} {normal[1]:.9f} {normal[2]:.9f}")
+    for face in mesh.faces:
+        one_based = [int(index) + 1 for index in face]
+        lines.append("f " + " ".join(f"{index}//{index}" for index in one_based))
+    write_text(path, "\n".join(lines) + "\n")
+
+
+def label_mesh(dimensions: Dimensions) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    center_y = dimensions.label_bottom + dimensions.label_height * 0.5
+    perimeter = rounded_rectangle_points(
+        dimensions.label_width,
+        dimensions.label_height,
+        dimensions.label_radius,
+        0.0,
+        center_y,
+        14,
+    )
+    z = dimensions.front_half_depth - dimensions.label_depth + 0.018
+    vertices = [[0.0, center_y, z], *[[x, y, z] for x, y in perimeter]]
+    uvs = [[0.5, 0.5]]
+    for x, y in perimeter:
+        uvs.append(
+            [
+                (x + dimensions.label_width * 0.5) / dimensions.label_width,
+                (y - dimensions.label_bottom) / dimensions.label_height,
+            ]
+        )
+    faces = []
+    for index in range(len(perimeter)):
+        faces.append([0, index + 1, ((index + 1) % len(perimeter)) + 1])
+    return np.asarray(vertices, dtype=np.float64), np.asarray(faces, dtype=np.int64), np.asarray(uvs, dtype=np.float64)
+
+
+def write_label_obj(path: Path, dimensions: Dimensions) -> tuple[np.ndarray, np.ndarray]:
+    vertices, faces, uvs = label_mesh(dimensions)
+    lines = ["# RetroLife M2.2 v5 label surface", "# SPDX-License-Identifier: CC0-1.0", "o label_surface_v5"]
+    for vertex in vertices:
+        lines.append(f"v {vertex[0] / 1000.0:.9f} {vertex[1] / 1000.0:.9f} {vertex[2] / 1000.0:.9f}")
+    for uv in uvs:
+        lines.append(f"vt {uv[0]:.9f} {uv[1]:.9f}")
+    lines.append("vn 0.000000000 0.000000000 1.000000000")
+    for face in faces:
+        one_based = [int(index) + 1 for index in face]
+        lines.append("f " + " ".join(f"{index}/{index}/1" for index in one_based))
+    write_text(path, "\n".join(lines) + "\n")
+    return vertices, faces
+
+
+def vtk_label_polydata(dimensions: Dimensions):
+    import vtk
+
+    center_y = dimensions.label_bottom + dimensions.label_height * 0.5
+    z = dimensions.front_half_depth - dimensions.label_depth + 0.018
+    perimeter = rounded_rectangle_points(
+        dimensions.label_width,
+        dimensions.label_height,
+        dimensions.label_radius,
+        0.0,
+        center_y,
+        24,
+    )
+    points = vtk.vtkPoints()
+    texture_coordinates = vtk.vtkFloatArray()
+    texture_coordinates.SetName("TextureCoordinates")
+    texture_coordinates.SetNumberOfComponents(2)
+    for x, y in perimeter:
+        points.InsertNextPoint(x, y, z)
+        texture_coordinates.InsertNextTuple2(
+            (x + dimensions.label_width * 0.5) / dimensions.label_width,
+            (y - dimensions.label_bottom) / dimensions.label_height,
+        )
+    polygon = vtk.vtkPolygon()
+    polygon.GetPointIds().SetNumberOfIds(len(perimeter))
+    for index in range(len(perimeter)):
+        polygon.GetPointIds().SetId(index, index)
+    cells = vtk.vtkCellArray()
+    cells.InsertNextCell(polygon)
+    data = vtk.vtkPolyData()
+    data.SetPoints(points)
+    data.SetPolys(cells)
+    data.GetPointData().SetTCoords(texture_coordinates)
+    triangles = vtk.vtkTriangleFilter()
+    triangles.SetInputData(data)
+    triangles.Update()
+    return triangles.GetOutput()
+
+def make_actor(
+    polydata,
+    color: tuple[float, float, float],
+    ambient: float,
+    diffuse: float,
+    specular: float,
+    texture=None,
+):
+    import vtk
+
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(polydata)
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    if texture is not None:
+        actor.SetTexture(texture)
+    prop = actor.GetProperty()
+    prop.SetColor(*color)
+    prop.SetInterpolationToPhong()
+    prop.SetAmbient(ambient)
+    prop.SetDiffuse(diffuse)
+    prop.SetSpecular(specular)
+    prop.SetSpecularPower(34.0)
+    return actor
+
+
+def reference_label_image(width: int = 1200, height: int = 540) -> Image.Image:
+    """Create original review artwork that makes the label proportions legible.
+
+    The artwork is intentionally generic. It contains no commercial label art,
+    trademark logo or external image pixels.
+    """
+    image = Image.new("RGB", (width, height), "#07090d")
+    draw = ImageDraw.Draw(image)
+    margin = 18
+    draw.rounded_rectangle((margin, margin, width - margin, height - margin), radius=24, fill="#07090d", outline="#20252d", width=5)
+    draw.rectangle((36, 36, width - 36, 56), fill="#d9363e")
+    art_left, art_top, art_right, art_bottom = 250, 82, 900, 438
+    draw.rounded_rectangle((art_left, art_top, art_right, art_bottom), radius=20, fill="#174f9b")
+    for index in range(7):
+        y0 = art_top + 18 + index * 48
+        draw.rectangle((art_left + 18, y0, art_right - 18, y0 + 22), fill=(27 + index * 4, 83 + index * 7, 157 + index * 8))
+    # Original abstract character silhouettes, used only to communicate label scale.
+    draw.ellipse((515, 150, 675, 360), fill="#43a95b", outline="#183b27", width=7)
+    draw.ellipse((610, 110, 755, 245), fill="#55bd6d", outline="#183b27", width=7)
+    draw.ellipse((390, 125, 515, 260), fill="#df4a43", outline="#5c1d1a", width=7)
+    draw.rectangle((408, 240, 512, 382), fill="#2870c8", outline="#102d58", width=7)
+    draw.ellipse((714, 148, 736, 170), fill="#f7f7ec")
+    draw.ellipse((682, 147, 704, 169), fill="#f7f7ec")
+    draw.text((72, 92), "RETROLIFE", font=font(36, True), fill="#f4f5f7")
+    draw.text((72, 142), "REFERENCE", font=font(24, True), fill="#d9363e")
+    draw.text((72, 362), "NTSC-U/C", font=font(22, True), fill="#e7e9ed")
+    draw.text((72, 402), "VISUAL FIT", font=font(18), fill="#9ba4b2")
+    draw.text((930, 116), "16", font=font(92, True), fill="#30353d")
+    draw.text((918, 346), "CAD V5", font=font(30, True), fill="#d9363e")
+    draw.text((925, 395), "ORIGINAL REVIEW ART", font=font(14), fill="#8d96a5")
+    return image
+
+
+def vtk_texture_from_image(image: Image.Image):
+    import vtk
+
+    pixels = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    # VTK's image origin is lower-left.
+    pixels = np.ascontiguousarray(np.flipud(pixels))
+    importer = vtk.vtkImageImport()
+    importer.CopyImportVoidPointer(pixels.tobytes(), pixels.nbytes)
+    importer.SetDataScalarTypeToUnsignedChar()
+    importer.SetNumberOfScalarComponents(3)
+    importer.SetDataExtent(0, image.width - 1, 0, image.height - 1, 0, 0)
+    importer.SetWholeExtent(0, image.width - 1, 0, image.height - 1, 0, 0)
+    importer.Update()
+    texture = vtk.vtkTexture()
+    texture.SetInputConnection(importer.GetOutputPort())
+    texture.InterpolateOn()
+    return texture, importer
+
+
+def screw_actor(center_x: float, center_y: float, z: float):
+    import vtk
+
+    disk = vtk.vtkDiskSource()
+    disk.SetInnerRadius(0.0)
+    disk.SetOuterRadius(1.18)
+    disk.SetCircumferentialResolution(48)
+    disk.SetRadialResolution(3)
+    disk.SetCenter(center_x, center_y, z)
+    disk.Update()
+    actor = make_actor(disk.GetOutput(), (0.71, 0.73, 0.76), 0.28, 0.55, 0.70)
+    actor.GetProperty().SetSpecularPower(52.0)
+    return actor
+
+def render_view(
+    path: Path,
+    stl_path: Path,
+    dimensions: Dimensions,
+    camera_position: tuple[float, float, float],
+    focal_point: tuple[float, float, float],
+    view_up: tuple[float, float, float],
+    parallel_scale: float | None,
+    size: tuple[int, int],
+) -> None:
+    import vtk
+
+    reader = vtk.vtkSTLReader()
+    reader.SetFileName(str(stl_path))
+    reader.Update()
+
+    renderer = vtk.vtkRenderer()
+    renderer.SetBackground(0.025, 0.032, 0.045)
+    shell_actor = make_actor(reader.GetOutput(), (0.50, 0.49, 0.54), 0.30, 0.67, 0.20)
+    label_texture, texture_importer = vtk_texture_from_image(reference_label_image())
+    label_actor = make_actor(vtk_label_polydata(dimensions), (1.0, 1.0, 1.0), 0.50, 0.48, 0.06, label_texture)
+    renderer.AddActor(shell_actor)
+    renderer.AddActor(label_actor)
+    screw_z = dimensions.front_half_depth - 0.42
+    for center_x in (-dimensions.screw_x, dimensions.screw_x):
+        renderer.AddActor(screw_actor(center_x, dimensions.screw_y, screw_z))
+
+    headlight = vtk.vtkLight()
+    headlight.SetLightTypeToHeadlight()
+    headlight.SetIntensity(0.72)
+    renderer.AddLight(headlight)
+    for position, intensity in [((-118.0, 158.0, 210.0), 0.78), ((150.0, 74.0, 115.0), 0.34), ((0.0, -40.0, 80.0), 0.12)]:
+        light = vtk.vtkLight()
+        light.SetLightTypeToSceneLight()
+        light.SetPosition(*position)
+        light.SetFocalPoint(*focal_point)
+        light.SetIntensity(intensity)
+        renderer.AddLight(light)
+
+    camera = vtk.vtkCamera()
+    camera.SetPosition(*camera_position)
+    camera.SetFocalPoint(*focal_point)
+    camera.SetViewUp(*view_up)
+    if parallel_scale is not None:
+        camera.ParallelProjectionOn()
+        camera.SetParallelScale(parallel_scale)
+    else:
+        camera.SetViewAngle(27.0)
+    renderer.SetActiveCamera(camera)
+    renderer.ResetCameraClippingRange()
+
+    window = vtk.vtkRenderWindow()
+    window.SetOffScreenRendering(1)
+    window.SetMultiSamples(0)
+    window.SetSize(*size)
+    window.AddRenderer(renderer)
+    window.Render()
+
+    capture = vtk.vtkWindowToImageFilter()
+    capture.SetInput(window)
+    capture.SetInputBufferTypeToRGB()
+    capture.ReadFrontBufferOff()
+    capture.Update()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = vtk.vtkPNGWriter()
+    writer.SetFileName(str(path))
+    writer.SetInputConnection(capture.GetOutputPort())
+    writer.Write()
+
+    # Keep the importer's memory alive until VTK has finished the capture.
+    _ = texture_importer
+
+def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+    ]
+    for candidate in candidates:
+        if Path(candidate).is_file():
+            return ImageFont.truetype(candidate, size)
+    return ImageFont.load_default()
+
+
+def render_dimensions(path: Path, dimensions: Dimensions) -> None:
+    canvas = Image.new("RGB", (1600, 1000), "#0b0f17")
+    draw = ImageDraw.Draw(canvas)
+    draw.text((64, 42), "RetroLife M2.2 v5 CAD dimensions", font=font(42, True), fill="#f4f6fb")
+    draw.text((64, 98), "Provisional visual fit. Physical caliper calibration is still required.", font=font(23), fill="#9aa6b8")
+    scale = 8.0
+    origin_x = 800
+    origin_y = 850
+    outline = outer_profile(
+        dimensions,
+        dimensions.width * 0.5,
+        dimensions.wing_top,
+        dimensions.central_top_width * 0.5,
+        dimensions.height,
+        0.0,
+    )
+    points = [(origin_x + x * scale, origin_y - y * scale) for x, y in outline]
+    draw.polygon(points, fill="#4c4b58", outline="#d8dce6")
+    label_box = (
+        origin_x - dimensions.label_width * scale * 0.5,
+        origin_y - (dimensions.label_bottom + dimensions.label_height) * scale,
+        origin_x + dimensions.label_width * scale * 0.5,
+        origin_y - dimensions.label_bottom * scale,
+    )
+    draw.rounded_rectangle(label_box, radius=int(dimensions.label_radius * scale), fill="#161a22", outline="#c3c8d3", width=3)
+    channel_box = (
+        origin_x - dimensions.channel_width * scale * 0.5,
+        origin_y - (dimensions.channel_center_y + dimensions.channel_height * 0.5) * scale,
+        origin_x + dimensions.channel_width * scale * 0.5,
+        origin_y - (dimensions.channel_center_y - dimensions.channel_height * 0.5) * scale,
+    )
+    draw.rounded_rectangle(channel_box, radius=int(dimensions.channel_height * scale * 0.5), outline="#b4bac7", width=3)
+    for x in (-dimensions.screw_x, dimensions.screw_x):
+        cx = origin_x + x * scale
+        cy = origin_y - dimensions.screw_y * scale
+        radius = dimensions.screw_well_diameter * scale * 0.5
+        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill="#10141b", outline="#c6ccd8", width=2)
+    for y in dimensions.band_divisions_y:
+        py = origin_y - y * scale
+        draw.line((origin_x - dimensions.width * scale * 0.5 + 14, py, origin_x - dimensions.central_body_width * scale * 0.5 - 8, py), fill="#c6ccd8", width=3)
+        draw.line((origin_x + dimensions.central_body_width * scale * 0.5 + 8, py, origin_x + dimensions.width * scale * 0.5 - 14, py), fill="#c6ccd8", width=3)
+
+    dimension_color = "#7ce2d4"
+    draw.line((origin_x - dimensions.width * scale * 0.5, 930, origin_x + dimensions.width * scale * 0.5, 930), fill=dimension_color, width=2)
+    draw.text((origin_x - 74, 938), f"{dimensions.width:.1f} mm", font=font(22, True), fill=dimension_color)
+    draw.line((140, origin_y, 140, origin_y - dimensions.height * scale), fill=dimension_color, width=2)
+    draw.text((58, 470), f"{dimensions.height:.1f} mm", font=font(22, True), fill=dimension_color)
+    draw.text((1110, 230), f"Label: {dimensions.label_width:.1f} x {dimensions.label_height:.1f} mm", font=font(22), fill="#d4d8e2")
+    draw.text((1110, 276), f"Grip channel: {dimensions.channel_width:.1f} x {dimensions.channel_height:.1f} mm", font=font(22), fill="#d4d8e2")
+    draw.text((1110, 322), "Four divisions create five broad side bands", font=font(22), fill="#d4d8e2")
+    draw.text((1110, 368), f"Front shell depth: {dimensions.front_half_depth:.1f} mm", font=font(22), fill="#d4d8e2")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(path, optimize=False, compress_level=9)
+
+
+def mobile_review(path: Path, render_paths: dict[str, Path]) -> None:
+    canvas = Image.new("RGB", (1400, 3300), "#090d15")
+    draw = ImageDraw.Draw(canvas)
+    draw.text((66, 52), "RetroLife M2.2 v5", font=font(48, True), fill="#f4f6fb")
+    draw.text((66, 116), "Photo-normalized Open CASCADE B-rep review", font=font(30), fill="#a9b3c4")
+    draw.text((66, 166), "Actual CAD render with original review label art. No external mesh or image pixels.", font=font(22), fill="#808b9d")
+    sections = [
+        ("front", "FRONT ORTHOGRAPHIC"),
+        ("threeQuarter", "FRONT THREE-QUARTER"),
+        ("side", "SIDE PROFILE, FRONT HALF ONLY"),
+        ("top", "TOP PROFILE"),
+    ]
+    top = 230
+    for key, title in sections:
+        image = Image.open(render_paths[key]).convert("RGB")
+        image.thumbnail((1260, 650), Image.Resampling.LANCZOS)
+        card = (44, top, 1356, top + 710)
+        draw.rounded_rectangle(card, radius=26, fill="#111722", outline="#2a3445", width=3)
+        x = 700 - image.width // 2
+        y = top + 22 + (630 - image.height) // 2
+        canvas.paste(image, (x, y))
+        draw.text((70, top + 660), title, font=font(24, True), fill="#e9ecf2")
+        top += 740
+    draw.text((66, 3210), "Physical calibration and owner approval remain open.", font=font(22), fill="#98a3b4")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(path, optimize=False, compress_level=9)
+
+
+def write_support_files(root: Path, result: BuildResult, file_hashes: dict[str, str]) -> None:
+    dimensions = result.dimensions
+    mesh_min = result.mesh.vertices_mm.min(axis=0)
+    mesh_max = result.mesh.vertices_mm.max(axis=0)
+    mesh_size = mesh_max - mesh_min
+    center_of_mass = result.solid.Center()
+    material_shell = """[gd_resource type=\"StandardMaterial3D\" format=3]\n\n[resource]\nresource_name = \"M2.2 v5 shell clay\"\nalbedo_color = Color(0.50, 0.49, 0.54, 1)\nmetallic = 0.0\nroughness = 0.78\n"""
+    material_label = """[gd_resource type=\"StandardMaterial3D\" format=3]\n\n[resource]\nresource_name = \"M2.2 v5 label placeholder\"\nalbedo_color = Color(0.08, 0.09, 0.12, 1)\nmetallic = 0.0\nroughness = 0.68\n"""
+    write_text(root / SHELL_MATERIAL_REL, material_shell)
+    write_text(root / LABEL_MATERIAL_REL, material_label)
+
+    scene = f"""[gd_scene load_steps=5 format=3]\n\n[ext_resource type=\"ArrayMesh\" path=\"res://assets/snes/m2_2/snes_ntsc_u_front_shell_v5.obj\" id=\"1_shell\"]\n[ext_resource type=\"ArrayMesh\" path=\"res://assets/snes/m2_2/snes_ntsc_u_label_surface_v5.obj\" id=\"2_label\"]\n[ext_resource type=\"Material\" path=\"res://assets/snes/m2_2/materials/snes_m2_2_v5_shell_clay.tres\" id=\"3_shell_material\"]\n[ext_resource type=\"Material\" path=\"res://assets/snes/m2_2/materials/snes_m2_2_v5_label_placeholder.tres\" id=\"4_label_material\"]\n\n[node name=\"SnesNaCartridgeFrontM2_2\" type=\"Node3D\"]\nmetadata/asset_id = \"{ASSET_ID}\"\nmetadata/prior_asset_id = \"{PRIOR_ASSET_ID}\"\nmetadata/source = \"{SOURCE}\"\nmetadata/license = \"{LICENSE}\"\nmetadata/status = \"provisional-photo-normalized-cad-brep-rebuild\"\nmetadata/surface_model = \"{SURFACE_MODEL}\"\nmetadata/cad_tool = \"{CAD_TOOL}\"\nmetadata/cad_kernel = \"{CAD_KERNEL}\"\nmetadata/step_exported = true\nmetadata/height_field_only = false\nmetadata/multi_section_loft_only = false\nmetadata/console_visible = false\nmetadata/physical_calibration_complete = false\nmetadata/external_geometry_copied = false\nmetadata/external_media_embedded = false\nmetadata/prior_geometry_accepted = false\nmetadata/may_approve_final_geometry = false\nmetadata/may_start_m2_3_blockout = false\nmetadata/may_start_m3 = false\n\n[node name=\"VisualRoot\" type=\"Node3D\" parent=\".\"]\n[node name=\"CadShell\" type=\"MeshInstance3D\" parent=\"VisualRoot\"]\nmesh = ExtResource(\"1_shell\")\nmaterial_override = ExtResource(\"3_shell_material\")\nmetadata/surface_topology = \"single-connected-watertight-cad-shell\"\nmetadata/surface_model = \"{SURFACE_MODEL}\"\nmetadata/triangle_count = {len(result.mesh.faces)}\n[node name=\"LabelSurface\" type=\"MeshInstance3D\" parent=\"VisualRoot\"]\nmesh = ExtResource(\"2_label\")\nmaterial_override = ExtResource(\"4_label_material\")\nmetadata/m3_texture_slot = \"snes-front-label\"\n[node name=\"DockPivot\" type=\"Marker3D\" parent=\".\"]\nposition = Vector3(0, 0, 0)\n[node name=\"CenterOfMass\" type=\"Marker3D\" parent=\".\"]\nposition = Vector3({center_of_mass.x / 1000.0:.6f}, {center_of_mass.y / 1000.0:.6f}, {center_of_mass.z / 1000.0:.6f})\n[node name=\"LabelAnchor\" type=\"Marker3D\" parent=\".\"]\nposition = Vector3(0, {(dimensions.label_bottom + dimensions.label_height * 0.5) / 1000.0:.6f}, {(dimensions.front_half_depth - dimensions.label_depth + 0.018) / 1000.0:.6f})\n[node name=\"ConnectorAnchor\" type=\"Marker3D\" parent=\".\"]\nposition = Vector3(0, 0, 0)\n[node name=\"BrowseFocusedAnchor\" type=\"Marker3D\" parent=\".\"]\nrotation_degrees = Vector3(-5, -9, 0)\n[node name=\"DockApproachAnchor\" type=\"Marker3D\" parent=\".\"]\nrotation_degrees = Vector3(-2, -2, 0)\n"""
+    write_text(root / SCENE_REL, scene)
+
+    smoke = f"""extends SceneTree\n\nconst SCENE := preload(\"res://scenes/SnesNaCartridgeFrontM2_2.tscn\")\nconst EXPECTED_ASSET := \"{ASSET_ID}\"\n\nfunc _initialize() -> void:\n    var instance := SCENE.instantiate()\n    root.add_child(instance)\n    await process_frame\n    var failures: Array[String] = []\n    _require(instance.get_meta(\"asset_id\", \"\") == EXPECTED_ASSET, \"asset id\", failures)\n    _require(instance.get_meta(\"source\", \"\") == \"{SOURCE}\", \"source\", failures)\n    _require(instance.get_meta(\"step_exported\", false), \"STEP export\", failures)\n    _require(not instance.get_meta(\"height_field_only\", true), \"height field rejected\", failures)\n    _require(not instance.get_meta(\"multi_section_loft_only\", true), \"loft-only rejected\", failures)\n    _require(not instance.get_meta(\"external_geometry_copied\", true), \"external geometry boundary\", failures)\n    _require(not instance.get_meta(\"external_media_embedded\", true), \"external media boundary\", failures)\n    _require(not instance.get_meta(\"physical_calibration_complete\", true), \"calibration honesty\", failures)\n    _require(not instance.get_meta(\"may_approve_final_geometry\", true), \"approval gate\", failures)\n    _require(not instance.get_meta(\"may_start_m2_3_blockout\", true), \"M2.3 gate\", failures)\n    _require(not instance.get_meta(\"may_start_m3\", true), \"M3 gate\", failures)\n    var shell := instance.get_node_or_null(\"VisualRoot/CadShell\") as MeshInstance3D\n    var label := instance.get_node_or_null(\"VisualRoot/LabelSurface\") as MeshInstance3D\n    _require(shell != null and shell.mesh != null, \"CAD shell mesh\", failures)\n    _require(label != null and label.mesh != null, \"label mesh\", failures)\n    for marker_name in [\"DockPivot\", \"CenterOfMass\", \"LabelAnchor\", \"ConnectorAnchor\", \"BrowseFocusedAnchor\", \"DockApproachAnchor\"]:\n        _require(instance.get_node_or_null(marker_name) != null, marker_name, failures)\n    if failures.is_empty():\n        print(\"RETROLIFE_M2_2_FRONT_GODOT_OK asset=v5 cad=opencascade step=true\")\n        quit(0)\n        return\n    for failure in failures:\n        push_error(\"RETROLIFE_M2_2_FRONT_GODOT_FAILED: \" + failure)\n    quit(1)\n\nfunc _require(condition: bool, label: String, failures: Array[String]) -> void:\n    if not condition:\n        failures.append(label)\n"""
+    write_text(root / SMOKE_REL, smoke)
+
+    documentation = f"""# M2.2 v5 provisional NTSC-U SNES front shell\n\n## Decision\n\nThe v1 plate stack, v2 height field, v3 loft-only presentation and visually rejected v4 CAD shell are rejected. The v5 package is rebuilt as a real CadQuery/Open CASCADE boundary-representation solid with drafted boolean features. SVG is no longer the primary geometry or review medium.\n\nThe geometry remains provisional. It does not claim physical caliper calibration or final owner approval.\n\n## Generated contract\n\n- Asset ID: `{ASSET_ID}`\n- Prior asset ID: `{PRIOR_ASSET_ID}`\n- License: `{LICENSE}`\n- CAD source: `{SOURCE}`\n- CAD tool: `{CAD_TOOL}`\n- Kernel: `{CAD_KERNEL}`\n- Surface model: `{SURFACE_MODEL}`\n- Envelope: `{dimensions.width:.1f} x {dimensions.height:.1f} x {dimensions.depth:.1f} mm`\n- Front-shell depth: `{dimensions.front_half_depth:.1f} mm`\n- B-rep volume: `{result.volume_mm3:.1f} mm3`\n- B-rep faces: `{result.face_count}`\n- B-rep edges: `{result.edge_count}`\n- Tessellated triangles: `{len(result.mesh.faces)}`\n- Primary engineering artifact: `snes_ntsc_u_front_shell_v5.step`\n- Godot artifact: `snes_ntsc_u_front_shell_v5.obj`\n- Review artifacts: deterministic PNG renders from the tessellated CAD solid\n- Label surface: separate rounded mesh with stable `0..1` UVs
+- Review label artwork: original RetroLife artwork rendered only into the PNG review views\n- Root pivot: bottom connector center\n- Console, branding, legal text, commercial artwork, ROMs and external mesh data: excluded\n\n## Molded features\n\n- A real side-wall roll is formed by the B-rep section stack.\n- The front body is a fused solid, not a stack of visible feature plates.\n- The label recess and paired lower grip pockets are shallow drafted boolean features.\n- Four recessed side divisions create five broad molded bands per wing.\n- Screw wells use small conical countersinks and through openings; metallic screw heads exist only in review renders.\n- The back is opened by an internal cavity cut, so the artifact is a front-shell body rather than a solid billet.\n\n## Physical comparison boundary\n\nThe comparison record links authentic cartridge photography, the cartridge bottom, the USD343833S design patent and a public physical scan. No vertices, textures or photographs from those references are embedded in the CC0 asset.\n\n## Remaining gates\n\n- Measure one authentic early NTSC-U/C `SNS-006` cartridge with digital calipers.\n- Reconcile all provisional B and C dimensions in M2.1.\n- Compare the v5 PNG sheet and STEP file against the physical specimen.\n- Obtain explicit owner visual approval.\n- Keep M2.3 and M3 blocked until those gates close.\n"""
+    write_text(root / DOC_REL, documentation)
+
+    comparison = """# M2.2 v5 physical comparison record\n\nThe v5 CAD source was challenged against the following public external references. They are used for visual comparison only.\n\n- Authentic NTSC-U/C Super Mario World cartridge photography: https://www.ebay.com/itm/155342209898
+- GameStop clean frontal NTSC-U/C cartridge photograph used for ratio normalization: https://media.gamestop.com/i/gamestop/10125270/Super-Mario-World---Super-Nintendo\n- Wikimedia Commons public-domain SNES and Super Famicom cartridge photography by Evan-Amos: https://commons.wikimedia.org/wiki/File:SNES-SFAM-Cartridges.jpg\n- North American cartridge bottom photograph: https://commons.wikimedia.org/wiki/File:North_American_SNES_cartridge_bottom.jpg\n- Nintendo USD343833S design patent: https://patents.google.com/patent/USD343833S/en\n- Laser Design physical scan listing: https://sketchfab.com/3d-models/super-mario-world-game-cartridge-a102d3e7fe5c4770912a56e69b04898a\n\nNo vertices, texture pixels, label artwork or photograph pixels are copied into the generated asset. The visual review changed only original RetroLife CAD parameters and boolean features.\n\nThe four active PNG views are direct renders of the committed v5 CAD tessellation. The generated label artwork is original and exists only to make scale and proportions readable on mobile. It is not exported into the runtime material or OBJ package.\n"""
+    write_text(root / COMPARISON_REL, comparison)
+
+    provenance = f"""# Provenance\n\nAsset `{ASSET_ID}` is generated by `scripts/generate-m2-2-snes-front.py` from the public M2.1 dimensional contract.\n\nThe source builds a CadQuery/Open CASCADE B-rep and exports canonical STEP, deterministic STL and OBJ files. The mobile PNGs are rendered from the generated tessellation.\n\nExternal references are comparison-only. No third-party vertices, textures, game artwork, photographs, ROMs or console geometry are embedded.\n\nPhysical caliper calibration and final owner approval remain incomplete.\n"""
+    write_text(root / PROVENANCE_REL, provenance)
+
+    asset_readme = f"""# RetroLife M2.2 v5 front shell\n\nThis directory contains the original procedural `{ASSET_ID}` package.\n\n- `snes_ntsc_u_front_shell_v5.step`: canonical CAD B-rep export\n- `snes_ntsc_u_front_shell_v5.stl`: deterministic tessellation in millimetres\n- `snes_ntsc_u_front_shell_v5.obj`: Godot mesh in metres\n- `snes_ntsc_u_label_surface_v5.obj`: separate label surface with stable UVs\n- `materials/`: neutral review materials\n\nThe geometry is provisional and requires physical calibration.\n"""
+    write_text(root / ASSET_README_REL, asset_readme)
+    write_text(
+        root / ASSET_LICENSE_REL,
+        "# CC0 notice\n\nThe original procedural geometry and generated review assets in this M2.2 v5 package are dedicated to the public domain under CC0 1.0.\n",
+    )
+
+    manifest = {
+        "schemaVersion": 5,
+        "assetId": ASSET_ID,
+        "priorAssetId": PRIOR_ASSET_ID,
+        "rejectedAssetIds": REJECTED_ASSET_IDS,
+        "referenceId": REFERENCE_ID,
+        "status": "provisional-photo-normalized-cad-brep-rebuild",
+        "systemId": "snes",
+        "region": "NTSC-U/C",
+        "shellPart": "front",
+        "license": LICENSE,
+        "source": SOURCE,
+        "surfaceModel": SURFACE_MODEL,
+        "surfaceTopology": "single-connected-watertight-cad-shell",
+        "cadTool": CAD_TOOL,
+        "cadKernel": CAD_KERNEL,
+        "stepExported": True,
+        "heightFieldOnly": False,
+        "multiSectionLoftOnly": False,
+        "physicalCalibrationComplete": False,
+        "mayApproveFinalGeometry": False,
+        "mayStartM2_3Blockout": False,
+        "mayStartM3": False,
+        "consoleVisible": False,
+        "externalGeometryCopied": False,
+        "externalMediaEmbedded": False,
+        "physicalVisualComparisonRecorded": True,
+        "visualCalibrationRevision": 3,
+        "reviewLabelArtOriginal": True,
+        "physicalEnvelopeMm": [dimensions.width, dimensions.height, dimensions.depth],
+        "frontShellDepthMm": dimensions.front_half_depth,
+        "actualCadBoundsMm": [round(float(mesh_size[0]), 6), round(float(mesh_size[1]), 6), round(float(mesh_size[2]), 6)],
+        "actualCadExtentsMm": [[round(float(mesh_min[index]), 6), round(float(mesh_max[index]), 6)] for index in range(3)],
+        "cadVolumeMm3": round(result.volume_mm3, 6),
+        "brepFaces": result.face_count,
+        "brepEdges": result.edge_count,
+        "components": {
+            "cadStep": {"path": STEP_REL, "sha256": file_hashes[STEP_REL]},
+            "cadStl": {"path": STL_REL, "sha256": file_hashes[STL_REL], "triangles": len(result.mesh.faces), "vertices": len(result.mesh.vertices_mm)},
+            "godotMesh": {"path": OBJ_REL, "sha256": file_hashes[OBJ_REL], "triangles": len(result.mesh.faces), "vertices": len(result.mesh.vertices_mm)},
+            "labelSurface": {"path": LABEL_OBJ_REL, "sha256": file_hashes[LABEL_OBJ_REL]},
+        },
+        "labelRecessMm": [dimensions.label_width, dimensions.label_height, dimensions.label_bottom, dimensions.label_depth],
+        "lowerGripChannelMm": [dimensions.channel_width, dimensions.channel_height, dimensions.channel_center_y, dimensions.channel_depth],
+        "lowerGripBridgeWidthMm": dimensions.channel_bridge_width,
+        "frontBandDivisionCountEach": len(dimensions.band_divisions_y),
+        "frontMouldedBandCountEach": len(dimensions.band_divisions_y) + 1,
+        "frontBandDivisionCenterYmm": list(dimensions.band_divisions_y),
+        "screwWellCentersMm": [[-dimensions.screw_x, dimensions.screw_y], [dimensions.screw_x, dimensions.screw_y]],
+        "labelUvBounds": [[0.0, 0.0], [1.0, 1.0]],
+        "rootPivot": "bottom connector center",
+        "externalVisualReferences": [
+            {"kind": "authentic-cartridge-photography", "url": "https://www.ebay.com/itm/155342209898", "geometryCopied": False, "mediaEmbedded": False},
+            {"kind": "front-ratio-normalization-photography", "url": "https://media.gamestop.com/i/gamestop/10125270/Super-Mario-World---Super-Nintendo", "geometryCopied": False, "mediaEmbedded": False},
+            {"kind": "public-domain-cartridge-photography", "url": "https://commons.wikimedia.org/wiki/File:SNES-SFAM-Cartridges.jpg", "geometryCopied": False, "mediaEmbedded": False},
+            {"kind": "bottom-photography", "url": "https://commons.wikimedia.org/wiki/File:North_American_SNES_cartridge_bottom.jpg", "geometryCopied": False, "mediaEmbedded": False},
+            {"kind": "design-patent", "url": "https://patents.google.com/patent/USD343833S/en", "geometryCopied": False, "mediaEmbedded": False},
+            {"kind": "physical-scan-visual-check", "url": "https://sketchfab.com/3d-models/super-mario-world-game-cartridge-a102d3e7fe5c4770912a56e69b04898a", "geometryCopied": False, "mediaEmbedded": False},
+        ],
+        "reviewRenders": {key: {"path": relative, "sha256": file_hashes[relative]} for key, relative in RENDER_RELATIVE.items()},
+        "generatedFiles": {relative: file_hashes[relative] for relative in sorted(file_hashes)},
     }
-    for component, mesh in meshes.items():
-        (asset / mesh_names[component]).write_text(obj_text(mesh, component))
+    write_text(root / MANIFEST_REL, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
-    (materials / "snes_m2_2_shell_clay.tres").write_text(
-        material_text("M2.2 shell clay", "#afb3bc", 0.72)
-    )
-    (materials / "snes_m2_2_detail_clay.tres").write_text(
-        material_text("M2.2 molded detail clay", "#737986", 0.78)
-    )
-    (materials / "snes_m2_2_label_placeholder.tres").write_text(
-        material_text("M2.2 label calibration placeholder", "#9298a5", 0.68)
-    )
-    (asset / "LICENSE-CC0.md").write_text(
-        "# CC0 1.0 Universal\n\n"
-        "The original RetroLife M2.2 generator, geometry, neutral materials and review diagrams are dedicated to the public domain under CC0 1.0 Universal.\n\n"
-        "https://creativecommons.org/publicdomain/zero/1.0/\n"
-    )
-    (asset / "PROVENANCE.md").write_text(
-        "# M2.2 provenance\n\n"
-        "This package is original parametric RetroLife geometry generated from the M2.1 measurement manifest by `scripts/generate-m2-2-snes-front.py`. It is released under CC0-1.0.\n\n"
-        "No third-party mesh, embedded photograph, trademark, game artwork, ROM or console geometry is included. The rejected alpha geometry is not copied or imported.\n\n"
-        "Patent drawings and open reference photography recorded by M2.1 inform proportions only. Physical cartridge calibration is still required.\n"
-    )
-    (asset / "README.md").write_text(asset_readme(manifest))
-    (scene / "SnesNaCartridgeFrontM2_2.tscn").write_text(scene_text(manifest))
-    (scripts / "m2_2_snes_front_smoke_test.gd").write_text(smoke_test_text())
-    (design / "m2-2-snes-front-shell.md").write_text(contract_text(manifest))
-    (design / "m2-2-snes-front-clay.svg").write_text(clay_svg())
-    (design / "m2-2-snes-front-overlay.svg").write_text(overlay_svg())
-    (design / "m2-2-snes-front-top-side-overlay.svg").write_text(top_side_overlay_svg())
-    (design / "m2-2-snes-alpha-comparison.svg").write_text(alpha_comparison_svg())
-    (design / "m2-2-snes-m1-poses.svg").write_text(m1_poses_svg())
 
-    generated_for_hash = [path for path in GENERATED_PATHS if not path.endswith("manifest.json")]
-    manifest["generatedFiles"] = {
-        relative: sha256(root / relative) for relative in generated_for_hash
-    }
-    (design / "m2-2-snes-front-manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    )
-    total_triangles = sum(mesh.triangles for mesh in meshes.values())
+def generate(root: Path, render: bool, copy_renders_from: Path | None = None) -> None:
+    dimensions = load_dimensions(root)
+    result = build_cad(dimensions)
+
+    step_path = root / STEP_REL
+    step_path.parent.mkdir(parents=True, exist_ok=True)
+    exporters.export(cq.Workplane(obj=result.solid), str(step_path))
+    canonicalize_step(step_path)
+    write_binary_stl(root / STL_REL, result.mesh)
+    write_obj(root / OBJ_REL, result.mesh)
+    write_label_obj(root / LABEL_OBJ_REL, dimensions)
+
+    render_paths = {key: root / relative for key, relative in RENDER_RELATIVE.items()}
+    if render:
+        size = (1400, 1000)
+        focal = (0.0, dimensions.height * 0.5, dimensions.front_half_depth * 0.5)
+        render_view(render_paths["front"], root / STL_REL, dimensions, (0.0, dimensions.height * 0.5, 260.0), focal, (0.0, 1.0, 0.0), 55.0, size)
+        render_view(render_paths["threeQuarter"], root / STL_REL, dimensions, (172.0, 132.0, 188.0), focal, (0.0, 1.0, 0.0), None, size)
+        render_view(render_paths["side"], root / STL_REL, dimensions, (245.0, dimensions.height * 0.5, 4.5), focal, (0.0, 1.0, 0.0), 54.0, size)
+        render_view(render_paths["top"], root / STL_REL, dimensions, (0.0, 225.0, 4.5), focal, (0.0, 0.0, -1.0), 78.0, size)
+        render_dimensions(render_paths["dimensions"], dimensions)
+        mobile_review(render_paths["mobileReview"], render_paths)
+    elif copy_renders_from is not None:
+        for relative in RENDER_RELATIVE.values():
+            source = copy_renders_from / relative
+            require(source.is_file(), f"missing committed render {relative}")
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+    else:
+        raise RuntimeError("render generation or committed render copy is required")
+
+    preliminary_files = [
+        STEP_REL,
+        STL_REL,
+        OBJ_REL,
+        LABEL_OBJ_REL,
+        *RENDER_RELATIVE.values(),
+    ]
+    preliminary_hashes = {relative: sha256(root / relative) for relative in preliminary_files}
+    write_support_files(root, result, preliminary_hashes)
+
+    hash_candidates = [relative for relative in GENERATED_RELATIVE if relative != MANIFEST_REL]
+    all_hashes = {relative: sha256(root / relative) for relative in hash_candidates}
+    write_support_files(root, result, all_hashes)
+
+    for stale in STALE_RELATIVE:
+        path = root / stale
+        if path.exists():
+            path.unlink()
+
     print(
-        "RETROLIFE_M2_2_FRONT_GENERATED "
-        f"asset={ASSET_ID} triangles={total_triangles} grooves=5 uv=true "
-        "alpha_reused=false physical_calibrated=false final_approval=false m3=false"
+        "RETROLIFE_M2_2_CAD_GENERATED "
+        f"asset={ASSET_ID} cad=opencascade brep_faces={result.face_count} "
+        f"triangles={len(result.mesh.faces)} step=true height_field=false loft_only=false"
     )
 
 
-def compare(expected_root: Path, actual_root: Path) -> list[str]:
-    different: list[str] = []
-    for relative in GENERATED_PATHS:
-        expected = expected_root / relative
+def compare_generated(actual_root: Path, generated_root: Path) -> None:
+    failures: list[str] = []
+    for relative in GENERATED_RELATIVE:
         actual = actual_root / relative
-        if not actual.is_file() or expected.read_bytes() != actual.read_bytes():
-            different.append(relative)
-    return different
+        generated = generated_root / relative
+        if not actual.is_file():
+            failures.append(f"missing {relative}")
+            continue
+        if not generated.is_file():
+            failures.append(f"generator omitted {relative}")
+            continue
+        if actual.read_bytes() != generated.read_bytes():
+            failures.append(f"differs {relative}")
+    for stale in STALE_RELATIVE:
+        if (actual_root / stale).exists():
+            failures.append(f"stale active asset {stale}")
+    if failures:
+        raise SystemExit("RETROLIFE_M2_2_CAD_GENERATION_CHECK_FAILED: " + "; ".join(failures))
+    print("RETROLIFE_M2_2_CAD_GENERATION_CHECK_OK")
 
 
-def main() -> None:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--check", action="store_true")
-    arguments = parser.parse_args()
-    root = arguments.root.resolve()
-    if arguments.check:
-        with tempfile.TemporaryDirectory() as temporary:
-            expected_root = Path(temporary)
-            reference_source = root / "frontend/design/m2-snes-reference-manifest.json"
-            reference_target = expected_root / "frontend/design/m2-snes-reference-manifest.json"
-            reference_target.parent.mkdir(parents=True, exist_ok=True)
-            reference_target.write_bytes(reference_source.read_bytes())
-            write(expected_root)
-            differences = compare(expected_root, root)
-            if differences:
-                raise SystemExit("Generated M2.2 files are stale:\n" + "\n".join(differences))
-        print("RETROLIFE_M2_2_FRONT_GENERATION_CHECK_OK")
+    parser.add_argument("--skip-renders", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    root = args.root.resolve()
+    if args.check:
+        with tempfile.TemporaryDirectory(prefix="retrolife-m2-2-v5-") as directory:
+            generated_root = Path(directory)
+            # Copy the public source required by the generator.
+            source_reference = root / "frontend/design/m2-snes-reference-manifest.json"
+            destination_reference = generated_root / "frontend/design/m2-snes-reference-manifest.json"
+            destination_reference.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_reference, destination_reference)
+            generate(generated_root, render=not args.skip_renders, copy_renders_from=root if args.skip_renders else None)
+            compare_generated(root, generated_root)
         return
-    write(root)
+    generate(root, render=not args.skip_renders, copy_renders_from=root if args.skip_renders else None)
 
 
 if __name__ == "__main__":

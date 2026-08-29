@@ -1,9 +1,11 @@
-# RetroLife M2.2 SNES front shell
+# RetroLife M2.2 v5 front shell
 
-Original deterministic CC0 front-shell geometry for the M2.2 milestone.
+This directory contains the original procedural `retrolife.snes.na-cartridge.m2.2.front.v5` package.
 
-The package contains only the provisional front half of the early NTSC-U/C wide-shell cartridge. Rear shell, connector cavity, final materials, LODs and runtime replacement belong to M2.3 through M2.5.
+- `snes_ntsc_u_front_shell_v5.step`: canonical CAD B-rep export
+- `snes_ntsc_u_front_shell_v5.stl`: deterministic tessellation in millimetres
+- `snes_ntsc_u_front_shell_v5.obj`: Godot mesh in metres
+- `snes_ntsc_u_label_surface_v5.obj`: separate label surface with stable UVs
+- `materials/`: neutral review materials
 
-Asset: `retrolife.snes.na-cartridge.m2.2.front.v1`
-Reference: `retrolife.m2.1.snes-ntsc-u.reference.v1`
-Status: `provisional-front-shell-blockout`
+The geometry is provisional and requires physical calibration.

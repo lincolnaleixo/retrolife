@@ -18,16 +18,23 @@ python3 scripts/verify-m1-snes-contract.py
 
 ## M2 cartridge rebuild
 
-The first procedural cartridge remains an engineering blockout and is rejected as final geometry. The replacement is built from an authentic NTSC-U reference contract without third-party meshes, photos, branding, artwork or ROM content.
+The first procedural cartridge and M2.2 v1 through v4 are rejected as production geometry. M2.1 reference v3 records a new visual recalibration of the provisional envelope and landmarks. M2.2 v5 builds the active front shell as a CadQuery/Open CASCADE boundary-representation solid with a lower shoulder rise, broader side wings, a nearly flush central face and shallow molded details.
 
-The M2.1 package records the provisional dimensions, confidence levels and remaining physical-calibration gate. The M2.2 package provides a deterministic clean-room front shell and Godot scene. Both remain provisional until physical calibration and explicit owner review are complete.
+The primary engineering artifact is the STEP file. The Godot runtime uses the deterministic OBJ tessellation. Mobile review uses PNG renders made from the generated CAD tessellation. The label visible in the review PNGs is original RetroLife review artwork and is not part of the runtime asset. SVG remains useful for dimensions, but it is not the primary M2.2 geometry or review medium.
 
-Validate them with:
+Validate the current package with:
 
 ```bash
+python3 -m pip install -r scripts/requirements-m2-cad.txt
 python3 scripts/verify-m2-snes-reference.py
-python3 scripts/generate-m2-2-snes-front.py --check
+python3 scripts/generate-m2-2-snes-front.py --check --skip-renders
 python3 scripts/verify-m2-2-snes-front.py
 ```
 
 The normal product flow displays no console. Confirm seats the selected cartridge into the fixed bottom dock. Back reverses the transition and restores exact context and semantic focus.
+
+## Mobile review
+
+The active mobile sheet is `mobile/m2-2-snes-v5-mobile-review.png`. It is a direct render of the committed v5 CAD tessellation and is intended for mobile browsers that do not display engineering files reliably.
+
+Physical calibration and explicit owner approval remain open. M2.3 and M3 stay blocked until those gates close.
