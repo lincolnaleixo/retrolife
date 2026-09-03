@@ -1,0 +1,361 @@
+name: Codex apply validated M2.3 Blender cartridge
+
+on:
+  push:
+    branches: [codex/m2-3-blender-stage]
+    paths:
+      - .github/workflows/codex-apply-m2-3-blender.yml
+      - scripts/blender/apply_m2_3_public.py
+      - scripts/blender/build_m2_3_reference_review.py
+      - scripts/blender/finalize_m2_3_package.py
+      - scripts/verify-m2-3-blender-cartridge.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-apply-m2-3-blender
+  cancel-in-progress: false
+
+env:
+  PUBLIC_BASE_SHA: dc520b5a13d1b498bf5f85daf1ecb92d9265c9ab
+  TARGET_BRANCH: codex/m2-3-blender-cartridge
+  BLENDER_VERSION: "5.2.1"
+  GODOT_VERSION: "4.7"
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+  SOURCE_LICENSE: "CC BY"
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Check out staging source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: stage
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out immutable public base
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ env.PUBLIC_BASE_SHA }}
+          path: work
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify public base and clean worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C work rev-parse HEAD)" = "$PUBLIC_BASE_SHA"
+          test -z "$(git -C work status --porcelain)"
+          test "$(git -C work rev-list --count HEAD)" -eq 1
+          git -C work switch --create "$TARGET_BRANCH"
+          test -z "$(git -C work status --porcelain)"
+
+      - name: Download and qualify the public NTSC reference mesh
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/snes-ntsc-reference.zip"
+          source_dir="$RUNNER_TEMP/snes-ntsc-reference"
+          page="$RUNNER_TEMP/thingiverse-6364945.html"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --user-agent 'RetroLife public Blender pipeline' \
+            'https://www.thingiverse.com/thing:6364945' \
+            --output "$page"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            --user-agent 'RetroLife public Blender pipeline' \
+            'https://www.thingiverse.com/thing:6364945/zip' \
+            --output "$archive"
+          mkdir -p "$source_dir"
+          unzip -q "$archive" -d "$source_dir"
+          python3 - "$page" "$source_dir" "$RUNNER_TEMP/source-mesh.txt" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          page = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          compact = re.sub(r"\s+", " ", page).lower()
+          positive = [
+              "creativecommons.org/licenses/by/",
+              "creative commons attribution",
+              '"license":"cc"',
+              '"license":"cc by"',
+          ]
+          forbidden = [
+              "creativecommons.org/licenses/by-nc",
+              "creativecommons.org/licenses/by-sa",
+              "creativecommons.org/licenses/by-nd",
+              "noncommercial",
+              "non-commercial",
+              "sharealike",
+              "share-alike",
+              "no derivatives",
+          ]
+          if not any(marker in compact for marker in positive):
+              raise SystemExit("Thingiverse source page does not expose a plain attribution license")
+          if any(marker in compact for marker in forbidden):
+              raise SystemExit("Thingiverse source page exposes an unsupported license restriction")
+
+          root = Path(sys.argv[2])
+          candidates = [
+              path for path in root.rglob("*")
+              if path.is_file() and path.suffix.lower() in {".stl", ".obj", ".ply"}
+          ]
+          if not candidates:
+              raise SystemExit("No supported mesh in the public archive")
+
+          def score(path: Path) -> tuple[int, int, str]:
+              name = path.name.lower()
+              value = 0
+              for token, weight in [
+                  ("ntsc", 20), ("snes", 12), ("super", 4),
+                  ("nintendo", 4), ("cartridge", 10),
+                  ("reference", 8), ("complete", 8), ("full", 6),
+              ]:
+                  if token in name:
+                      value += weight
+              for token, weight in [
+                  ("label", -12), ("pcb", -12), ("insert", -8),
+                  ("logo", -8), ("front", -2), ("back", -2),
+              ]:
+                  if token in name:
+                      value += weight
+              return value, path.stat().st_size, str(path)
+
+          selected = max(candidates, key=score)
+          if selected.stat().st_size < 20_000:
+              raise SystemExit("Selected source mesh is unexpectedly small")
+          Path(sys.argv[3]).write_text(str(selected) + "\n", encoding="utf-8")
+          PY
+          sha256sum "$archive" | tee "$RUNNER_TEMP/source-archive.sha256"
+          sha256sum "$(cat "$RUNNER_TEMP/source-mesh.txt")" | tee "$RUNNER_TEMP/source-mesh.sha256"
+          echo "SOURCE_ARCHIVE_SHA=$(cut -d' ' -f1 "$RUNNER_TEMP/source-archive.sha256")" >> "$GITHUB_ENV"
+          echo "SOURCE_MESH=$(cat "$RUNNER_TEMP/source-mesh.txt")" >> "$GITHUB_ENV"
+          echo "SOURCE_FILENAME=$(basename "$(cat "$RUNNER_TEMP/source-mesh.txt")")" >> "$GITHUB_ENV"
+
+      - name: Install build and validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libegl1 \
+            libgl1 \
+            libgl1-mesa-dri \
+            libglx-mesa0 \
+            libx11-6 \
+            libxfixes3 \
+            libxi6 \
+            libxkbcommon0 \
+            libxrender1 \
+            libxxf86vm1 \
+            python3-pil \
+            rsync \
+            xauth \
+            xvfb
+          rustup show active-toolchain
+          cargo --version
+
+      - name: Install pinned official Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://download.blender.org/release/Blender5.2'
+          archive="$RUNNER_TEMP/blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          checks="$RUNNER_TEMP/blender-${BLENDER_VERSION}.sha256"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$base/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+            --output "$archive"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "$base/blender-${BLENDER_VERSION}.sha256" \
+            --output "$checks"
+          expected="$(grep -E "[[:space:]]blender-${BLENDER_VERSION}-linux-x64\\.tar\\.xz$" "$checks" | head -n1 | awk '{print $1}')"
+          test -n "$expected"
+          echo "$expected  $archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/blender"
+          tar -xJf "$archive" -C "$RUNNER_TEMP/blender" --strip-components=1
+          "$RUNNER_TEMP/blender/blender" --version
+          echo "BLENDER_BIN=$RUNNER_TEMP/blender/blender" >> "$GITHUB_ENV"
+
+      - name: Install pinned Godot and Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"
+          godot_archive="$RUNNER_TEMP/godot.zip"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+            --output "$godot_archive"
+          unzip -q "$godot_archive" -d "$tools"
+          chmod +x "$tools/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$tools/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --version
+          echo "GODOT_BIN=$tools/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
+
+          gitleaks_archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "$gitleaks_archive"
+          echo "$GITLEAKS_SHA256  $gitleaks_archive" | sha256sum --check --status
+          tar -xzf "$gitleaks_archive" -C "$tools" gitleaks
+          chmod +x "$tools/gitleaks"
+          "$tools/gitleaks" version
+          echo "GITLEAKS_BIN=$tools/gitleaks" >> "$GITHUB_ENV"
+
+      - name: Install existing public CAD validator dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/cad-venv"
+          source "$RUNNER_TEMP/cad-venv/bin/activate"
+          python -m pip install --upgrade pip
+          if [[ -f work/scripts/requirements-m2-cad.txt ]]; then
+            python -m pip install --requirement work/scripts/requirements-m2-cad.txt
+          else
+            python -m pip install Pillow
+          fi
+          echo "PYTHON_BIN=$RUNNER_TEMP/cad-venv/bin/python" >> "$GITHUB_ENV"
+
+      - name: Assemble the clean public branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 stage/scripts/blender/apply_m2_3_public.py \
+            --stage stage \
+            --work work \
+            --source "$SOURCE_MESH" \
+            --source-license "$SOURCE_LICENSE" \
+            --source-filename "$SOURCE_FILENAME"
+          test ! -e work/.codex-blender-source
+          test ! -e work/.codex-payload
+          test -z "$(find work/.github/workflows -maxdepth 1 -name 'codex-*.yml' -print -quit)"
+
+      - name: Generate the Blender package
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          source_mesh="$(find work/frontend/godot-ui/assets/snes/m2_3/source -maxdepth 1 -type f \( -name '*.stl' -o -name '*.obj' -o -name '*.ply' \) | head -n1)"
+          test -s "$source_mesh"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24 -nolisten tcp' \
+            "$BLENDER_BIN" \
+              --background \
+              --factory-startup \
+              --python work/scripts/blender/build_m2_3_cartridge.py \
+              -- \
+              --root "$GITHUB_WORKSPACE/work" \
+              --source "$GITHUB_WORKSPACE/$source_mesh" \
+            | tee "$RUNNER_TEMP/blender-build.log"
+          grep -Fq 'RETROLIFE_M2_3_BLENDER_OK' "$RUNNER_TEMP/blender-build.log"
+          "$PYTHON_BIN" work/scripts/blender/finalize_m2_3_package.py \
+            --root work \
+            --source "$source_mesh" \
+            --source-archive-sha "$SOURCE_ARCHIVE_SHA" \
+            --source-license "$SOURCE_LICENSE"
+          "$PYTHON_BIN" work/scripts/verify-m2-3-blender-cartridge.py
+          git -C work diff --check
+
+      - name: Commit the intended public tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C work config user.name 'RetroLife public builder'
+          git -C work config user.email '2906581+lincolnaleixo@users.noreply.github.com'
+          git -C work config commit.gpgsign false
+          git -C work add --all
+          git -C work diff --cached --check
+          git -C work commit -m 'feat: add headless Blender NTSC cartridge review asset'
+          test "$(git -C work rev-parse HEAD^)" = "$PUBLIC_BASE_SHA"
+
+      - name: Run all mandatory gates on the exact commit
+        shell: bash
+        env:
+          CARGO_BIN: cargo
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          cd work
+          cargo fmt --all --check
+          cargo test --workspace --locked
+          "$PYTHON_BIN" scripts/verify-m1-snes-contract.py
+          "$PYTHON_BIN" scripts/verify-m2-snes-reference.py
+          "$PYTHON_BIN" scripts/verify-m2-3-blender-cartridge.py
+          "$GITLEAKS_BIN" git --no-banner --redact --log-opts=--all .
+          "$GITLEAKS_BIN" dir --no-banner --redact .
+          GODOT_BIN="$GODOT_BIN" \
+          GITLEAKS_BIN="$GITLEAKS_BIN" \
+          PYTHON_BIN="$PYTHON_BIN" \
+            xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24 -nolisten tcp' \
+            scripts/verify-before-push.sh \
+            | tee "$RUNNER_TEMP/prepush.log"
+          grep -Fq 'RETROLIFE_PRE_PUSH_OK' "$RUNNER_TEMP/prepush.log"
+          "$GODOT_BIN" --headless --path frontend/godot-ui --editor --quit-after 30
+          "$GODOT_BIN" --headless --path frontend/godot-ui \
+            --script res://scripts/m2_3_snes_blender_smoke_test.gd \
+            | tee "$RUNNER_TEMP/m2-3-smoke.log"
+          grep -Fq 'RETROLIFE_M2_3_BLENDER_GODOT_OK' "$RUNNER_TEMP/m2-3-smoke.log"
+          test -z "$(git status --porcelain)"
+
+      - name: Rebuild Blender asset from committed source in isolation
+        shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          rebuild="$RUNNER_TEMP/rebuild"
+          mkdir -p "$rebuild"
+          rsync -a --exclude=.git work/ "$rebuild/"
+          committed_manifest="$rebuild/frontend/design/m2-3-snes-blender-manifest.json"
+          license="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sourceMesh"]["license"])' "$committed_manifest")"
+          source_mesh="$(find "$rebuild/frontend/godot-ui/assets/snes/m2_3/source" -maxdepth 1 -type f \( -name '*.stl' -o -name '*.obj' -o -name '*.ply' \) | head -n1)"
+          rm -f "$committed_manifest"
+          rm -f "$rebuild"/frontend/design/mobile/m2-3-snes-blender-*.png
+          rm -f "$rebuild/frontend/godot-ui/assets/snes/m2_3/snes_ntsc_u_cartridge_m2_3.blend"
+          rm -f "$rebuild/frontend/godot-ui/assets/snes/m2_3/snes_ntsc_u_cartridge_m2_3.glb"
+          xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24 -nolisten tcp' \
+            "$BLENDER_BIN" --background --factory-startup \
+            --python "$rebuild/scripts/blender/build_m2_3_cartridge.py" -- \
+            --root "$rebuild" --source "$source_mesh" \
+            | tee "$RUNNER_TEMP/blender-rebuild.log"
+          grep -Fq 'RETROLIFE_M2_3_BLENDER_OK' "$RUNNER_TEMP/blender-rebuild.log"
+          "$PYTHON_BIN" "$rebuild/scripts/blender/finalize_m2_3_package.py" \
+            --root "$rebuild" \
+            --source "$source_mesh" \
+            --source-archive-sha "$SOURCE_ARCHIVE_SHA" \
+            --source-license "$license"
+          "$PYTHON_BIN" "$rebuild/scripts/verify-m2-3-blender-cartridge.py"
+
+      - name: Push only after all gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C work fetch origin "$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" || true
+          git -C work push --force-with-lease origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "RETROLIFE_M2_3_PUSH_OK sha=$(git -C work rev-parse HEAD)"
+
+      - name: Upload audit package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retrolife-m2-3-blender-apply-${{ github.sha }}
+          path: |
+            work/frontend/design/m2-3-snes-blender-manifest.json
+            work/frontend/design/mobile/m2-3-snes-blender-*.png
+            work/frontend/godot-ui/assets/snes/m2_3/snes_ntsc_u_cartridge_m2_3.blend
+            work/frontend/godot-ui/assets/snes/m2_3/snes_ntsc_u_cartridge_m2_3.glb
+            ${{ runner.temp }}/source-archive.sha256
+            ${{ runner.temp }}/source-mesh.sha256
+            ${{ runner.temp }}/blender-build.log
+            ${{ runner.temp }}/blender-rebuild.log
+            ${{ runner.temp }}/prepush.log
+            ${{ runner.temp }}/m2-3-smoke.log
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
