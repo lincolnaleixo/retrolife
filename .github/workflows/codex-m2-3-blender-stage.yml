@@ -32,9 +32,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find .codex-blender-source -maxdepth 1 -name 'part-*.b64' | wc -l)" -eq 8
+          chunks=(
+            .codex-blender-source/part-00.b64
+            .codex-blender-source/part-01a.b64
+            .codex-blender-source/part-01b.b64
+            .codex-blender-source/part-02.b64
+            .codex-blender-source/part-03.b64
+            .codex-blender-source/part-04.b64
+            .codex-blender-source/part-05.b64
+            .codex-blender-source/part-06.b64
+            .codex-blender-source/part-07.b64
+          )
+          for chunk in "${chunks[@]}"; do
+            test -s "$chunk"
+          done
           mkdir -p scripts/blender
-          cat .codex-blender-source/part-*.b64 \
+          cat "${chunks[@]}" \
             | tr -d '\r\n ' \
             | base64 --decode \
             > scripts/blender/generate_m2_3_snes_cartridge.py
