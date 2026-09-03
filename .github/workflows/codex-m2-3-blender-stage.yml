@@ -56,6 +56,7 @@ jobs:
           # Blender 5.2 LTS exposes Eevee as BLENDER_EEVEE in background builds.
           sed -i 's/BLENDER_EEVEE_NEXT/BLENDER_EEVEE/' \
             scripts/blender/generate_m2_3_snes_cartridge.py
+          python3 .codex-blender-source/stage_patch.py
           python3 -m py_compile scripts/blender/generate_m2_3_snes_cartridge.py
 
       - name: Install rendering runtime
