@@ -53,6 +53,9 @@ jobs:
             > scripts/blender/generate_m2_3_snes_cartridge.py
           echo "${GENERATOR_SHA256}  scripts/blender/generate_m2_3_snes_cartridge.py" \
             | sha256sum --check --status
+          # Blender 5.2 LTS exposes Eevee as BLENDER_EEVEE in background builds.
+          sed -i 's/BLENDER_EEVEE_NEXT/BLENDER_EEVEE/' \
+            scripts/blender/generate_m2_3_snes_cartridge.py
           python3 -m py_compile scripts/blender/generate_m2_3_snes_cartridge.py
 
       - name: Install rendering runtime
