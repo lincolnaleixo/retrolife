@@ -275,7 +275,7 @@ def camera(name,direction,up=(0,0,1),perspective=False):
     return obj
 
 
-def setup(width,samples):
+def setup(width,samples,exposure):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene=bpy.context.scene
     scene.unit_settings.system='METRIC'
@@ -285,6 +285,7 @@ def setup(width,samples):
     scene.cycles.samples=samples
     scene.cycles.seed=7
     scene.cycles.use_animated_seed=False
+    scene.cycles.use_adaptive_sampling=False
     scene.cycles.use_denoising=True
     scene.render.resolution_x=width
     scene.render.resolution_y=round(width*.75)
@@ -293,7 +294,12 @@ def setup(width,samples):
     scene.render.image_settings.color_mode='RGBA'
     scene.render.film_transparent=True
     scene.view_settings.view_transform='AgX'
-    scene.view_settings.exposure=0
+    # The prior run failed its exposure gate (clay mean luminance 240/255).
+    # Correct exposure in Cycles, not by brightening or repainting its PNGs.
+    scene.view_settings.exposure=exposure
+    scene.view_settings.gamma=1
+    scene.render.use_compositing=False
+    scene.render.use_sequencer=False
     world=bpy.data.worlds.new('Studio environment')
     world.use_nodes=True
     world.node_tree.nodes['Background'].inputs['Color'].default_value=(.8,.8,.8,1)
@@ -330,11 +336,16 @@ def main():
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--width',type=int,default=1400)
     parser.add_argument('--samples',type=int,default=64)
+    parser.add_argument('--exposure',type=float,default=-1.75)
     parser.add_argument('--label',type=Path)
     parser.add_argument('--hero-only',action='store_true')
     opts=parser.parse_args(sys.argv[sys.argv.index('--')+1:])
+    if not 256 <= opts.width <= 8192 or not 1 <= opts.samples <= 4096:
+        parser.error("width must be 256..8192 and samples 1..4096")
+    if not math.isfinite(opts.exposure) or not -6 <= opts.exposure <= 3:
+        parser.error("exposure must be finite and between -6 and 3 stops")
     out=opts.out.resolve();out.mkdir(parents=True,exist_ok=True)
-    setup(opts.width,opts.samples)
+    setup(opts.width,opts.samples,opts.exposure)
     front,rear,label=build()
     topology=validate((front,rear))
     renders=[]
@@ -382,6 +393,10 @@ def main():
         shot('reference-label-three-quarter',(1,-2.6,.8),perspective=True)
     paths=['cartridge.blend','cartridge.glb',*renders]
     report={'assetId':ASSET,'renderer':'Cycles CPU','blenderVersion':bpy.app.version_string,
+        'renderSettings':{'exposureStops':opts.exposure,'samples':opts.samples,
+                          'resolution':[opts.width,round(opts.width*.75)],
+                          'viewTransform':'AgX','seed':7,'adaptiveSampling':False},
+        'sourceCodeSha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'units':'metres','physicalCalibrationComplete':False,'visualApproved':False,
         'activeM2Replaced':False,'geometricLicense':'CC0-1.0','topology':topology,
         'cameraChecks':CAMERAS,'commercialLabelInAsset':False,
