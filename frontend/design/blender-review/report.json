@@ -1,0 +1,153 @@
+{
+  "activeM2Replaced": false,
+  "assetId": "retrolife.snes.ntsc.cartridge.review.r1",
+  "blenderVersion": "5.2.1 LTS",
+  "cameraChecks": {
+    "bottom": {
+      "boundsNdc": [
+        0.07499996572732925,
+        0.4166666567325592,
+        0.925000011920929,
+        0.5833333134651184
+      ],
+      "perspective": false
+    },
+    "clay-front": {
+      "boundsNdc": [
+        0.07499996572732925,
+        0.13333289325237274,
+        0.925000011920929,
+        0.8666662573814392
+      ],
+      "perspective": false
+    },
+    "clay-three-quarter": {
+      "boundsNdc": [
+        0.19907599687576294,
+        0.17282035946846008,
+        0.8242838382720947,
+        0.7955920100212097
+      ],
+      "perspective": true
+    },
+    "exploded": {
+      "boundsNdc": [
+        0.14628483355045319,
+        0.11697804182767868,
+        0.8442772626876831,
+        0.8133432269096375
+      ],
+      "perspective": true
+    },
+    "left": {
+      "boundsNdc": [
+        0.4375,
+        0.13333332538604736,
+        0.5625,
+        0.8666666746139526
+      ],
+      "perspective": false
+    },
+    "neutral-front": {
+      "boundsNdc": [
+        0.07499996572732925,
+        0.13333289325237274,
+        0.925000011920929,
+        0.8666662573814392
+      ],
+      "perspective": false
+    },
+    "neutral-three-quarter": {
+      "boundsNdc": [
+        0.19907599687576294,
+        0.17282035946846008,
+        0.8242838382720947,
+        0.7955920100212097
+      ],
+      "perspective": true
+    },
+    "rear": {
+      "boundsNdc": [
+        0.07499996572732925,
+        0.13333289325237274,
+        0.925000011920929,
+        0.8666662573814392
+      ],
+      "perspective": false
+    },
+    "rear-three-quarter": {
+      "boundsNdc": [
+        0.19907593727111816,
+        0.17282085120677948,
+        0.82428377866745,
+        0.7955924868583679
+      ],
+      "perspective": true
+    },
+    "right": {
+      "boundsNdc": [
+        0.4375,
+        0.13333332538604736,
+        0.5625,
+        0.8666666746139526
+      ],
+      "perspective": false
+    },
+    "top": {
+      "boundsNdc": [
+        0.07499996572732925,
+        0.4166666567325592,
+        0.925000011920929,
+        0.5833333134651184
+      ],
+      "perspective": false
+    }
+  },
+  "commercialLabelInAsset": false,
+  "files": {
+    "bottom.png": "a354704ed574f06974a341dc8a7a0ad374a2752c6a52bc2f3312872eb0143d47",
+    "cartridge.blend": "25e795c7231881b9017adf04b77ba4bc53e8067b264373181a3b5b918e629fd8",
+    "cartridge.glb": "ae9481e71fb4816b27e4b0ba1d737c407a9a52d933aaa4e1cecf8f476e9b2de8",
+    "clay-front.png": "72c48f7419d4b0ea7d9c53c7ee14b2865e0aa296942a0bbd77d25b232e9a34b4",
+    "clay-three-quarter.png": "5b2f6085bb962f1dfcee8347440db70715755cd4c29ad703d76ede36ae0b263c",
+    "exploded.png": "a11dd5cf858a81c8220594e957e08f2b3b151f63c80ff0757dd0a109f28787e4",
+    "left.png": "d7b8f15241bb3639282eb61e566c7a71c662f502469eb5d96963ba1f6f7d1be5",
+    "neutral-front.png": "9a37f4bd2f9fb63527ae1942b4d6d256a5154c94916adf2e6f2367eff1cbaa5d",
+    "neutral-three-quarter.png": "20e792d18461ba6c9982475d7a680e033ce634cf7387089df70256a3c454c54c",
+    "rear-three-quarter.png": "39ee0c79b4fb103796e1b8e85f35181f8a61e9093ca4c00a5fcd4644e82d859e",
+    "rear.png": "c810e6d11355699aa0f4a20fcd58cefbed61558d5df4ea4d8c2b1ef619f24ad6",
+    "right.png": "f827b8e1635f32dddae4ef28bd668f84a08cbe13550f562c14e6874bd54bd0e8",
+    "top.png": "523b055a5fa1d167a8ecde37ab7474c46cbb7eadf0f55037414d6c25ca90dca3"
+  },
+  "geometricLicense": "CC0-1.0",
+  "physicalCalibrationComplete": false,
+  "reference": "https://media.gamestop.com/i/gamestop/10125270/Super-Mario-World---Super-Nintendo",
+  "renderSettings": {
+    "adaptiveSampling": false,
+    "exposureStops": -1.75,
+    "resolution": [
+      1400,
+      1050
+    ],
+    "samples": 64,
+    "seed": 7,
+    "viewTransform": "AgX"
+  },
+  "renderer": "Cycles CPU",
+  "source": "Original review geometry; photo-estimated proportions, not a physical scan",
+  "sourceCodeSha256": "6f618dda6af2caf4713344796708c7473c85587b60b8c52c6f2b92e70b8c7f5e",
+  "topology": {
+    "Front shell": {
+      "nonManifoldEdges": 0,
+      "vertices": 4982,
+      "volumeM3": 3.3716806011003844e-05
+    },
+    "Rear shell": {
+      "nonManifoldEdges": 0,
+      "vertices": 3378,
+      "volumeM3": 2.7454940472494026e-05
+    }
+  },
+  "units": "metres",
+  "visualApproved": false
+}
