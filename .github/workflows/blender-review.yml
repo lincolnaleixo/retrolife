@@ -2,45 +2,171 @@ name: Blender cartridge review
 on:
   push:
     branches: [codex/blender-review-recovery]
+    paths: ['scripts/blender/**', '.github/workflows/blender-review.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: blender-review-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   review:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
-      - name: Verify public checkout
+      - name: Public checkout and source gates
         shell: bash
         run: |
           set -euo pipefail
           test "${{ github.repository }}" = 'lincolnaleixo/retrolife'
           test -z "$(git status --porcelain)"
-      - name: Prepare official Blender and comparison photos
+          cargo fmt --all --check
+          cargo test --workspace --locked
+          python3 scripts/verify-m1-snes-contract.py
+          python3 scripts/verify-m2-snes-reference.py
+          python3 scripts/generate-m2-2-snes-front.py --check
+          python3 scripts/verify-m2-2-snes-front.py
+          python3 -m py_compile scripts/blender/cartridge_review.py
+          git diff --exit-code
+      - name: Install verified renderer and validation tools
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/review-toolchain"
-          cd "$RUNNER_TEMP/review-toolchain"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libegl1 libgl1 libx11-6 libxi6 libxrender1 libxfixes3 libxkbcommon0 libxxf86vm1
+          python3 -m pip install --quiet Pillow==11.3.0
+          mkdir -p "$RUNNER_TEMP/tools" "$RUNNER_TEMP/references"
+          cd "$RUNNER_TEMP/tools"
           base='https://download.blender.org/release/Blender5.2'
           archive='blender-5.2.1-linux-x64.tar.xz'
           curl -fL --retry 3 "$base/$archive" -o "$archive"
-          curl -fL --retry 3 "$base/blender-5.2.1.sha256" -o checksums.txt
-          grep -E '[[:space:]]blender-5\.2\.1-linux-x64\.tar\.xz$' checksums.txt | sha256sum -c -
-          curl -fL --retry 2 'https://media.gamestop.com/i/gamestop/10125270/Super-Mario-World---Super-Nintendo' -o physical-front.jpg
-          curl -fL --retry 2 'https://i.ebayimg.com/images/g/gHoAAOSwl55jtYUo/s-l1200.jpg' -o physical-detail.jpg
-          printf '%s\n' 'Photos are external comparison references, not distributable RetroLife textures.' > REFERENCE-NOTE.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          curl -fL --retry 3 "$base/blender-5.2.1.sha256" -o blender-checksums.txt
+          grep -E '[[:space:]]blender-5\.2\.1-linux-x64\.tar\.xz$' blender-checksums.txt | sha256sum -c -
+          tar -xJf "$archive"
+          echo "BLENDER_BIN=$RUNNER_TEMP/tools/blender-5.2.1-linux-x64/blender" >> "$GITHUB_ENV"
+          curl -fL --retry 3 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz' -o gitleaks.tar.gz
+          curl -fL --retry 3 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt' -o gitleaks-checksums.txt
+          expected=$(grep 'gitleaks_8.30.1_linux_x64.tar.gz$' gitleaks-checksums.txt | awk '{print $1}')
+          test -n "$expected"
+          echo "$expected  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          curl -fL --retry 3 'https://github.com/godotengine/godot/releases/download/4.7-stable/Godot_v4.7-stable_linux.x86_64.zip' -o godot.zip
+          curl -fL --retry 3 'https://github.com/godotengine/godot/releases/download/4.7-stable/SHA512-SUMS.txt' -o godot-checksums.txt
+          expected=$(grep 'Godot_v4.7-stable_linux.x86_64.zip$' godot-checksums.txt | awk '{print $1}')
+          test -n "$expected"
+          echo "$expected  godot.zip" | sha512sum -c -
+          unzip -q godot.zip
+          echo "GODOT_BIN=$RUNNER_TEMP/tools/Godot_v4.7-stable_linux.x86_64" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
+      - name: Build and smoke existing public scenes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build-godot-extension.sh
+          bash scripts/build-phase4-launch.sh
+          "$GODOT_BIN" --headless --path frontend/godot-ui --editor --quit-after 30
+          for script in smoke_test.gd ui_smoke_test.gd m2_2_snes_front_smoke_test.gd; do
+            "$GODOT_BIN" --headless --path frontend/godot-ui --script "res://scripts/$script"
+          done
+          gitleaks git . --redact --no-banner --log-opts='--all'
+          gitleaks dir . --redact --no-banner
+      - name: Build and render real geometry in Cycles CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$BLENDER_BIN" --background --factory-startup --python-exit-code 1 \
+            --python scripts/blender/cartridge_review.py -- \
+            --out "$RUNNER_TEMP/cartridge-review" --width 1400 --samples 64 \
+            2>&1 | tee "$RUNNER_TEMP/blender-review.log"
+          grep -F 'RETROLIFE_BLENDER_REVIEW_OK' "$RUNNER_TEMP/blender-review.log"
+      - name: Check image coverage and make mobile images
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/cartridge-review" <<'PY'
+          import json, sys
+          from pathlib import Path
+          from PIL import Image, ImageStat, ImageDraw
+          root=Path(sys.argv[1])
+          report=json.loads((root/'report.json').read_text())
+          checks={}
+          for name in report['files']:
+              if not name.endswith('.png'): continue
+              image=Image.open(root/name).convert('RGBA')
+              alpha=image.getchannel('A'); box=alpha.getbbox()
+              assert box, name+' has no visible object'
+              assert box[0]>0 and box[1]>0 and box[2]<image.width and box[3]<image.height, name+' touches image edge'
+              gray=image.convert('L')
+              mean=ImageStat.Stat(gray,alpha).mean[0]
+              assert 35<mean<235, (name,'bad exposure',mean)
+              checks[name]={'objectBoundsPx':box,'meanLuminance':mean}
+              white=Image.new('RGBA',image.size,'white');white.alpha_composite(image)
+              white.convert('RGB').save(root/(Path(name).stem+'.jpg'),quality=90)
+          (root/'image-checks.json').write_text(json.dumps(checks,indent=2)+'\n')
+          rows=[]
+          for name in ('clay-three-quarter','clay-front','rear-three-quarter','bottom'):
+              im=Image.open(root/(name+'.jpg')); im.thumbnail((900,675))
+              row=Image.new('RGB',(900,725),'white');row.paste(im,((900-im.width)//2,50))
+              ImageDraw.Draw(row).text((25,15),name.replace('-',' ').upper(),fill='black',font_size=24)
+              rows.append(row)
+          board=Image.new('RGB',(900,725*len(rows)),'white')
+          for i,row in enumerate(rows):board.paste(row,(0,i*725))
+          board.save(root/'mobile-review.jpg',quality=88)
+          PY
+      - name: Reimport exported GLB in Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="$RUNNER_TEMP/godot-review"
+          mkdir -p "$project"
+          cp "$RUNNER_TEMP/cartridge-review/cartridge.glb" "$project/"
+          printf '[application]\nconfig/name="Cartridge review smoke"\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n' > "$project/project.godot"
+          "$GODOT_BIN" --headless --path "$project" --editor --quit-after 30
+          cat > "$project/smoke.gd" <<'GD'
+          extends SceneTree
+          func _initialize():
+              var scene = load("res://cartridge.glb") as PackedScene
+              assert(scene != null, "GLB did not import")
+              var instance = scene.instantiate()
+              root.add_child(instance)
+              var meshes = instance.find_children("*", "MeshInstance3D", true, false)
+              assert(meshes.size() >= 4, "Model components missing")
+              var label = instance.find_child("LabelSurface", true, false)
+              assert(label != null, "Replaceable label mesh missing")
+              print("RETROLIFE_REVIEW_GLB_GODOT_OK meshes=", meshes.size())
+              quit(0)
+          GD
+          "$GODOT_BIN" --headless --path "$project" --script res://smoke.gd
+      - name: Upload editable scene, model, renders and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: blender-review-toolchain
-          path: ${{ runner.temp }}/review-toolchain/
-          retention-days: 2
-          compression-level: 0
-          if-no-files-found: error
+          name: cartridge-review-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/cartridge-review/
+            ${{ runner.temp }}/blender-review.log
+            scripts/blender/cartridge_review.py
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish verified neutral preview on review branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p frontend/design/blender-review
+          cp "$RUNNER_TEMP/cartridge-review/"*.jpg frontend/design/blender-review/
+          cp "$RUNNER_TEMP/cartridge-review/report.json" frontend/design/blender-review/
+          cp "$RUNNER_TEMP/cartridge-review/image-checks.json" frontend/design/blender-review/
+          gitleaks dir . --redact --no-banner
+          git diff --check
+          git config user.name 'RetroLife review builder'
+          git config user.email '2906581+lincolnaleixo@users.noreply.github.com'
+          git add frontend/design/blender-review/
+          git diff --cached --quiet && exit 0
+          git commit -m 'art: publish tested Cycles cartridge review previews'
+          git -c credential.helper='!f() { echo username=x-access-token; echo password=$GH_TOKEN; }; f' push origin HEAD:codex/blender-review-recovery
