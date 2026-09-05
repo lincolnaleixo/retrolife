@@ -1,0 +1,101 @@
+{
+  "bottom.png": {
+    "objectBoundsPx": [
+      104,
+      436,
+      1296,
+      614
+    ],
+    "meanLuminance": 138.8741397922008
+  },
+  "clay-front.png": {
+    "objectBoundsPx": [
+      104,
+      139,
+      1296,
+      911
+    ],
+    "meanLuminance": 213.97474824349513
+  },
+  "clay-three-quarter.png": {
+    "objectBoundsPx": [
+      284,
+      223,
+      1152,
+      864
+    ],
+    "meanLuminance": 214.28133136525756
+  },
+  "exploded.png": {
+    "objectBoundsPx": [
+      211,
+      204,
+      1180,
+      922
+    ],
+    "meanLuminance": 190.43075183042535
+  },
+  "left.png": {
+    "objectBoundsPx": [
+      611,
+      139,
+      789,
+      911
+    ],
+    "meanLuminance": 175.3647164082782
+  },
+  "neutral-front.png": {
+    "objectBoundsPx": [
+      104,
+      139,
+      1296,
+      911
+    ],
+    "meanLuminance": 191.46871711723637
+  },
+  "neutral-three-quarter.png": {
+    "objectBoundsPx": [
+      284,
+      223,
+      1152,
+      864
+    ],
+    "meanLuminance": 191.3279084549127
+  },
+  "rear-three-quarter.png": {
+    "objectBoundsPx": [
+      281,
+      223,
+      1151,
+      866
+    ],
+    "meanLuminance": 204.8596601874393
+  },
+  "rear.png": {
+    "objectBoundsPx": [
+      104,
+      139,
+      1296,
+      911
+    ],
+    "meanLuminance": 206.77837927269118
+  },
+  "right.png": {
+    "objectBoundsPx": [
+      611,
+      139,
+      789,
+      911
+    ],
+    "meanLuminance": 205.9553231590604
+  },
+  "top.png": {
+    "objectBoundsPx": [
+      104,
+      436,
+      1296,
+      614
+    ],
+    "meanLuminance": 211.9078190212729
+  }
+}
