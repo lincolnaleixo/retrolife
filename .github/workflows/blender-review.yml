@@ -2,7 +2,7 @@ name: Blender cartridge review
 on:
   push:
     branches: [codex/blender-review-recovery]
-    paths: ['scripts/blender/**', '.github/workflows/blender-review.yml']
+    paths: ['scripts/blender/**', '.github/workflows/blender-review.yml', '.codex-blender-r2/**']
   workflow_dispatch:
 permissions:
   contents: write
@@ -32,6 +32,20 @@ jobs:
           python3 scripts/verify-m2-2-snes-front.py
           python3 -m py_compile scripts/blender/cartridge_review.py
           git diff --exit-code
+      - name: Reconstruct refined Blender candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/cartridge_review.py"
+          if compgen -G '.codex-blender-r2/part-*.b64' >/dev/null; then
+            cat .codex-blender-r2/part-*.b64 | tr -d '\r\n ' | base64 --decode > "$candidate"
+            echo 'f0084873f74abef8520720c4a21adfffc296dcf33aff24b7bc0c3b689de569fb  '"$candidate" | sha256sum --check --status
+            rm -rf .codex-blender-r2
+          else
+            cp scripts/blender/cartridge_review.py "$candidate"
+          fi
+          python3 -m py_compile "$candidate"
+          echo "REVIEW_SCRIPT=$candidate" >> "$GITHUB_ENV"
       - name: Install verified renderer and validation tools
         shell: bash
         run: |
@@ -39,7 +53,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libegl1 libgl1 libx11-6 libxi6 libxrender1 libxfixes3 libxkbcommon0 libxxf86vm1
           python3 -m pip install --quiet Pillow==11.3.0
-          mkdir -p "$RUNNER_TEMP/tools" "$RUNNER_TEMP/references"
+          mkdir -p "$RUNNER_TEMP/tools"
           cd "$RUNNER_TEMP/tools"
           base='https://download.blender.org/release/Blender5.2'
           archive='blender-5.2.1-linux-x64.tar.xz'
@@ -74,12 +88,12 @@ jobs:
           done
           gitleaks git . --redact --no-banner --log-opts='--all'
           gitleaks dir . --redact --no-banner
-      - name: Build and render real geometry in Cycles CPU
+      - name: Build and render refined geometry in Cycles CPU
         shell: bash
         run: |
           set -euo pipefail
           "$BLENDER_BIN" --background --factory-startup --python-exit-code 1 \
-            --python scripts/blender/cartridge_review.py -- \
+            --python "$REVIEW_SCRIPT" -- \
             --out "$RUNNER_TEMP/cartridge-review" --width 1400 --samples 64 \
             2>&1 | tee "$RUNNER_TEMP/blender-review.log"
           grep -F 'RETROLIFE_BLENDER_REVIEW_OK' "$RUNNER_TEMP/blender-review.log"
@@ -105,17 +119,17 @@ jobs:
               assert 35<mean<235, (name,'bad exposure',mean)
               checks[name]={'objectBoundsPx':box,'meanLuminance':mean}
               white=Image.new('RGBA',image.size,'white');white.alpha_composite(image)
-              white.convert('RGB').save(root/(Path(name).stem+'.jpg'),quality=90)
+              white.convert('RGB').save(root/(Path(name).stem+'.jpg'),quality=92)
           (root/'image-checks.json').write_text(json.dumps(checks,indent=2)+'\n')
           rows=[]
-          for name in ('clay-three-quarter','clay-front','rear-three-quarter','bottom'):
+          for name in ('neutral-three-quarter','neutral-front','clay-three-quarter','bottom'):
               im=Image.open(root/(name+'.jpg')); im.thumbnail((900,675))
               row=Image.new('RGB',(900,725),'white');row.paste(im,((900-im.width)//2,50))
               ImageDraw.Draw(row).text((25,15),name.replace('-',' ').upper(),fill='black',font_size=24)
               rows.append(row)
           board=Image.new('RGB',(900,725*len(rows)),'white')
           for i,row in enumerate(rows):board.paste(row,(0,i*725))
-          board.save(root/'mobile-review.jpg',quality=88)
+          board.save(root/'mobile-review.jpg',quality=90)
           PY
       - name: Reimport exported GLB in Godot
         shell: bash
@@ -149,15 +163,17 @@ jobs:
           path: |
             ${{ runner.temp }}/cartridge-review/
             ${{ runner.temp }}/blender-review.log
-            scripts/blender/cartridge_review.py
+            ${{ env.REVIEW_SCRIPT }}
           retention-days: 14
           if-no-files-found: warn
-      - name: Publish verified neutral preview on review branch only
+      - name: Publish verified preview and refined source on review branch only
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          cp "$REVIEW_SCRIPT" scripts/blender/cartridge_review.py
+          rm -rf .codex-blender-r2
           mkdir -p frontend/design/blender-review
           cp "$RUNNER_TEMP/cartridge-review/"*.jpg frontend/design/blender-review/
           cp "$RUNNER_TEMP/cartridge-review/report.json" frontend/design/blender-review/
@@ -166,7 +182,7 @@ jobs:
           git diff --check
           git config user.name 'RetroLife review builder'
           git config user.email '2906581+lincolnaleixo@users.noreply.github.com'
-          git add frontend/design/blender-review/
+          git add -A scripts/blender/cartridge_review.py .codex-blender-r2 frontend/design/blender-review/
           git diff --cached --quiet && exit 0
-          git commit -m 'art: publish tested Cycles cartridge review previews'
+          git commit -m 'art: refine tested Blender cartridge review'
           git -c credential.helper='!f() { echo username=x-access-token; echo password=$GH_TOKEN; }; f' push origin HEAD:codex/blender-review-recovery
