@@ -13,3 +13,18 @@ The signing script signs nested dylibs before the application, notarizes a tempo
 Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable `v0.1.0` prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. Automatic updates are outside this release.
 
 The exported release template does not run the editor-only `--script` smokes. Use `--headless --quit-after 5` for packaged startup, and keep the full script-driven integration checks in the editor build. Packaged startup alone does not verify physical controls or audible output.
+
+## Rebuilding from source bundles
+
+The application archive contains the exact source revision. Extract the Rust dependency archive into its `dist/` directory, then install the supplied Cargo source configuration:
+
+```sh
+tar -xzf retrolife-source.tar.gz
+mkdir -p retrolife/dist retrolife/.cargo
+tar -xzf retrolife-rust-dependencies.tar.gz -C retrolife/dist
+cp retrolife/dist/vendor-config.toml retrolife/.cargo/config.toml
+cd retrolife
+cargo test --workspace --locked --offline
+```
+
+This offline Rust check requires the pinned Rust toolchain already installed. The separate core-source archive contains the exact bsnes-jg revision; Godot and its matching export templates are independent build prerequisites. The generated test ROM remains reproducible from its original source script and is not bundled with the app.

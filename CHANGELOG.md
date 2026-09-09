@@ -34,3 +34,4 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 - Replaced local Mach-O library install names with portable rpath identifiers before signing.
 - Verified arm64 packaged startup and used the release template’s supported startup check instead of editor-only script arguments.
 - Published the audited source repository independently of the pending signed release, using standard public GitHub Actions runners.
+- Documented rebuilding the application with the bundled Rust dependency sources without registry access.
