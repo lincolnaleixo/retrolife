@@ -1,10 +1,13 @@
 # Changelog
 
-All notable changes are recorded here. Versions follow Semantic Versioning. No release has been published from this repository yet.
+All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
 ### Added
+- Recorded published beta.1 ZIP and beta.2 DMG, completed signing verification and remaining hands-on acceptance in the roadmap for session handoff.
+- Added a signed and notarized DMG packaging helper with an Applications shortcut for macOS testing releases.
+- Linked the available signed beta from the README while retaining pending hands-on acceptance.
 - Fresh public-ready Rust/Godot application baseline with an explicit source allowlist.
 - Managed local SNES library, in-window emulation integration, and local battery-save work.
 - Deterministic headless checks for local import, video delivery, pause/resume, and saved-session shutdown.

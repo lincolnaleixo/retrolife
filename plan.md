@@ -21,12 +21,14 @@ Done when: a clean checkout builds without private dependencies; an imported gam
 - [x] Verify pinned core build and redistributable test content.
 - [x] Complete CI, dependency notices and release-source packaging.
 - [ ] Exercise native macOS gameplay, input, audio and save restoration.
-- [ ] Sign, notarize, staple and verify the downloaded app.
+- [x] Sign, notarize, staple and verify the downloaded app.
 - [ ] Audit the complete final source and release artifacts.
 - [x] Publish the audited source repository.
 - [ ] Publish the immutable signed v0.1.0 prerelease.
 
-Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. The audited source was made public by owner decision so standard hosted CI can run without a paid plan. Signing and gameplay acceptance remain release requirements. No signed release is claimed.
+Current acceptance work: physical keyboard/gamepad gameplay, audible output, sustained-session behavior and user-game save restoration remain pending. Signing is resolved. [Beta.1](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.1) contains the signed ZIP; [beta.2](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.2) adds a signed, notarized and stapled DMG with an Applications shortcut. Both use application commit `a211f4c8b7908df2182a1c98f5dee41902500ab6`; beta.2 changes packaging only. Corresponding source and checksums accompany both releases. These testing prereleases do not close hands-on acceptance or claim the final v0.1.0 milestone.
+
+Next session: test the downloaded beta.2 on Apple Silicon, record actual gameplay/audio/controller/save results in issue #1, and fix any observed failures before the next version. Review and merge the prerelease-policy and DMG-tooling pull requests through required CI; retain immutable published versions.
 
 ## Future
 
@@ -41,8 +43,8 @@ Migration planning and scoped source audits established the current architecture
 
 ## Verification evidence
 
-Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. Native gameplay and input smokes pass; the first-import failure was isolated and corrected with generated extension registration before editor import. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or notarized distribution. Those remain release conditions above.
+Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. Native gameplay and input smokes pass; the first-import failure was isolated and corrected with generated extension registration before editor import. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or a sustained hands-on acceptance result. Those gameplay checks remain release conditions above.
 
-A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. This local validation app is not a Developer ID signed/notarized release and has not been published.
+A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. The later published app passed Developer ID signing, Apple notarization, stapling, Gatekeeper and transferred-ZIP startup verification. The beta.2 DMG passed notarization, stapling, disk-image verification and mounted-app signature/Gatekeeper checks; its transferred SHA-256 matched the signing-machine output.
 
 Public hosted CI passes. The application and Rust dependency source bundles were extracted together and all 32 Rust unit tests passed with `--locked --offline`; the pinned core source is packaged separately. Final versioned archives must be regenerated from the release commit.
