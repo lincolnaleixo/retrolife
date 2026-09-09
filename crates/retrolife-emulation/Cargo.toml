@@ -1,0 +1,17 @@
+[package]
+name = "retrolife-emulation"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+description = "In-process libretro session runtime for the RetroLife frontend"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libloading = "0.8"
+thiserror = "2"
+
+[build-dependencies]
+cc = "1.2"

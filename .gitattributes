@@ -1,0 +1,4 @@
+* text=auto eol=lf
+/archive export-ignore
+/.cache export-ignore
+/.github export-ignore

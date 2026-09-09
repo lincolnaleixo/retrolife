@@ -1,0 +1,26 @@
+name: Release source validation
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  validate-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: cargo test --workspace --locked
+      - run: python3 scripts/audit-publication.py
+      - name: Require dated changelog entry
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: grep -F "## ${RELEASE_TAG#v} - " CHANGELOG.md
+      - name: Archive application source
+        run: git archive --format=tar.gz --prefix=retrolife/ HEAD > retrolife-source.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: application-source
+          path: retrolife-source.tar.gz
