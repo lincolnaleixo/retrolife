@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes are recorded here. Versions follow Semantic Versioning. No release has been published from this repository yet.
+All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
@@ -12,6 +12,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Required alpha and beta builds to be distributed through GitHub Releases as explicitly labeled prereleases, with verification evidence and pending acceptance tests.
 - Separated creative assets from application source and licensing.
 - Replaced private deployment assumptions with local application storage and explicit build inputs.
 - Isolated Godot user data under `io.github.lincolnaleixo.retrolife` and aligned the Apple Silicon export preset with the release signing flow.
