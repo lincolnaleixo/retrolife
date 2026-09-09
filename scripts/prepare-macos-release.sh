@@ -35,4 +35,5 @@ cargo vendor --locked dist/vendor > dist/vendor-config.toml
 tar -czf dist/retrolife-rust-dependencies.tar.gz -C dist vendor vendor-config.toml
 git archive --format=tar.gz --prefix=retrolife/ HEAD > dist/retrolife-source.tar.gz
 scripts/sign-macos.sh "$app"
+"$app/Contents/MacOS/RetroLife" --headless --quit-after 5
 echo 'Prepared locally. Native acceptance and artifact review are required before publication.'
