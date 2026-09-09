@@ -36,3 +36,4 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 - Published the audited source repository independently of the pending signed release, using standard public GitHub Actions runners.
 - Documented rebuilding the application with the bundled Rust dependency sources without registry access.
 - Verified all Rust tests using the extracted corresponding-source bundles with registry access disabled.
+- Clarified the native compiler prerequisite and test-only scope of offline Rust source verification.

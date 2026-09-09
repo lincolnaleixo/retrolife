@@ -14,7 +14,7 @@ Attach the signed ZIP, checksums, exact source archive, dependency source/licens
 
 The exported release template does not run the editor-only `--script` smokes. Use `--headless --quit-after 5` for packaged startup, and keep the full script-driven integration checks in the editor build. Packaged startup alone does not verify physical controls or audible output.
 
-## Rebuilding from source bundles
+## Verifying bundled Rust sources
 
 The application archive contains the exact source revision. Extract the Rust dependency archive into its `dist/` directory, then install the supplied Cargo source configuration:
 
@@ -27,4 +27,4 @@ cd retrolife
 cargo test --workspace --locked --offline
 ```
 
-This offline Rust check requires the pinned Rust toolchain already installed. The separate core-source archive contains the exact bsnes-jg revision; Godot and its matching export templates are independent build prerequisites. The generated test ROM remains reproducible from its original source script and is not bundled with the app.
+This verifies the Rust sources and dependencies; it does not build or export a runnable app. Install the pinned Rust toolchain and a native C/C++ compiler/linker first (Xcode Command Line Tools on macOS). The separate core-source archive contains the exact bsnes-jg revision; Godot and its matching export templates are independent build prerequisites. The generated test ROM remains reproducible from its original source script and is not bundled with the app.
