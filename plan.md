@@ -23,9 +23,10 @@ Done when: a clean checkout builds without private dependencies; an imported gam
 - [ ] Exercise native macOS gameplay, input, audio and save restoration.
 - [ ] Sign, notarize, staple and verify the downloaded app.
 - [ ] Audit the complete final source and release artifacts.
-- [ ] Publish the repository and immutable v0.1.0 prerelease.
+- [x] Publish the audited source repository.
+- [ ] Publish the immutable signed v0.1.0 prerelease.
 
-Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. Hosted CI could not start, and private branch protection is unavailable under the current GitHub plan; apply protection when the repository can become public. No signed release is claimed.
+Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. The audited source was made public by owner decision so standard hosted CI can run without a paid plan. Signing and gameplay acceptance remain release requirements. No signed release is claimed.
 
 ## Future
 
