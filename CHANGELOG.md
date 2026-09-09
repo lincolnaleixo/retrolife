@@ -31,3 +31,4 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 - Verified the clean-checkout build and native Apple Silicon import, gameplay presentation, input contracts, and battery-save tests.
 - Enabled the texture import format required by Godot’s Apple Silicon exporter.
 - Extracted the arm64 engine from the official universal Godot template before final app signing.
+- Replaced local Mach-O library install names with portable rpath identifiers before signing.

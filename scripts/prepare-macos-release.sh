@@ -25,6 +25,9 @@ mv "$engine.arm64" "$engine"
 lipo "$engine" -verify_arch arm64
 mkdir -p "$app/Contents/Frameworks" "$app/Contents/Resources/licenses"
 cp frontend/godot-ui/bin/bsnes-jg_libretro.dylib "$app/Contents/Frameworks/"
+# Rust source remapping does not rewrite Mach-O library install names.
+install_name_tool -id @rpath/libretrolife_godot.dylib "$app/Contents/Frameworks/libretrolife_godot.dylib"
+install_name_tool -id @rpath/bsnes-jg_libretro.dylib "$app/Contents/Frameworks/bsnes-jg_libretro.dylib"
 cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/licenses/"
 cp -R third-party "$app/Contents/Resources/licenses/"
 cargo vendor --locked dist/vendor > dist/vendor-config.toml
