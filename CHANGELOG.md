@@ -29,3 +29,4 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 - Recorded hosted-check and native first-import blockers without claiming a signed release.
 - Bootstrapped the built extension before first Godot import, preventing the clean-checkout editor shutdown crash on Linux and macOS.
 - Verified the clean-checkout build and native Apple Silicon import, gameplay presentation, input contracts, and battery-save tests.
+- Enabled the texture import format required by Godot’s Apple Silicon exporter.
