@@ -18,6 +18,11 @@ release_dir=$(mktemp -d "$(pwd)/dist/macos.XXXXXX")
 unzip "$release_dir/RetroLife.zip" -d "$release_dir"
 app="$release_dir/RetroLife.app"
 [[ -d "$app/Contents" ]]
+# Official Godot templates are universal; ship only the arm64 engine slice.
+engine="$app/Contents/MacOS/RetroLife"
+lipo "$engine" -thin arm64 -output "$engine.arm64"
+mv "$engine.arm64" "$engine"
+lipo "$engine" -verify_arch arm64
 mkdir -p "$app/Contents/Frameworks" "$app/Contents/Resources/licenses"
 cp frontend/godot-ui/bin/bsnes-jg_libretro.dylib "$app/Contents/Frameworks/"
 cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/licenses/"
