@@ -9,6 +9,7 @@
 - Original code is AGPL-3.0-only. Preserve all third-party notices; never relicense game artwork under the application license.
 - Build only pinned dependencies. Run formatting, Clippy, tests, Godot checks, and the publication audit before merging.
 - Do not execute pull-request code on the signing machine or expose signing credentials to CI.
+- Publish distributable alpha and beta builds in GitHub Releases, marked as prereleases with explicit version tags (for example, `v0.1.0-beta.1`). Do not withhold a testing release merely because final hands-on acceptance is pending. Include the downloadable app, checksums, required corresponding source and notices, verified checks, known limitations, and pending tests. Privacy, licensing, and required signing/notarization checks still apply; a prerelease does not claim stable-release acceptance.
 - Immutable version tags identify releases. Fix a release by publishing a new version.
 - Archive code is historical reference only: do not include it in the workspace, Godot imports, or release artifacts.
 - Do not claim completion from compilation alone. Record what was exercised and any remaining platform or release blockers.
