@@ -34,6 +34,7 @@ Current release blocker: the signing environment is reachable but its Keychain n
 2. Integrate versioned cartridge assets with explicit provenance and neutral fallbacks.
 3. [Add core-compatible](https://github.com/lincolnaleixo/retrolife/issues/3) save states, then separately designed synchronization.
 4. [Validate Steam](https://github.com/lincolnaleixo/retrolife/issues/4) Deck/Linux distribution, then additional consoles.
+5. Reconcile the System side of RetroLife after the release: the `Hobbies/plan.md` line in `/home/robot/system` still says no code exists as of 2026-09-09 and lists no RetroLife resource, and an older untracked copy of `crates/retrolife-emulation` sits at `/home/robot/system/Personal/crates/`. Point Hobbies at this repository and `retrolife-private`, and drop or move that stray copy once the team confirms nothing in it is newer than `crates/`. Recorded 2026-09-09 while the release work is active; no change to this repository's code.
 
 ## Completed
 
