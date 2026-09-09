@@ -25,7 +25,7 @@ Done when: a clean checkout builds without private dependencies; an imported gam
 - [ ] Audit the complete final source and release artifacts.
 - [ ] Publish the repository and immutable v0.1.0 prerelease.
 
-Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. No signed release is claimed.
+Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. Hosted CI could not start, and private branch protection is unavailable under the current GitHub plan; apply protection when the repository can become public. A first-import Godot shutdown failure is under investigation. No signed release is claimed.
 
 ## Future
 

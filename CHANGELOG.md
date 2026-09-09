@@ -24,3 +24,6 @@ All notable changes are recorded here. Versions follow Semantic Versioning. No r
 ### Fixed
 - Retained the active session after battery-save failures so users can repair the destination and retry without discarding SRAM.
 - Corrected native logging callbacks, bounded content/save reads, and shutdown delivery when the worker queue is full.
+
+- Completed baseline provenance destinations and included the full LGPL notice in the application license bundle.
+- Recorded hosted-check and native first-import blockers without claiming a signed release.

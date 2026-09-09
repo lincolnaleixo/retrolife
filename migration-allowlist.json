@@ -1,5 +1,5 @@
 {
-  "description": "Selected source paths imported into the clean baseline; no Git history imported.",
+  "description": "Selected baseline destinations; original source was selectively adapted without importing Git history.",
   "paths": [
     "Cargo.toml",
     "Cargo.lock",
@@ -8,7 +8,7 @@
     "crates/retrolife-core/src/catalog.rs",
     "crates/retrolife-core/src/contracts.rs",
     "crates/retrolife-core/src/display_settings.rs",
-    "crates/retrolife-core/src/launch.rs",
+    "archive/launch-contracts.rs",
     "crates/retrolife-core/fixtures/reference-catalog.json",
     "frontend/godot-ui/project.godot",
     "frontend/godot-ui/scripts/main.gd",
