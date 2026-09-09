@@ -25,7 +25,7 @@ Done when: a clean checkout builds without private dependencies; an imported gam
 - [ ] Audit the complete final source and release artifacts.
 - [ ] Publish the repository and immutable v0.1.0 prerelease.
 
-Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. Hosted CI could not start, and private branch protection is unavailable under the current GitHub plan; apply protection when the repository can become public. A first-import Godot shutdown failure is under investigation. No signed release is claimed.
+Current release blocker: the signing environment is reachable but its Keychain needs unlocking before notarization can be verified. Native macOS gameplay acceptance is pending. Hosted CI could not start, and private branch protection is unavailable under the current GitHub plan; apply protection when the repository can become public. No signed release is claimed.
 
 ## Future
 
@@ -40,4 +40,4 @@ Migration planning and scoped source audits established the current architecture
 
 ## Verification evidence
 
-The initial local checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or notarized distribution. Those remain release conditions above.
+The initial local checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. Native gameplay smoke passes; the first-import failure was isolated and corrected with generated extension registration before editor import. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or notarized distribution. Those remain release conditions above.
