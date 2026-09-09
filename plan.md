@@ -19,7 +19,7 @@ Done when: a clean checkout builds without private dependencies; an imported gam
 - [x] Complete managed imports and persistence tests.
 - [x] Complete owned Rust emulation session and Godot gameplay integration.
 - [x] Verify pinned core build and redistributable test content.
-- [ ] Complete CI, dependency notices and release-source packaging.
+- [x] Complete CI, dependency notices and release-source packaging.
 - [ ] Exercise native macOS gameplay, input, audio and save restoration.
 - [ ] Sign, notarize, staple and verify the downloaded app.
 - [ ] Audit the complete final source and release artifacts.
@@ -44,3 +44,5 @@ Migration planning and scoped source audits established the current architecture
 Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. Native gameplay and input smokes pass; the first-import failure was isolated and corrected with generated extension registration before editor import. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or notarized distribution. Those remain release conditions above.
 
 A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. This local validation app is not a Developer ID signed/notarized release and has not been published.
+
+Public hosted CI passes. The application and Rust dependency source bundles were extracted together and all 32 Rust unit tests passed with `--locked --offline`; the pinned core source is packaged separately. Final versioned archives must be regenerated from the release commit.
