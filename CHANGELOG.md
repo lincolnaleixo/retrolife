@@ -25,6 +25,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Connected the native updater to the Godot settings and Rust session lifecycle, and added signed release-feed tooling with isolated automated verification.
 - Recorded completed cartridge implementation tasks separately from pending visual/physical acceptance and future milestones, with passing Linux and Apple Silicon evidence for revision 48bd6d2.
 - Apply per-game labels to the actual curved model label surface, render each label only when it changes, and preserve local-image proportions.
 - Refined hero scale, lighting and keyboard focus; kept desktop text readable at narrow window sizes and bounded the text fallback to the available height.

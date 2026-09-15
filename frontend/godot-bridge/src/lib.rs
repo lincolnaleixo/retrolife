@@ -1,4 +1,5 @@
 mod catalog;
+mod updates;
 
 use godot::builtin::{GString, PackedByteArray, PackedFloat32Array};
 use godot::classes::Node;
@@ -35,6 +36,7 @@ struct BackendState {
     input_mask: u16,
     session_info: Option<SessionInfo>,
     last_error: Option<String>,
+    update_guard: bool,
 }
 
 impl Default for BackendState {
@@ -58,12 +60,17 @@ impl Default for BackendState {
             input_mask: 0,
             session_info: None,
             last_error: None,
+            update_guard: false,
         }
     }
 }
 
 impl BackendState {
     fn clear_session(&mut self) {
+        if self.update_guard {
+            updates::end_game();
+            self.update_guard = false;
+        }
         self.session_id.clear();
         self.game_id.clear();
         self.last_frame_sequence = 0;
@@ -110,6 +117,11 @@ impl RetroLifeBackend {
                     state.last_error = None;
                 }
                 EmulationEvent::Failed { message } => {
+                    // A failed initial start never acquired a live game session.
+                    // Save failures after Started retain the update barrier.
+                    if state.session_info.is_none() {
+                        state.clear_session();
+                    }
                     state.last_error = Some(message);
                 }
                 EmulationEvent::Stopped { .. } => state.clear_session(),
@@ -141,6 +153,11 @@ impl RetroLifeBackend {
 
 #[godot_api]
 impl RetroLifeBackend {
+    #[func]
+    fn update_command_json(&self, command: GString) -> GString {
+        GString::from(updates::command(&command.to_string()).as_str())
+    }
+
     #[func]
     fn ping(&self) -> GString {
         let message = format!(
@@ -278,17 +295,27 @@ impl RetroLifeBackend {
             let (library_root, save_root, core_path) = self.configured_paths()?;
             let (_, content_path) = catalog::entry(&library_root, &game_id)?;
             let mut state = self.state()?;
+            Self::poll_events(&mut state);
+            if !state.session_id.is_empty() {
+                return Err("Stop and save the active game before starting another.".to_owned());
+            }
             if state.runtime.is_none() {
                 state.runtime = Some(EmulationRuntime::new().map_err(|error| error.to_string())?);
             }
             let request =
                 StartRequest::new(core_path, content_path, save_root, "snes", game_id.clone());
-            state
+            updates::begin_game()?;
+            state.update_guard = true;
+            let started = state
                 .runtime
                 .as_ref()
                 .ok_or_else(|| "The emulator worker is unavailable.".to_owned())?
                 .start(request)
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| error.to_string());
+            if let Err(error) = started {
+                state.clear_session();
+                return Err(error);
+            }
             state.session_serial = state.session_serial.saturating_add(1);
             state.session_id = format!("session-{}", state.session_serial);
             state.game_id = game_id;

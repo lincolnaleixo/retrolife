@@ -68,6 +68,26 @@ id<SPUUserDriver> rl_test_user_driver(void) { return [SmokeDriver new]; }
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender { return NSTerminateNow; }
 @end
 
+static void RunScenario(void) {
+    NSDictionary *status = Command("status");
+    if (![status[@"data"][@"available"] boolValue]) Finish(NO, @"Native updater did not initialize");
+    if (![status[@"data"][@"canCheck"] boolValue]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 20), dispatch_get_main_queue(), ^{ RunScenario(); });
+        return;
+    }
+    if (![Command("game_begin")[@"ok"] boolValue]) Finish(NO, @"Game guard could not be acquired");
+    if ([Command("check")[@"ok"] boolValue] || [Command("downloads_on")[@"ok"] boolValue]) Finish(NO, @"Update was allowed during gameplay");
+    if (![Command("status")[@"data"][@"gameActive"] boolValue]) Finish(NO, @"Game guard was lost");
+    if (![Command("game_end")[@"ok"] boolValue]) Finish(NO, @"Game guard was not released");
+    if ([Mode() isEqualToString:@"policy"]) {
+        if (![Command("downloads_on")[@"data"][@"automaticDownloads"] boolValue]) Finish(NO, @"Automatic downloads setting was not applied");
+        if ([Command("checks_off")[@"data"][@"automaticDownloads"] boolValue]) Finish(NO, @"Disabling checks did not disable automatic downloads");
+        if (![Command("beta_on")[@"data"][@"includeBeta"] boolValue] || [Command("beta_off")[@"data"][@"includeBeta"] boolValue]) Finish(NO, @"Beta preference did not round trip");
+    }
+    if ([Mode() isEqualToString:@"policy"]) Finish(YES, @"Settings, beta channel and gameplay barrier passed");
+    if (![Command("check")[@"ok"] boolValue]) Finish(NO, @"Check for Updates could not begin");
+}
+
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         [NSApplication sharedApplication];
@@ -76,21 +96,8 @@ int main(int argc, const char *argv[]) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
         if ([Mode() isEqualToString:@"relaunched"]) Finish(YES, @"Real Sparkle installation replaced the bundle and relaunched the newer app");
         [NSUserDefaults.standardUserDefaults removePersistentDomainForName:NSBundle.mainBundle.bundleIdentifier];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 4), dispatch_get_main_queue(), ^{
-            NSDictionary *status = Command("status");
-            if (![status[@"data"][@"available"] boolValue]) Finish(NO, @"Native updater did not initialize");
-            if ([Mode() isEqualToString:@"policy"]) {
-                if (![Command("downloads_on")[@"data"][@"automaticDownloads"] boolValue]) Finish(NO, @"Automatic downloads setting was not applied");
-                if ([Command("checks_off")[@"data"][@"automaticDownloads"] boolValue]) Finish(NO, @"Disabling checks did not disable automatic downloads");
-                if (![Command("beta_on")[@"data"][@"includeBeta"] boolValue] || [Command("beta_off")[@"data"][@"includeBeta"] boolValue]) Finish(NO, @"Beta preference did not round trip");
-            }
-            if (![Command("game_begin")[@"ok"] boolValue]) Finish(NO, @"Game guard could not be acquired");
-            if ([Command("check")[@"ok"] boolValue] || [Command("downloads_on")[@"ok"] boolValue]) Finish(NO, @"Update was allowed during gameplay");
-            if (![Command("status")[@"data"][@"gameActive"] boolValue]) Finish(NO, @"Game guard was lost");
-            if (![Command("game_end")[@"ok"] boolValue]) Finish(NO, @"Game guard was not released");
-            if ([Mode() isEqualToString:@"policy"]) Finish(YES, @"Settings, beta channel and gameplay barrier passed");
-            if (![Command("check")[@"ok"] boolValue]) Finish(NO, @"Check for Updates could not begin");
-        });
+        Command("status"); // Sparkle completes startup asynchronously on the main loop.
+        dispatch_async(dispatch_get_main_queue(), ^{ RunScenario(); });
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ Finish(NO, @"Native updater timed out"); });
         [NSApp run];
     }

@@ -9,6 +9,36 @@ concurrency:
   group: updater-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  updater-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Version, signature, archive and appcast contracts
+        run: python3 scripts/test-updates.py
+      - name: Pinned Godot updater UI smoke
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/updater-ui
+          curl --fail --location https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o /tmp/godot.zip
+          echo 'cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  /tmp/godot.zip' | sha256sum --check
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          cp frontend/godot-ui/project.godot .cache/updater-ui/
+          cp -R frontend/godot-ui/scripts frontend/godot-ui/scenes frontend/godot-ui/shaders .cache/updater-ui/
+          /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/updater-ui --editor --import 2>&1 | tee .cache/updater-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/updater-import.log
+          timeout 60s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/updater-ui --script res://scripts/updater_smoke.gd 2>&1 | tee .cache/updater-ui.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/updater-ui.log
+      - name: Retain UI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: updater-ui-evidence
+          path: .cache/updater-*.log
+          include-hidden-files: true
+          retention-days: 14
   updater-native:
     runs-on: macos-15
     timeout-minutes: 20
@@ -21,6 +51,7 @@ jobs:
           set -euo pipefail
           test "$(uname -m)" = arm64
           scripts/build-macos-updater.sh
+          python3 scripts/test-updates.py
           python3 scripts/test-updater-native.py 2>&1 | tee .cache/updater-native.log
       - name: Retain native evidence without test keys or bundles
         if: always()
