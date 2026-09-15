@@ -8,6 +8,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Cartridge-first Godot library with a pooled seven-model 3D carousel, interruptible transitions, local labels, compact search/import controls, selection restoration and accessible text/low-power views.
 - Pinned neutral SNES model staging with archive/member checksums, offline inputs, independent notices and malicious-archive unit tests.
 - Synthetic 10,000-game interface smoke and a separate hosted rendering workflow that captures the real UI without ROMs or proprietary artwork. Native macOS and physical-controller acceptance remain pending.
+- Recorded published beta.1 ZIP and beta.2 DMG, completed signing verification and remaining hands-on acceptance in the roadmap for session handoff.
+- Added a signed and notarized DMG packaging helper with an Applications shortcut for macOS testing releases.
+- Linked the available signed beta from the README while retaining pending hands-on acceptance.
 - Fresh public-ready Rust/Godot application baseline with an explicit source allowlist.
 - Managed local SNES library, in-window emulation integration, and local battery-save work.
 - Deterministic headless checks for local import, video delivery, pause/resume, and saved-session shutdown.
@@ -15,6 +18,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Preserved the concurrently merged signed-beta documentation and DMG packaging while integrating the cartridge-library implementation.
 - Required alpha and beta builds to be distributed through GitHub Releases as explicitly labeled prereleases, with verification evidence and pending acceptance tests.
 - Separated creative assets from application source and licensing.
 - Replaced private deployment assumptions with local application storage and explicit build inputs.
