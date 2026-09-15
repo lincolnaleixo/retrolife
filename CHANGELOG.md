@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Established isolated updater verification inputs with a checksum-pinned Sparkle SDK and source-only reproduction; in-app updater implementation and acceptance are in progress.
 - Cartridge-first Godot library with a pooled seven-model 3D carousel, interruptible transitions, local labels, compact search/import controls, selection restoration and accessible text/low-power views.
 - Pinned neutral SNES model staging with archive/member checksums, offline inputs, independent notices and malicious-archive unit tests.
 - Synthetic 10,000-game interface smoke and a separate hosted rendering workflow that captures the real UI without ROMs or proprietary artwork. Hands-on native macOS and physical-controller acceptance remain pending.
