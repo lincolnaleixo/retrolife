@@ -5,6 +5,12 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Cartridge-first Godot library with a pooled seven-model 3D carousel, interruptible transitions, local labels, compact search/import controls, selection restoration and accessible text/low-power views.
+- Pinned neutral SNES model staging with archive/member checksums, offline inputs, independent notices and malicious-archive unit tests.
+- Synthetic 10,000-game interface smoke and a separate hosted rendering workflow that captures the real UI without ROMs or proprietary artwork. Hands-on native macOS and physical-controller acceptance remain pending.
+- A standard hosted Apple Silicon native core/interface check job without signing-machine access or credentials.
+- A native carousel-to-core round-trip regression that retains the existing generated-ROM, video, input and save checks and exercises the new UI with the real managed backend.
+- User-facing cartridge controls, artwork, resource-budget and verification documentation, plus independent asset notices in release packaging.
 - Recorded published beta.1 ZIP and beta.2 DMG, completed signing verification and remaining hands-on acceptance in the roadmap for session handoff.
 - Added a signed and notarized DMG packaging helper with an Applications shortcut for macOS testing releases.
 - Linked the available signed beta from the README while retaining pending hands-on acceptance.
@@ -15,6 +21,11 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Recorded completed cartridge implementation tasks separately from pending visual/physical acceptance and future milestones, with passing Linux and Apple Silicon evidence for revision 48bd6d2.
+- Apply per-game labels to the actual curved model label surface, render each label only when it changes, and preserve local-image proportions.
+- Refined hero scale, lighting and keyboard focus; kept desktop text readable at narrow window sizes and bounded the text fallback to the available height.
+- Expanded verification with routed input events, preference persistence, resizing and seven real rendered capture states; retained small evidence artifacts instead of repeatedly uploading the debugging runtime.
+- Preserved the concurrently merged signed-beta documentation and DMG packaging while integrating the cartridge-library implementation.
 - Required alpha and beta builds to be distributed through GitHub Releases as explicitly labeled prereleases, with verification evidence and pending acceptance tests.
 - Separated creative assets from application source and licensing.
 - Replaced private deployment assumptions with local application storage and explicit build inputs.
@@ -26,6 +37,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Kept navigation hints visible in a 720 by 540 window when a long title and a multiline import error appear together; added a regression for that combined layout.
+- Kept checksum verification compatible with Python installations without hashlib.file_digest.
+- Corrected the environment API and explicitly typed pointer calculations identified by the first hosted Godot import; retained an isolated reproduction artifact and included hidden-directory evidence files.
+- Removed the first-page-only library presentation limit and format game counts as integers instead of decimal bridge values.
 - Retained the active session after battery-save failures so users can repair the destination and retry without discarding SRAM.
 - Corrected native logging callbacks, bounded content/save reads, and shutdown delivery when the worker queue is full.
 

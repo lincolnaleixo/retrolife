@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [[ "${RETROLIFE_SKIP_CARTRIDGE_ASSETS:-0}" != 1 ]]; then
+    python3 scripts/prepare-cartridge-assets.py
+fi
 cargo build --locked -p retrolife-godot
 mkdir -p frontend/godot-ui/bin
 case "$(uname -s)" in
