@@ -9,25 +9,27 @@ concurrency:
   group: updater-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  updater-inputs:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  updater-native:
+    runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Verify pinned updater distribution
+      - name: Compile production updater and test real Sparkle installation
         run: |
           set -euo pipefail
-          mkdir -p .cache/updater-inputs
-          curl --fail --location --proto '=https' --tlsv1.2 https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz -o .cache/updater-inputs/Sparkle-2.10.0.tar.xz
-          echo 'c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c  .cache/updater-inputs/Sparkle-2.10.0.tar.xz' | sha256sum --check
-          git archive HEAD > .cache/updater-inputs/source.tar
-      - name: Retain isolated reproduction inputs
+          test "$(uname -m)" = arm64
+          scripts/build-macos-updater.sh
+          python3 scripts/test-updater-native.py 2>&1 | tee .cache/updater-native.log
+      - name: Retain native evidence without test keys or bundles
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: updater-inputs
-          path: .cache/updater-inputs/
+          name: updater-native-evidence
+          path: |
+            .cache/updater-native.log
+            .cache/updater-native-results.json
           include-hidden-files: true
-          retention-days: 3
-          if-no-files-found: error
+          retention-days: 14
+          if-no-files-found: warn
