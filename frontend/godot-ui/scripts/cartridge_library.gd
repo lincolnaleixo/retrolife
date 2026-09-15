@@ -2,6 +2,8 @@ extends "res://scripts/main.gd"
 
 ## Cartridge-first presentation over the existing local library/gameplay contract.
 const Carousel = preload("res://scripts/library/carousel.gd")
+const UpdatePanel = preload("res://scripts/updates/update_panel.gd")
+var _updates_panel: PopupPanel
 var settings_path := "user://library-ui.cfg"
 
 var persist_preferences := true
@@ -30,6 +32,8 @@ var _textual_view := false
 func _ready() -> void:
     _load_preferences()
     super._ready()
+    # Starting the optional signed updater is independent of library loading.
+    _update_command("status")
 
 
 func _load_preferences() -> void:
@@ -72,7 +76,7 @@ func _build_shell() -> void:
     _import_button = _button("+  Import ROM", _open_import_dialog)
     _import_button.name = "ImportButton"
     header.add_child(_import_button)
-    header.add_child(_button("View", _show_settings))
+    header.add_child(_button("Settings", _show_settings))
     _warning_label = _label("", 13, DANGER_COLOR)
     _warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _warning_label.max_lines_visible = 2
@@ -229,7 +233,13 @@ func _build_settings() -> void:
     var credit := _label("SNES model v0.1.0 by Lincoln Aleixo\nCC BY-NC-ND 4.0; separate from application code.\nGame artwork is not included.", 12, MUTED_COLOR)
     credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(credit)
+    column.add_child(HSeparator.new())
+    column.add_child(_button("Software updates...", _show_updates))
     column.add_child(_button("Close", _settings_panel.hide))
+    _updates_panel = UpdatePanel.new()
+    _updates_panel.request = Callable(self, "_update_command")
+    _updates_panel.popup_hide.connect(_restore_carousel_focus)
+    add_child(_updates_panel)
 
 
 func _build_details_overlay() -> void:
@@ -508,10 +518,12 @@ func _game_is_active() -> bool:
 
 func _process(_delta: float) -> void:
     if _carousel != null:
-        _carousel.set_active(not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _file_dialog.visible)
+        _carousel.set_active(not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if _updates_panel != null and _updates_panel.visible:
+        return
     if _game_is_active():
         return
     if _details_overlay.visible:
@@ -565,3 +577,22 @@ func _make_theme() -> Theme:
     result.set_color("font_hover_color", "Button", TEXT_COLOR)
     result.set_color("font_focus_color", "Button", TEXT_COLOR)
     return result
+
+
+func _show_updates() -> void:
+    if _game_is_active():
+        return
+    _settings_panel.hide()
+    _updates_panel.call_deferred("open_panel")
+
+
+func _update_command(command: String) -> Dictionary:
+    if _backend == null or not _backend.has_method("update_command_json"):
+        return {"schemaVersion": 1, "ok": true, "data": {
+            "available": false, "message": "Updates are available in installed, signed macOS releases.",
+            "currentVersion": str(ProjectSettings.get_setting("application/config/version", "development build")),
+        }}
+    var parsed: Variant = JSON.parse_string(str(_backend.call("update_command_json", command)))
+    if not parsed is Dictionary or int(parsed.get("schemaVersion", 0)) != 1:
+        return {"schemaVersion": 1, "ok": false, "error": "The updater returned an invalid response."}
+    return parsed

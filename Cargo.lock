@@ -247,6 +247,7 @@ name = "retrolife-godot"
 version = "0.1.0"
 dependencies = [
  "godot",
+ "libloading",
  "retrolife-core",
  "retrolife-emulation",
  "retrolife-library",
