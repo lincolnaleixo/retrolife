@@ -15,6 +15,16 @@ var _poll: Timer
 
 func _ready() -> void:
     name = "SoftwareUpdates"
+    var popup_theme := Theme.new()
+    var panel_style := StyleBoxFlat.new()
+    panel_style.bg_color = Color("171a26")
+    panel_style.border_color = Color("42495e")
+    panel_style.set_border_width_all(1)
+    panel_style.set_corner_radius_all(16)
+    panel_style.shadow_color = Color(0, 0, 0, 0.45)
+    panel_style.shadow_size = 16
+    popup_theme.set_stylebox("panel", "PopupPanel", panel_style)
+    theme = popup_theme
     var margin := MarginContainer.new()
     for side in ["left", "right", "top", "bottom"]:
         margin.add_theme_constant_override("margin_" + side, 18)
