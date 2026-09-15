@@ -19,10 +19,14 @@ func _ready() -> void:
     for side in ["left", "right", "top", "bottom"]:
         margin.add_theme_constant_override("margin_" + side, 18)
     add_child(margin)
+    var outer := VBoxContainer.new()
+    outer.add_theme_constant_override("separation", 12)
+    margin.add_child(outer)
     var scroll := ScrollContainer.new()
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     scroll.custom_minimum_size = Vector2(420, 350)
-    margin.add_child(scroll)
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    outer.add_child(scroll)
     var column := VBoxContainer.new()
     column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_theme_constant_override("separation", 12)
@@ -51,9 +55,10 @@ func _ready() -> void:
     var note := _label("Updates replace only the app, not your games or saves. Installation never interrupts an active game. Automatic installation is optional.", 12)
     column.add_child(note)
     var close := Button.new()
+    close.name = "CloseUpdates"
     close.text = "Close"
     close.pressed.connect(hide)
-    column.add_child(close)
+    outer.add_child(close)
     _poll = Timer.new()
     _poll.wait_time = 0.5
     _poll.timeout.connect(refresh)
@@ -68,7 +73,7 @@ func _ready() -> void:
 
 func open_panel() -> void:
     refresh()
-    popup_centered(Vector2i(520, mini(480, get_tree().root.size.y - 48)))
+    popup_centered(Vector2i(520, mini(560, get_tree().root.size.y - 48)))
     _poll.start()
     if not _check.disabled:
         _check.call_deferred("grab_focus")

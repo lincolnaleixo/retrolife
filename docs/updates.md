@@ -18,7 +18,7 @@ The production helper accepts only the application's signed bundle identity, a 3
 
 `https://raw.githubusercontent.com/lincolnaleixo/retrolife/updates/appcast.xml`
 
-The EdDSA signature is mandatory even when a valid Apple signature exists. Sparkle verifies it against `SUPublicEDKey` embedded before code signing. The helper and every nested Sparkle component are signed inside-out using the same Developer ID as the application. No Library Validation exception, unsigned fallback or private key is included in the bundle.
+The EdDSA signature is mandatory even when a valid Apple signature exists. `SUVerifyUpdateBeforeExtraction` also requires verification before archive extraction. Sparkle verifies it against `SUPublicEDKey` embedded before code signing. The helper and every nested Sparkle component are signed inside-out using the same Developer ID as the application. No Library Validation exception, unsigned fallback or private key is included in the bundle.
 
 `RLReleaseVersion` retains the human release tag without its leading `v`. The updater compares `CFBundleVersion` using Apple's a/b/fc prerelease suffixes: for example, `0.1.0-beta.10` becomes `0.1.0b10`, which is newer than `0.1.0b2` and older than final `0.1.0`. Release scripts reject invalid or out-of-range versions instead of guessing an ordering.
 

@@ -151,6 +151,7 @@ class Bundle(unittest.TestCase):
             self.assertTrue(data["SUEnableAutomaticChecks"])
             self.assertFalse(data["SUAutomaticallyUpdate"])
             self.assertFalse(data["SUEnableSystemProfiling"])
+            self.assertTrue(data["SUVerifyUpdateBeforeExtraction"])
 
     def test_release_refuses_missing_key_or_framework_or_test_overrides(self):
         with tempfile.TemporaryDirectory() as temp:

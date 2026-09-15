@@ -77,6 +77,9 @@ func _run() -> void:
         failure = "Unsupported build offered an installation action"
     if panel.size.x > 720 or panel.size.y > 540:
         failure = "Update settings do not fit the supported narrow window"
+    var close: Button = panel.find_child("CloseUpdates", true, false)
+    if close == null or close.get_global_rect().end.y > panel.size.y:
+        failure = "Close action must remain visible without scrolling"
     panel.hide()
     shell.queue_free()
     backend.queue_free()

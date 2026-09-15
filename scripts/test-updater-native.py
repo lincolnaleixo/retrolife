@@ -104,6 +104,7 @@ def main():
                 archive = case / "RetroLife-macos-arm64.zip"
                 run("ditto", "-c", "-k", "--keepParent", candidate, archive)
                 signature = subprocess.check_output([str(SDK / "bin/sign_update"), "--ed-key-file", str(keyfile), "-p", str(archive)], text=True).strip()
+                run(SDK / "bin/sign_update", "--ed-key-file", keyfile, "--verify", archive, signature)
                 if mode == "invalid-signature":
                     with archive.open("ab") as stream:
                         stream.write(b"tampered after signing")
