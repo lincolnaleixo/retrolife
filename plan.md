@@ -36,6 +36,17 @@ The previous plan's statement that no signed release exists and its Keychain blo
 - [x] Establish the fresh public Rust/Godot baseline, English development rules, licensing, notices and single roadmap.
 - [x] Implement managed imports, owned emulation sessions, local battery persistence and recovery tests.
 - [x] Establish pinned core builds, redistributable generated test content, hosted CI, publication auditing and corresponding-source packaging.
+- [x] Preserve current uncommitted work outside the replacement repository.
+- [x] Preserve the previous public repository privately under its historical name.
+- [x] Create the replacement privately with fresh history and selected source.
+- [x] Establish English rules, changelog, licensing and roadmap.
+- [x] Complete managed imports and persistence tests.
+- [x] Complete owned Rust emulation session and Godot gameplay integration.
+- [x] Verify pinned core build and redistributable test content.
+- [x] Complete CI, dependency notices and release-source packaging.
+- [ ] Exercise native macOS gameplay, input, audio and save restoration.
+- [x] Sign, notarize, staple and verify the downloaded app.
+- [ ] Audit the complete final source and release artifacts.
 - [x] Publish the audited source repository.
 - [x] Record the published signed testing prerelease and distinguish its packaging evidence from gameplay acceptance.
 - [ ] Complete hands-on acceptance and publish the completed v0.1.0 milestone.
@@ -331,10 +342,13 @@ Implement one bounded milestone at a time. Keep each one usable, update this pla
 Before marking a milestone complete, run the applicable pinned formatting, Clippy, Rust tests, real-core checks, Godot import/UI smokes, migration/error tests and publication audit. UI work additionally needs native visual/input evidence. Releases additionally need downloaded signed-artifact acceptance. Report unavailable hardware or failed checks explicitly; compilation is not product acceptance.
 
 A release record includes source commit, tag/build number, supported macOS/architecture, core/model/updater pins, relevant data/state schemas, tests actually run, manual evidence, known limitations, artifact checksums and signing/notarization results. Never pre-check future work or publish a release merely because planning/code changes were committed.
+Current acceptance work: physical keyboard/gamepad gameplay, audible output, sustained-session behavior and user-game save restoration remain pending. Signing is resolved. [Beta.1](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.1) contains the signed ZIP; [beta.2](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.2) adds a signed, notarized and stapled DMG with an Applications shortcut. Both use application commit `a211f4c8b7908df2182a1c98f5dee41902500ab6`; beta.2 changes packaging only. Corresponding source and checksums accompany both releases. These testing prereleases do not close hands-on acceptance or claim the final v0.1.0 milestone.
 
-## Next: 3D cartridge library
+Next acceptance step: review the cartridge implementation and verification in [PR #10](https://github.com/lincolnaleixo/retrolife/pull/10), retain the beta.2 baseline for comparison, and record actual gameplay/audio/controller/save results in issue #1. Build, sign and audit a new beta from reviewed source before claiming the downloaded app contains the new interface. Existing releases remain immutable.
 
-Acceptance tracking: [issue #2](https://github.com/lincolnaleixo/retrolife/issues/2).
+## In progress: 3D cartridge library
+
+Acceptance tracking: [issue #2](https://github.com/lincolnaleixo/retrolife/issues/2). Implementation and evidence: [PR #10](https://github.com/lincolnaleixo/retrolife/pull/10). Visual specification and user guide: [cartridge library](docs/cartridge-library.md).
 
 Purpose: replace the temporary text/card library with a controller-first 3D cartridge browser that makes the collection itself feel physical and collectible. The selected game should be the visual focus, with neighboring cartridges visible in perspective, while search, import and system controls stay available without dominating the screen.
 
@@ -342,28 +356,32 @@ Primary visual target: a dark full-window showcase with one centered cartridge a
 
 Done when: a user can import multiple SNES games, browse them smoothly with gamepad, keyboard or mouse, immediately identify the selected title, open its details and launch it, recover cleanly from missing model or artwork data, and use the library without any network dependency. The interface must remain responsive with a synthetic large library and must not bundle proprietary game artwork as application source.
 
-- [ ] Approve a focused visual spec for the cartridge browser: centered hero cartridge, visible left/right neighbors, dark showcase background, compact top-level system selector, selected-title metadata and unobtrusive bottom control hints.
-- [ ] Remove the current large card-grid presentation as the primary library view and demote search, import, source/debug status and secondary filters into compact chrome or overlays so the cartridges remain the focal point.
-- [ ] Define deterministic navigation for controller, keyboard and mouse: D-pad/arrows move one cartridge, LB/RB switch systems, A/Enter opens the selected game details, B/Esc returns, search has a dedicated action, and mouse click/scroll/drag has equivalent behavior.
-- [ ] Preserve selection and scroll position when opening details, returning from gameplay, changing filters or switching systems.
-- [ ] Pin exact releases of the SNES cartridge assets from `retro-cartridge-models`, record their provenance, verify release checksums, and keep large creative binaries outside the application Git history.
-- [ ] Add a reproducible asset preparation step that fetches or consumes the pinned cartridge package, verifies it and stages only the required GLB/material resources for the Godot build and release process.
-- [ ] Build a reusable Godot `Cartridge3D` scene around the SNES GLB with a stable transform, camera anchor, material slots, label surface, lighting hooks and neutral fallback materials.
-- [ ] Add a runtime label pipeline that can use user-local or otherwise permitted artwork when available and can always generate a clean neutral label from game metadata when artwork is absent. Do not commit or redistribute proprietary game artwork as application-owned source.
-- [ ] Implement the horizontal 3D carousel: selected cartridge large and centered, immediate neighbors smaller and offset in perspective, farther entries represented cheaply, and transitions driven by short interruptible tweens rather than blocking animations.
-- [ ] Add restrained physical motion to the selected cartridge, such as a small idle tilt or pointer parallax, while keeping the normal browser camera controlled and readable rather than turning the library into a free-form 3D viewer.
-- [ ] Add selected-game typography and metadata below or beside the hero cartridge with clear hierarchy for title, system and concise status. Avoid repeating technical source/debug strings in the primary visual hierarchy.
-- [ ] Make ROM import feel integrated with the new library: newly imported games appear in the correct sorted/filter state, become selectable immediately and can animate into focus without rebuilding the whole scene.
-- [ ] Instantiate only the selected cartridge and a small neighborhood around it, reuse pooled 3D nodes, prefetch nearby textures and keep off-screen entries as lightweight data so large libraries do not create one live 3D scene per game.
-- [ ] Define texture-size, material and lighting budgets for Apple Silicon and provide graceful fallbacks for lower render quality, missing GLB assets, missing label textures and unsupported material features.
-- [ ] Add responsive camera/layout rules for window resizing and common desktop aspect ratios so the hero cartridge never collides with navigation, title metadata or control hints.
-- [ ] Add reduced-motion behavior, keyboard-visible focus, readable contrast and a non-3D textual fallback path so the library remains usable when motion or 3D presentation is disabled.
-- [ ] Extend deterministic UI smokes to cover left/right navigation, rapid repeated input, system switching, detail round-trips, import insertion, missing-art fallback and missing-model fallback.
-- [ ] Add a synthetic large-library performance fixture with no ROM content and verify that navigation remains responsive, memory use stays bounded and the active 3D node count is limited by the carousel window rather than total library size.
-- [ ] Exercise the complete 3D library natively on macOS with keyboard, physical controller and mouse, then record performance and acceptance evidence before claiming the milestone complete.
-- [ ] Update screenshots, user documentation, third-party notices and release-source packaging for the pinned cartridge assets without merging their independent license or version history into the application repository.
+Implementation status: the code, asset pipeline, documentation and automated verification tasks below are implemented. Owner visual approval and hands-on native acceptance are deliberately still open. A checked implementation task is not a claim of a new signed distribution or a passed physical-controller session.
+
+- [ ] Approve a focused visual spec for the cartridge browser: centered hero cartridge, visible left/right neighbors, dark showcase background, compact top-level system selector, selected-title metadata and unobtrusive bottom control hints. The specification and rendered implementation are available for review.
+- [x] Remove the current large card-grid presentation as the primary library view and demote search, import, source/debug status and secondary filters into compact chrome or overlays so the cartridges remain the focal point.
+- [x] Define deterministic navigation for controller, keyboard and mouse: D-pad/arrows move one cartridge, LB/RB switch systems, A/Enter opens the selected game details, B/Esc returns, search has a dedicated action, and mouse click/scroll/drag has equivalent behavior.
+- [x] Preserve selection and scroll position when opening details, returning from gameplay, changing filters or switching systems.
+- [x] Pin exact releases of the SNES cartridge assets from `retro-cartridge-models`, record their provenance, verify release checksums, and keep large creative binaries outside the application Git history.
+- [x] Add a reproducible asset preparation step that fetches or consumes the pinned cartridge package, verifies it and stages only the required GLB/material resources for the Godot build and release process.
+- [x] Build a reusable Godot `Cartridge3D` scene around the SNES GLB with a stable transform, camera anchor, material slots, label surface, lighting hooks and neutral fallback materials.
+- [x] Add a runtime label pipeline that can use user-local or otherwise permitted artwork when available and can always generate a clean neutral label from game metadata when artwork is absent. Do not commit or redistribute proprietary game artwork as application-owned source.
+- [x] Implement the horizontal 3D carousel: selected cartridge large and centered, immediate neighbors smaller and offset in perspective, farther entries represented cheaply, and transitions driven by short interruptible tweens rather than blocking animations.
+- [x] Add restrained physical motion to the selected cartridge, such as a small idle tilt or pointer parallax, while keeping the normal browser camera controlled and readable rather than turning the library into a free-form 3D viewer.
+- [x] Add selected-game typography and metadata below or beside the hero cartridge with clear hierarchy for title, system and concise status. Avoid repeating technical source/debug strings in the primary visual hierarchy.
+- [x] Make ROM import feel integrated with the new library: newly imported games appear in the correct sorted/filter state, become selectable immediately and can animate into focus without rebuilding the whole scene.
+- [x] Instantiate only the selected cartridge and a small neighborhood around it, reuse pooled 3D nodes, prefetch nearby textures and keep off-screen entries as lightweight data so large libraries do not create one live 3D scene per game.
+- [x] Define texture-size, material and lighting budgets for Apple Silicon and provide graceful fallbacks for lower render quality, missing GLB assets, missing label textures and unsupported material features.
+- [x] Add responsive camera/layout rules for window resizing and common desktop aspect ratios so the hero cartridge never collides with navigation, title metadata or control hints.
+- [x] Add reduced-motion behavior, keyboard-visible focus, readable contrast and a non-3D textual fallback path so the library remains usable when motion or 3D presentation is disabled.
+- [x] Extend deterministic UI smokes to cover left/right navigation, rapid repeated input, system switching, detail round-trips, import insertion, missing-art fallback and missing-model fallback.
+- [x] Add a synthetic large-library performance fixture with no ROM content and verify that navigation remains responsive, memory use stays bounded and the active 3D node count is limited by the carousel window rather than total library size.
+- [ ] Exercise the complete 3D library natively on macOS with keyboard, physical controller and mouse, then record performance and acceptance evidence before claiming the milestone complete. Hosted Apple Silicon headless tests do not close this hands-on gate.
+- [x] Update screenshots, user documentation, third-party notices and release-source packaging for the pinned cartridge assets without merging their independent license or version history into the application repository. The capture workflow and release helpers are updated; new signed artifacts still need release verification.
 
 ## Future
+
+These later milestones remain unimplemented; they are not implied by completion of the cartridge presentation code.
 
 1. [Add core-compatible](https://github.com/lincolnaleixo/retrolife/issues/3) save states, then separately designed synchronization.
 2. [Validate Steam](https://github.com/lincolnaleixo/retrolife/issues/4) Deck/Linux distribution.
@@ -379,5 +397,22 @@ Additional consoles; Intel Mac support; [Steam Deck/Linux distribution](https://
 Repository status and implementation: [architecture](docs/architecture.md), [release instructions](docs/releases.md), [development rules](rules.md), [published beta.2](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.2), [frontend shell](frontend/godot-ui/scripts/main.gd), [managed library](crates/retrolife-library/src/lib.rs), [emulation worker](crates/retrolife-emulation/src/lib.rs), and [source-release workflow](.github/workflows/release.yml).
 
 Creative dependency: [cartridge collection](https://github.com/lincolnaleixo/retro-cartridge-models), [pinned neutral-model manifest](https://github.com/lincolnaleixo/retro-cartridge-models/blob/a5a184ff1b463b540c56a081e1da625f70067d7a/assets/snes-ntsc-u/versions/0.1.0.json), and the collection's license, credits and notices. Refer to the manifest for exact package/GLB checksums rather than trusting a filename.
+### Cartridge implementation
+
+[Cartridge UI run 35006031561](https://github.com/lincolnaleixo/retrolife/actions/runs/35006031561), for application revision `48bd6d2d8fbda74105251c51af44d31d381a3ad0`, passed both the Linux presentation job and the standard hosted Apple Silicon native job. The latter verified arm64, built the pinned core and bridge, and ran formatting, Clippy, Rust tests, publication/dependency checks, asset tests, Godot import, gameplay/input checks and the 10,000-entry cartridge smoke. No signing credentials or trusted signing-machine access were used.
+
+Nine Python asset-staging tests pass. The cartridge smoke covers all backend pages, bounded seven-model/nine-artwork-cache resources, rapid selection changes, search, import insertion, system-specific selection restoration, detail/gameplay-return callbacks, routed keyboard/controller/mouse events, preference persistence, resizing, model/artwork fallback and PNG input validation. CPU timing and allocation guards are regression checks, not proof of native rendered frame rate.
+
+The real Godot renderer produced seven neutral-data captures: 1280x720 default, 720x540 narrow, 1600x900 wide, text, low-power, single-game and empty states. They are reproducible through `cartridge_library_capture.gd` and retained in the workflow evidence artifact without committing private game data or proprietary artwork.
+
+`cartridge_native_smoke.gd` additionally extends the existing real-core regression with the actual managed-library-to-carousel-to-gameplay round trip. `scripts/check.sh` runs it in place of the original smoke while retaining the original checks through inheritance. Its latest execution result belongs in PR #10 and the workflow logs; adding the test alone is not evidence that it passed.
+
+Still required: owner visual review, sustained rendering/performance on the target Mac, physical controller and audible output, user-game save restoration, and a newly built/signed/audited cartridge-library beta. Existing beta.1 and beta.2 do not contain this new interface.
+
+### Baseline and published testing releases
+
+Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 32 Rust unit tests, real bsnes-jg video and battery-save round-trip/retry checks, and Godot import/local-library/input-mapping smokes. The pinned core and Rust bridge compile on Apple Silicon. Native gameplay and input smokes pass; the first-import failure was isolated and corrected with generated extension registration before editor import. These checks do not establish audible output, physical controller acceptance, a sustained gameplay session, or a sustained hands-on acceptance result. Those gameplay checks remain release conditions above.
+
+A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. The later published app passed Developer ID signing, Apple notarization, stapling, Gatekeeper and transferred-ZIP startup verification. The beta.2 DMG passed notarization, stapling, disk-image verification and mounted-app signature/Gatekeeper checks; its transferred SHA-256 matched the signing-machine output.
 
 Technical references checked for this planning revision: [Godot GLTFDocument](https://docs.godotengine.org/en/stable/classes/class_gltfdocument.html), [libretro serialization contract](https://docs.libretro.com/development/cores/developing-cores/), [Sparkle setup](https://sparkle-project.org/documentation/), [programmatic/non-Apple-toolkit integration](https://sparkle-project.org/documentation/programmatic-setup/), [update publication](https://sparkle-project.org/documentation/publishing/), and [Sparkle security changes](https://sparkle-project.org/documentation/security-and-reliability/). These guide implementation; compatibility with the project's exact pinned Godot/export configuration still requires the early native proof above.

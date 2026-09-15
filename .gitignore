@@ -4,6 +4,7 @@
 **/.godot/
 /frontend/godot-ui/bin/*
 !/frontend/godot-ui/bin/.gitkeep
+/frontend/godot-ui/assets/cartridges/
 /export_credentials.cfg
 **/export_credentials.cfg
 *.p12

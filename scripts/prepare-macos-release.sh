@@ -8,6 +8,8 @@ export MACOSX_DEPLOYMENT_TARGET=13.0
 scripts/build-core.sh
 scripts/check.sh
 scripts/test-core.sh
+# A fallback-only development build is not a cartridge-library release.
+python3 scripts/prepare-cartridge-assets.py --verify-only
 export CARGO_ENCODED_RUSTFLAGS
 CARGO_ENCODED_RUSTFLAGS=$(printf '%s\037%s' "--remap-path-prefix=$PWD=." "--remap-path-prefix=$HOME=~")
 cargo build --release --locked -p retrolife-godot
@@ -30,6 +32,12 @@ install_name_tool -id @rpath/libretrolife_godot.dylib "$app/Contents/Frameworks/
 install_name_tool -id @rpath/bsnes-jg_libretro.dylib "$app/Contents/Frameworks/bsnes-jg_libretro.dylib"
 cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/licenses/"
 cp -R third-party "$app/Contents/Resources/licenses/"
+asset_notices="$app/Contents/Resources/licenses/retro-cartridge-models"
+mkdir -p "$asset_notices"
+for name in LICENSE CREDITS.md NOTICE.md provenance.json; do
+    cp "frontend/godot-ui/assets/cartridges/$name" "$asset_notices/"
+done
+cp assets/cartridges.lock.json dist/retrolife-cartridge-assets.lock.json
 cargo vendor --locked dist/vendor > dist/vendor-config.toml
 # The vendor archive contains each dependency's upstream license and source.
 tar -czf dist/retrolife-rust-dependencies.tar.gz -C dist vendor vendor-config.toml

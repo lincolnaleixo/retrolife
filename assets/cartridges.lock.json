@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "snes-ntsc-u",
+  "version": "0.1.0",
+  "creator": "Lincoln Aleixo",
+  "license": "CC-BY-NC-ND-4.0",
+  "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+  "manifestCommit": "a5a184ff1b463b540c56a081e1da625f70067d7a",
+  "archive": {
+    "name": "snes-ntsc-u-0.1.0.zip",
+    "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/snes-ntsc-u-v0.1.0/snes-ntsc-u-0.1.0.zip",
+    "bytes": 49318760,
+    "sha256": "f502074501e29d269664107911f70eb8b57427140b8371f10c74418a70740bc7"
+  },
+  "files": {
+    "snes-ntsc-u.glb": {"bytes": 25090772, "sha256": "bc8e005d040a086443ba9312f871860c0e7882fa96b394edc98404d6ee55779f"},
+    "LICENSE": {"bytes": 17452, "sha256": "4f3c4a321eb0c73182eee7afa3fe0111e24dec193f2d6febcf4207f26af26839"},
+    "CREDITS.md": {"bytes": 995, "sha256": "cd2badc7e4a19eaa24e149147e920f3f722cbd853d0abd0aba24b9674b727407"},
+    "NOTICE.md": {"bytes": 1193, "sha256": "218c60800dd08cf330799bb5060468ab65910d346d4a2a4d26a7ae49e9904277"}
+  }
+}
