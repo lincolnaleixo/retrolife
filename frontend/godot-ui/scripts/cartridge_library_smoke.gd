@@ -121,6 +121,7 @@ func _run() -> void:
         _check(not imported.uses_fallback, "The staged GLB must actually instantiate", errors)
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
+    await _exercise_compact_layout(shell, errors)
     _exercise_preferences(shell, errors)
     await _exercise_artwork(errors)
     carousel.set_games([])
@@ -268,3 +269,27 @@ func _exercise_preferences(shell: Control, errors: Array[String]) -> void:
     reader.free()
     shell.set("persist_preferences", false)
     DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _exercise_compact_layout(shell: Control, errors: Array[String]) -> void:
+    var original_size := root.size
+    var title: Label = shell.get("_hero_title")
+    var warning: Label = shell.get("_warning_label")
+    var previous_title := title.text
+    var previous_warning := warning.text
+    var warning_visible := warning.visible
+    root.size = Vector2i(720, 540)
+    title.text = "The Extraordinary Adventures of the Retro Cartridge Collection: A Very Long Game Title With Multiple Editions and Lots of Extra Words"
+    warning.text = "An import could not be completed. A long error message must not push the navigation controls outside the screen when a long game title is also visible."
+    warning.show()
+    for _frame in range(10):
+        await process_frame
+    var hints: Control = shell.find_child("InputHints", true, false)
+    _check(hints != null and hints.get_global_rect().end.y <= root.size.y, "Long titles and errors must not push control hints outside the compact window", errors)
+    var carousel: Control = shell.get("_carousel")
+    _check(carousel.size.y >= 180, "Compact error layout must retain the cartridge stage", errors)
+    title.text = previous_title
+    warning.text = previous_warning
+    warning.visible = warning_visible
+    root.size = original_size
+    await process_frame

@@ -59,7 +59,7 @@ func _build_shell() -> void:
         margin.add_theme_constant_override("margin_" + side, 18)
     add_child(margin)
     var column := VBoxContainer.new()
-    column.add_theme_constant_override("separation", 10)
+    column.add_theme_constant_override("separation", 6)
     margin.add_child(column)
     var header := HBoxContainer.new()
     header.add_theme_constant_override("separation", 10)
