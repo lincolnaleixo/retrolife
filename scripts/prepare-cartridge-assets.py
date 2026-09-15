@@ -31,7 +31,10 @@ def verify(path: Path, expected: dict) -> None:
     if path.stat().st_size != expected["bytes"]:
         raise ValueError(f"Size mismatch: {path.name}")
     with path.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        hasher = hashlib.sha256()
+        while block := stream.read(1024 * 1024):
+            hasher.update(block)
+        digest = hasher.hexdigest()
     if digest != expected["sha256"]:
         raise ValueError(f"Checksum mismatch: {path.name}")
 

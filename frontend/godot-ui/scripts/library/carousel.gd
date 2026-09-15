@@ -58,7 +58,7 @@ func _ready() -> void:
     environment.background_mode = Environment.BG_CLEAR_COLOR
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("b8c0db")
-    environment.ambient_light_energy = 0.8
+    environment.ambient_light_energy = 0.48
     environment_node.environment = environment
     _world.add_child(environment_node)
     _camera = Camera3D.new()
@@ -67,8 +67,8 @@ func _ready() -> void:
     _camera.far = 60.0
     _camera.current = true
     _world.add_child(_camera)
-    _light(Vector3(-32, -28, 0), Color("e5e9ff"), 1.45)
-    _light(Vector3(-16, 150, 0), Color("a9c5ef"), 0.85)
+    _light(Vector3(-32, -28, 0), Color("eee6db"), 1.15)
+    _light(Vector3(-16, 150, 0), Color("b3c8f0"), 0.65)
     _light(Vector3(25, 20, 0), Color("f5d8be"), 0.25)
     _build_shadow()
     for index in range(POOL_SIZE):
@@ -199,8 +199,9 @@ func _layout(animate: bool, refresh := false) -> void:
         for item in _pool:
             item.hide()
         # A bounded seven-row text view, not thousands of Control nodes.
-        first = maxi(0, selected_index - 3)
-        last = mini(games.size(), first + POOL_SIZE)
+        var rows := clampi(floori((size.y - 8) / 46.0), 1, POOL_SIZE)
+        first = maxi(0, selected_index - int(rows / 2))
+        last = mini(games.size(), first + rows)
         for slot in range(POOL_SIZE):
             var button := _fallback_buttons[slot]
             var index := first + slot
@@ -236,8 +237,8 @@ func _layout(animate: bool, refresh := false) -> void:
         var distance := index - selected_index
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)
-        var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-9.0 if distance == 0 else -signi(distance) * 23.0), 0)
-        var scale_factor := 1.0 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
+        var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-18.0 if distance == 0 else -signi(distance) * 23.0), 0)
+        var scale_factor := 1.24 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
         item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound)
         item.call("set_motion_enabled", not reduced_motion)
         item.call("set_pointer", Vector2.ZERO)
@@ -385,9 +386,6 @@ func _build_shadow() -> void:
 
 func _draw() -> void:
     if has_focus() and _active:
-        var border := StyleBoxFlat.new()
-        border.bg_color = Color.TRANSPARENT
-        border.border_color = Color(0.66, 0.62, 0.83, 0.65)
-        border.set_border_width_all(1)
-        border.set_corner_radius_all(12)
-        draw_style_box(border, Rect2(Vector2.ONE * 2, (size - Vector2.ONE * 4).max(Vector2.ZERO)))
+        # Focus belongs to the selected physical object, not a giant card frame.
+        var center := size.x * 0.5
+        draw_line(Vector2(center - 32, size.y - 7), Vector2(center + 32, size.y - 7), Color("b9a8e2"), 3.0, true)

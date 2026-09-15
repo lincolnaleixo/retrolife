@@ -1,8 +1,9 @@
 extends Node3D
 
-## One pooled cartridge. Geometry is shared, per-game artwork is not.
+## One pooled cartridge. Geometry is shared, per-game display materials are not.
 const MODEL_PATH := "res://assets/cartridges/snes-ntsc-u.glb"
 const MODEL_SCALE := 24.0
+const LabelPainter = preload("res://scripts/library/label_painter.gd")
 const PALETTE := [Color("8b7db7"), Color("659c9b"), Color("c29468"), Color("9a7995"), Color("6f91bb")]
 static var _shared_model: PackedScene
 
@@ -11,13 +12,10 @@ var uses_fallback := true
 var game_id := ""
 var library_index := -1
 var _visual: Node3D
-var _plate: MeshInstance3D
-var _stripe: MeshInstance3D
-var _title: Label3D
-var _system: Label3D
-var _number: Label3D
+var _label_surface: MeshInstance3D
+var _label_viewport: SubViewport
+var _label_canvas: Node2D
 var _movement: Tween
-var _target_rotation := Vector3.ZERO
 var _selected := false
 var _motion_enabled := true
 var _artwork_present := false
@@ -35,17 +33,35 @@ func _ready() -> void:
             model.scale = Vector3.ONE * MODEL_SCALE
             model.position.y = -0.044 * MODEL_SCALE
             _visual.add_child(model)
+            _label_surface = _find_label(model)
             uses_fallback = false
     if uses_fallback:
         _build_fallback()
-    # Independent runtime display layer; the released model stays unchanged.
-    _plate = _box(Vector3(2.05, 1.46, 0.018), Vector3(0.0, 0.13, 0.255), Color("242531"))
-    _stripe = _box(Vector3(2.05, 0.045, 0.022), Vector3(0.0, 0.84, 0.268), PALETTE[0])
-    _title = _text("", Vector3(0.0, 0.18, 0.274), 72, 0.0018)
-    _system = _text("SUPER NINTENDO", Vector3(0.0, 0.68, 0.275), 36, 0.0016)
-    _system.modulate = Color("c7c9d4")
-    _number = _text("", Vector3(0.0, -0.43, 0.275), 32, 0.0015)
-    _number.modulate = Color("bab9c8")
+    if _label_surface == null:
+        # Unknown model layout: use a separate front-facing surface, never fail browsing.
+        _label_surface = MeshInstance3D.new()
+        var plane := QuadMesh.new()
+        plane.size = Vector2(1.96, 0.87)
+        _label_surface.mesh = plane
+        _label_surface.position = Vector3(0.0, 0.57, 0.28)
+        _visual.add_child(_label_surface)
+    _label_viewport = SubViewport.new()
+    _label_viewport.name = "LocalLabel"
+    _label_viewport.size = Vector2i(1024, 512)
+    _label_viewport.disable_3d = true
+    _label_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+    _label_viewport.transparent_bg = false
+    add_child(_label_viewport)
+    _label_canvas = LabelPainter.new()
+    _label_viewport.add_child(_label_canvas)
+    var material := StandardMaterial3D.new()
+    material.albedo_texture = _label_viewport.get_texture()
+    material.roughness = 0.82
+    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    # Runtime-only material override retains the released mesh, UVs and folded top.
+    # The source GLB on disk is never rewritten or re-exported with game artwork.
+    _label_surface.material_override = material
     var anchor := Marker3D.new()
     anchor.name = "CameraAnchor"
     anchor.position = Vector3(0, 0, 0.25)
@@ -56,37 +72,15 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D) -> void:
     game_id = str(game.get("id", ""))
     library_index = index
     var tone: Color = PALETTE[posmod(game_id.hash(), PALETTE.size())]
-    var material := StandardMaterial3D.new()
-    material.albedo_color = Color.WHITE if artwork != null else tone.darkened(0.68)
-    material.albedo_texture = artwork
-    material.roughness = 0.78
-    # Use the plane's UVs, not a box atlas, for user artwork.
-    if artwork != null:
-        var plane := QuadMesh.new()
-        plane.size = Vector2(2.05, 1.46)
-        _plate.mesh = plane
-        _plate.position = Vector3(0, 0.13, 0.267)
-    else:
-        var box := BoxMesh.new()
-        box.size = Vector3(2.05, 1.46, 0.018)
-        _plate.mesh = box
-        _plate.position = Vector3(0, 0.13, 0.255)
-    _plate.material_override = material
-    (_stripe.material_override as StandardMaterial3D).albedo_color = tone
-    _title.text = _wrap_title(str(game.get("title", "Untitled")))
-    _system.text = "SUPER NINTENDO" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", "RETROLIFE")).to_upper()
-    _number.text = "%03d  /  RETROLIFE COLLECTION" % (index + 1)
+    _label_canvas.call("configure", game, index, tone, artwork)
+    _label_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
     _artwork_present = artwork != null
-    _title.visible = not _artwork_present
-    _system.visible = not _artwork_present
-    _number.visible = not _artwork_present
 
 
 func place(target: Vector3, angles: Vector3, size_factor: float, selected: bool, animate: bool) -> void:
     if _movement != null and _movement.is_valid():
         _movement.kill()
     _selected = selected
-    _target_rotation = angles
     if not animate or not visible:
         position = target
         rotation = angles
@@ -127,19 +121,6 @@ func _box(dimensions: Vector3, at: Vector3, color: Color) -> MeshInstance3D:
     return instance
 
 
-func _text(value: String, at: Vector3, font_size: int, pixel_size: float) -> Label3D:
-    var label := Label3D.new()
-    label.text = value
-    label.position = at
-    label.font_size = font_size
-    label.pixel_size = pixel_size
-    label.outline_size = 0
-    label.modulate = Color("f3f0f7")
-    label.no_depth_test = false
-    _visual.add_child(label)
-    return label
-
-
 func _build_fallback() -> void:
     _box(Vector3(3.25, 2.04, 0.40), Vector3.ZERO, Color("9798a1"))
     _box(Vector3(2.22, 2.09, 0.43), Vector3(0, 0.02, 0), Color("a9aab1"))
@@ -149,18 +130,11 @@ func _build_fallback() -> void:
     _box(Vector3(1.20, 0.10, 0.25), Vector3(0, -1.02, 0), Color("555660"))
 
 
-static func _wrap_title(value: String) -> String:
-    var words := value.left(90).split(" ", false)
-    var lines: Array[String] = []
-    var line := ""
-    for word in words:
-        if not line.is_empty() and line.length() + word.length() > 18:
-            lines.append(line)
-            line = ""
-        line += (" " if not line.is_empty() else "") + word.left(22)
-    if not line.is_empty():
-        lines.append(line)
-    if lines.size() > 4:
-        lines.resize(4)
-        lines[3] = lines[3].left(16) + "..."
-    return "\n".join(lines)
+static func _find_label(node: Node) -> MeshInstance3D:
+    if node is MeshInstance3D and str(node.name).to_lower().replace("_", " ") == "front printed paper label":
+        return node as MeshInstance3D
+    for child in node.get_children():
+        var found := _find_label(child)
+        if found != null:
+            return found
+    return null

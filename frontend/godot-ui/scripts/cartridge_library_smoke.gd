@@ -45,6 +45,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+    root.size = Vector2i(1280, 720)
     var errors: Array[String] = []
     var shell := TestShell.new()
     shell.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -119,6 +120,8 @@ func _run() -> void:
     if ResourceLoader.exists(Cartridge.MODEL_PATH):
         _check(not imported.uses_fallback, "The staged GLB must actually instantiate", errors)
     imported.queue_free()
+    await _exercise_input_events(shell, carousel, errors)
+    _exercise_preferences(shell, errors)
     await _exercise_artwork(errors)
     carousel.set_games([])
     _check(carousel.selected_index == -1 and carousel.active_model_count() == 0, "Empty libraries must not leave stale cartridges", errors)
@@ -171,3 +174,97 @@ func _settle(shell: Control) -> void:
 func _check(condition: bool, message: String, errors: Array[String]) -> void:
     if not condition and not errors.has(message):
         errors.append(message)
+
+
+func _exercise_input_events(shell: Control, carousel: Control, errors: Array[String]) -> void:
+    carousel.set_presentation(true, false, false)
+    carousel.select_index(100)
+    carousel.grab_focus()
+    await process_frame
+    var key := InputEventKey.new()
+    key.keycode = KEY_RIGHT
+    key.pressed = true
+    Input.parse_input_event(key)
+    await process_frame
+    key = InputEventKey.new()
+    key.keycode = KEY_RIGHT
+    key.pressed = false
+    Input.parse_input_event(key)
+    await process_frame
+    _check(carousel.selected_index == 101, "Routed keyboard input must move one cartridge", errors)
+    var controller := InputEventJoypadButton.new()
+    controller.button_index = JOY_BUTTON_DPAD_LEFT
+    controller.pressed = true
+    Input.parse_input_event(controller)
+    await process_frame
+    controller = InputEventJoypadButton.new()
+    controller.button_index = JOY_BUTTON_DPAD_LEFT
+    controller.pressed = false
+    Input.parse_input_event(controller)
+    await process_frame
+    _check(carousel.selected_index == 100, "Routed controller input must move one cartridge", errors)
+    var motion := InputEventMouseMotion.new()
+    motion.position = carousel.get_global_rect().get_center()
+    motion.global_position = motion.position
+    Input.parse_input_event(motion)
+    await process_frame
+    var mouse := InputEventMouseButton.new()
+    mouse.button_index = MOUSE_BUTTON_WHEEL_DOWN
+    mouse.pressed = true
+    mouse.position = carousel.get_global_rect().get_center()
+    Input.parse_input_event(mouse)
+    await process_frame
+    _check(carousel.selected_index == 101, "Routed mouse wheel input must move one cartridge", errors)
+    var action := InputEventAction.new()
+    action.action = "ui_accept"
+    action.pressed = true
+    Input.parse_input_event(action)
+    await process_frame
+    _check((shell.get("_details_overlay") as Control).visible, "Routed accept must open details", errors)
+    action = InputEventAction.new()
+    action.action = "ui_accept"
+    action.pressed = false
+    Input.parse_input_event(action)
+    shell._close_details()
+    await process_frame
+    _check(carousel.selected_index == 101, "Input-driven details must retain selection", errors)
+    var selected_before: int = carousel.selected_index
+    var wheel := InputEventMouseButton.new()
+    wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+    wheel.pressed = true
+    carousel.set_active(false)
+    carousel._gui_input(wheel)
+    _check(carousel.selected_index == selected_before, "Inactive library must reject navigation input", errors)
+    carousel.set_active(true)
+    var original_size := root.size
+    for dimensions in [Vector2i(720, 540), Vector2i(1600, 900), Vector2i(1920, 800)]:
+        root.size = dimensions
+        for _frame in range(3):
+            await process_frame
+        _check(carousel.size.x > 0 and carousel.size.y >= 180, "Resized library must retain a usable stage", errors)
+        _check(carousel.active_model_count() <= 7, "Resizing must retain the model budget", errors)
+        var viewport: SubViewport = carousel.get("_viewport")
+        _check(viewport.size.x <= 1920 and viewport.size.y <= 1080, "Resizing must retain the render-resolution budget", errors)
+    root.size = original_size
+    await process_frame
+
+
+func _exercise_preferences(shell: Control, errors: Array[String]) -> void:
+    var path := "user://preferences-smoke-%d-%d.cfg" % [OS.get_process_id(), Time.get_ticks_usec()]
+    shell.set("settings_path", path)
+    shell.set("persist_preferences", true)
+    shell.set("_reduce_motion", true)
+    shell.set("_low_quality", true)
+    shell.set("_textual_view", true)
+    shell.set("_last_game_id", "fixture-preference")
+    shell.set("_selected_system_id", "snes")
+    shell._save_preferences()
+    var reader := TestShell.new()
+    reader.set("settings_path", path)
+    reader.set("persist_preferences", true)
+    reader._load_preferences()
+    _check(bool(reader.get("_reduce_motion")) and bool(reader.get("_low_quality")) and bool(reader.get("_textual_view")), "Presentation preferences must survive a fresh controller instance", errors)
+    _check(str(reader.get("_last_game_id")) == "fixture-preference" and str(reader.get("_selected_system_id")) == "snes", "Selection preferences must survive a fresh controller instance", errors)
+    reader.free()
+    shell.set("persist_preferences", false)
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

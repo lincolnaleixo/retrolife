@@ -45,7 +45,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: 1
         run: |
           set -euo pipefail
-          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --rendering-method gl_compatibility --path .cache/ui-check --script res://scripts/cartridge_library_capture.gd 2>&1 | tee .cache/ui-render.log
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --audio-driver Dummy --rendering-method gl_compatibility --path .cache/ui-check --script res://scripts/cartridge_library_capture.gd 2>&1 | tee .cache/ui-render.log
           ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-render.log
       - name: Upload verification evidence
         if: always()
@@ -59,14 +59,35 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: true
-      - name: Archive isolated reproduction environment
-        if: always()
+  native-macos:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify Apple Silicon host and install pinned Godot
         run: |
-          tar -czf /tmp/cartridge-ui-runtime.tar.gz -C .cache ui-check -C /tmp/godot Godot_v4.7.2-stable_linux.x86_64
-      - name: Upload isolated reproduction environment
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          curl --fail --location https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_macos.universal.zip -o "$RUNNER_TEMP/godot.zip"
+          echo "c58a24e31d720be9d62f60cb5627c4e695fb72f21b0cfe1bc9ccaa9a3b3ba63e  $RUNNER_TEMP/godot.zip" | shasum -a 256 --check
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          echo "GODOT=$RUNNER_TEMP/godot/Godot.app/Contents/MacOS/Godot" >> "$GITHUB_ENV"
+      - name: Native build and headless core/interface regression checks
+        run: |
+          set -euo pipefail
+          mkdir -p .cache
+          scripts/build-core.sh 2>&1 | tee .cache/macos-core-build.log
+          scripts/check.sh 2>&1 | tee .cache/macos-check.log
+          scripts/test-core.sh 2>&1 | tee .cache/macos-core-test.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/macos-check.log
+      - name: Upload native check evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cartridge-ui-reproduction
-          path: /tmp/cartridge-ui-runtime.tar.gz
-          retention-days: 3
+          name: cartridge-native-macos-evidence
+          path: .cache/macos-*.log
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn

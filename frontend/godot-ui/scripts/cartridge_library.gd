@@ -2,7 +2,7 @@ extends "res://scripts/main.gd"
 
 ## Cartridge-first presentation over the existing local library/gameplay contract.
 const Carousel = preload("res://scripts/library/carousel.gd")
-const SETTINGS_PATH := "user://library-ui.cfg"
+var settings_path := "user://library-ui.cfg"
 
 var persist_preferences := true
 var _carousel: Control
@@ -28,13 +28,17 @@ var _textual_view := false
 
 
 func _ready() -> void:
-    if persist_preferences and _preferences.load(SETTINGS_PATH) == OK:
+    _load_preferences()
+    super._ready()
+
+
+func _load_preferences() -> void:
+    if persist_preferences and _preferences.load(settings_path) == OK:
         _reduce_motion = bool(_preferences.get_value("view", "reduced_motion", false))
         _low_quality = bool(_preferences.get_value("view", "low_quality", false))
         _textual_view = bool(_preferences.get_value("view", "textual_view", false))
         _selected_system_id = str(_preferences.get_value("selection", "system", ""))
         _last_game_id = str(_preferences.get_value("selection", "game", ""))
-    super._ready()
 
 
 func _build_shell() -> void:
@@ -71,6 +75,8 @@ func _build_shell() -> void:
     header.add_child(_button("View", _show_settings))
     _warning_label = _label("", 13, DANGER_COLOR)
     _warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _warning_label.max_lines_visible = 2
+    _warning_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
     _warning_label.hide()
     column.add_child(_warning_label)
     var filter_scroll := ScrollContainer.new()
@@ -138,6 +144,15 @@ func _build_shell() -> void:
     _build_search()
     _build_settings()
     _build_details_overlay()
+    resized.connect(_update_layout_density)
+    _update_layout_density()
+
+
+func _update_layout_density() -> void:
+    if _carousel == null or _hero_title == null:
+        return
+    _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
+    _hero_title.add_theme_font_size_override("font_size", 24 if size.x < 900 else 30)
 
 
 func _build_search() -> void:
@@ -419,6 +434,7 @@ func _on_files_selected(paths: PackedStringArray) -> void:
     _importing = false
     _import_button.disabled = false
     _warning_label.text = "\n".join(failures)
+    _warning_label.tooltip_text = _warning_label.text
     _warning_label.visible = not failures.is_empty()
     if not imported_id.is_empty():
         _remember_selection()
@@ -479,9 +495,9 @@ func _save_preferences() -> void:
     _preferences.set_value("view", "textual_view", _textual_view)
     _preferences.set_value("selection", "system", _selected_system_id)
     _preferences.set_value("selection", "game", _last_game_id)
-    var temporary := SETTINGS_PATH + ".tmp"
+    var temporary := settings_path + ".tmp"
     if _preferences.save(temporary) == OK:
-        var result := DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(SETTINGS_PATH))
+        var result := DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(settings_path))
         if result != OK:
             _show_nonfatal_error("Library preferences could not be saved.")
 
