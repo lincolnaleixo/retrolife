@@ -5,6 +5,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Cartridge-first Godot library with a pooled seven-model 3D carousel, interruptible transitions, local labels, compact search/import controls, selection restoration and accessible text/low-power views.
+- Pinned neutral SNES model staging with archive/member checksums, offline inputs, independent notices and malicious-archive unit tests.
+- Synthetic 10,000-game interface smoke and a separate hosted rendering workflow that captures the real UI without ROMs or proprietary artwork. Native macOS and physical-controller acceptance remain pending.
 - Fresh public-ready Rust/Godot application baseline with an explicit source allowlist.
 - Managed local SNES library, in-window emulation integration, and local battery-save work.
 - Deterministic headless checks for local import, video delivery, pause/resume, and saved-session shutdown.
@@ -23,6 +26,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Removed the first-page-only library presentation limit and format game counts as integers instead of decimal bridge values.
 - Retained the active session after battery-save failures so users can repair the destination and retry without discarding SRAM.
 - Corrected native logging callbacks, bounded content/save reads, and shutdown delivery when the worker queue is full.
 

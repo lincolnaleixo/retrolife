@@ -1,0 +1,57 @@
+name: Cartridge UI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: cartridge-ui-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cartridge-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Asset verifier unit tests
+        run: python3 scripts/test-cartridge-assets.py
+      - name: Prepare and verify pinned cartridge model
+        run: |
+          python3 scripts/prepare-cartridge-assets.py
+          python3 scripts/prepare-cartridge-assets.py --verify-only
+      - name: Install pinned Godot
+        run: |
+          curl --fail --location https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o /tmp/godot.zip
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  /tmp/godot.zip" | sha256sum --check
+          unzip -q /tmp/godot.zip -d /tmp/godot
+      - name: Isolate presentation fixtures from native extension and user data
+        run: |
+          mkdir -p .cache/ui-check
+          cp frontend/godot-ui/project.godot .cache/ui-check/
+          cp -R frontend/godot-ui/scripts frontend/godot-ui/scenes frontend/godot-ui/shaders frontend/godot-ui/assets .cache/ui-check/
+          /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --editor --import 2>&1 | tee .cache/ui-import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-import.log
+      - name: Cartridge navigation, integration and bounded-resource smoke
+        run: |
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/cartridge_library_smoke.gd 2>&1 | tee .cache/ui-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-smoke.log
+      - name: Render actual UI with neutral fixture data
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
+        run: |
+          timeout 180s xvfb-run -a -s '-screen 0 1280x720x24' /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --rendering-method gl_compatibility --path .cache/ui-check --script res://scripts/cartridge_library_capture.gd 2>&1 | tee .cache/ui-render.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-render.log
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cartridge-ui-evidence
+          path: |
+            .cache/ui-*.log
+            .cache/captures/*.png
+            frontend/godot-ui/assets/cartridges/model-summary.json
+          if-no-files-found: error
+          retention-days: 14
