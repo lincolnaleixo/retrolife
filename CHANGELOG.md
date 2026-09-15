@@ -15,6 +15,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Expanded the roadmap with a concrete controller-first 3D cartridge library milestone covering versioned model integration, runtime labels, carousel navigation, performance, accessibility and native acceptance.
 - Separated creative assets from application source and licensing.
 - Replaced private deployment assumptions with local application storage and explicit build inputs.
 - Isolated Godot user data under `io.github.lincolnaleixo.retrolife` and aligned the Apple Silicon export preset with the release signing flow.
