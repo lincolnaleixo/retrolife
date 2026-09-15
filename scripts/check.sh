@@ -11,6 +11,6 @@ scripts/build.sh
 "${GODOT:-godot}" --headless --path frontend/godot-ui --editor --import
 
 python3 scripts/make-test-rom.py .cache/test.sfc
-"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/local_library_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/cartridge_native_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/input_mapping_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/cartridge_library_smoke.gd
