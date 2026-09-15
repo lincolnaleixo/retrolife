@@ -24,7 +24,7 @@ def configure(app: Path, version: str, public_key: str) -> dict:
         "SUFeedURL": FEED_URL, "SUPublicEDKey": public_key,
         "SUEnableAutomaticChecks": True, "SUAutomaticallyUpdate": False,
         "SUAllowsAutomaticUpdates": True, "SUScheduledCheckInterval": 86400,
-        "SUEnableSystemProfiling": False,
+        "SUEnableSystemProfiling": False, "SUVerifyUpdateBeforeExtraction": True,
     })
     # Do not embed test overrides in a release app.
     for key in list(data):

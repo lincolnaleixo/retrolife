@@ -41,6 +41,7 @@ def build_app(path: Path, executable: Path, version: str, key: str, feed: str, m
             "CFBundleShortVersionString": info["shortVersion"], "RLReleaseVersion": info["version"],
             "LSMinimumSystemVersion": "13.0", "SUFeedURL": feed, "SUPublicEDKey": key,
             "SUEnableAutomaticChecks": False, "SUAutomaticallyUpdate": False, "SUAllowsAutomaticUpdates": True,
+            "SUVerifyUpdateBeforeExtraction": True,
             "RLDefaultBetaUpdates": beta, "RLTestMode": mode, "RLTestDirectory": str(directory),
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}}
     (contents / "Info.plist").write_bytes(plistlib.dumps(data))

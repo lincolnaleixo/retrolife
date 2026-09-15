@@ -46,7 +46,7 @@ static BOOL HasSignatureError(NSError *error) {
 - (void)showUpdaterError:(NSError *)error acknowledgement:(void (^)(void))acknowledgement {
     acknowledgement();
     BOOL passed = ([Mode() isEqualToString:@"invalid-signature"] && HasSignatureError(error)) ||
-                  ([Mode() isEqualToString:@"network-error"] && [error.domain isEqualToString:SUSparkleErrorDomain] && error.code == SUAppcastError) ||
+                  ([Mode() isEqualToString:@"network-error"] && [error.domain isEqualToString:SUSparkleErrorDomain] && (error.code == SUAppcastError || error.code == SUDownloadError)) ||
                   ([Mode() isEqualToString:@"bad-origin"] && [error.domain isEqualToString:@"RetroLifeUpdates"]);
     Finish(passed, [NSString stringWithFormat:@"Update refused with %@ / %ld", error.domain, (long)error.code]);
 }

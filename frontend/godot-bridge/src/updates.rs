@@ -16,7 +16,8 @@ const COMMANDS: &[&str] = &[
 
 pub fn command(command: &str) -> String {
     if !COMMANDS.contains(&command) {
-        return json!({"schemaVersion":1,"ok":false,"error":"Unknown updater command."}).to_string();
+        return json!({"schemaVersion":1,"ok":false,"error":"Unknown updater command."})
+            .to_string();
     }
     native_command(command).to_string()
 }
@@ -71,7 +72,9 @@ fn native_command(command: &str) -> Value {
         if macos.file_name()? != "MacOS" {
             return None;
         }
-        let path = macos.parent()?.join("Frameworks/libretrolife_updater.dylib");
+        let path = macos
+            .parent()?
+            .join("Frameworks/libretrolife_updater.dylib");
         // Only the containing application's signed Frameworks directory. Never
         // search the working directory, PATH or caller-provided locations.
         let library = unsafe { Library::new(path) }.ok()?;
@@ -107,7 +110,14 @@ mod tests {
     use super::*;
     #[test]
     fn public_commands_cannot_clear_the_game_guard_or_set_a_feed() {
-        for name in ["game_end", "game_begin", "set_url", "status\0check", "", "CHECK"] {
+        for name in [
+            "game_end",
+            "game_begin",
+            "set_url",
+            "status\0check",
+            "",
+            "CHECK",
+        ] {
             let data: Value = serde_json::from_str(&command(name)).unwrap();
             assert_eq!(data["ok"], false);
         }
