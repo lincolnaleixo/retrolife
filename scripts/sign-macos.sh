@@ -17,7 +17,12 @@ sparkle="$app/Contents/Frameworks/Sparkle.framework"
 if [[ -d "$sparkle" ]]; then
   for relative in Versions/B/XPCServices/Downloader.xpc Versions/B/XPCServices/Installer.xpc Versions/B/Updater.app Versions/B/Autoupdate; do
     [[ -e "$sparkle/$relative" ]] || { echo 'Incomplete Sparkle framework.' >&2; exit 1; }
-    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$sparkle/$relative"
+    if [[ "$relative" == Versions/B/XPCServices/Downloader.xpc ]]; then
+      # Preserve the pinned downloader's entitlements, per upstream signing guidance.
+      codesign --force --options runtime --timestamp --preserve-metadata=entitlements --sign "$SIGNING_IDENTITY" "$sparkle/$relative"
+    else
+      codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$sparkle/$relative"
+    fi
   done
   codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$sparkle"
 fi
