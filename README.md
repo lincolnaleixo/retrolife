@@ -2,7 +2,7 @@
 
 A retro game library built with Rust and Godot, with SNES gameplay inside the application window.
 
-**Status:** first playable release in development. No signed release is available yet. See [the roadmap](plan.md) and [changelog](CHANGELOG.md) for verified progress and remaining work.
+**Status:** signed testing beta available in [GitHub Releases](https://github.com/lincolnaleixo/retrolife/releases). Hands-on gameplay, sound and controller acceptance remain pending. See [the roadmap](plan.md) and [changelog](CHANGELOG.md) for verified progress and remaining work.
 
 The first target is macOS 13+ on Apple Silicon. Linux builds support development checks; Linux distribution is a later milestone. Import your own `.sfc` or `.smc` files: RetroLife copies them into its local library and keeps local battery-backed saves. Games and artwork are not bundled.
 
