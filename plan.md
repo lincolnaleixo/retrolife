@@ -332,16 +332,43 @@ Before marking a milestone complete, run the applicable pinned formatting, Clipp
 
 A release record includes source commit, tag/build number, supported macOS/architecture, core/model/updater pins, relevant data/state schemas, tests actually run, manual evidence, known limitations, artifact checksums and signing/notarization results. Never pre-check future work or publish a release merely because planning/code changes were committed.
 
-### Final integrated checklist
+## Next: 3D cartridge library
 
-- [ ] Download and install on a supported Mac without a development environment.
-- [ ] Import user-owned SNES files, folders and ZIPs without modifying originals or duplicating identical bytes.
-- [ ] Browse a clean, responsive, genuinely 3D cartridge collection with correct selection and attractive neutral/individual labels.
-- [ ] Launch the selected ROM in-window with audible sound and working keyboard/gamepad input.
-- [ ] Save/load manual and quick slots, restart and resume, while preserving independent battery saves.
-- [ ] Detect an approved GitHub release and install/relaunch it from the app after user approval.
-- [ ] Preserve library metadata, ROM identities, artwork choices and compatible progress through a real update.
-- [ ] Pass the visual, reliability, performance, rights/provenance and signed-distribution gates with linked evidence.
+Acceptance tracking: [issue #2](https://github.com/lincolnaleixo/retrolife/issues/2).
+
+Purpose: replace the temporary text/card library with a controller-first 3D cartridge browser that makes the collection itself feel physical and collectible. The selected game should be the visual focus, with neighboring cartridges visible in perspective, while search, import and system controls stay available without dominating the screen.
+
+Primary visual target: a dark full-window showcase with one centered cartridge at hero scale, nearby cartridges receding to the sides, subtle depth and motion, concise title metadata, compact system navigation and persistent controller hints. The first implementation is SNES NTSC-U and uses the independently versioned models from [`retro-cartridge-models`](https://github.com/lincolnaleixo/retro-cartridge-models).
+
+Done when: a user can import multiple SNES games, browse them smoothly with gamepad, keyboard or mouse, immediately identify the selected title, open its details and launch it, recover cleanly from missing model or artwork data, and use the library without any network dependency. The interface must remain responsive with a synthetic large library and must not bundle proprietary game artwork as application source.
+
+- [ ] Approve a focused visual spec for the cartridge browser: centered hero cartridge, visible left/right neighbors, dark showcase background, compact top-level system selector, selected-title metadata and unobtrusive bottom control hints.
+- [ ] Remove the current large card-grid presentation as the primary library view and demote search, import, source/debug status and secondary filters into compact chrome or overlays so the cartridges remain the focal point.
+- [ ] Define deterministic navigation for controller, keyboard and mouse: D-pad/arrows move one cartridge, LB/RB switch systems, A/Enter opens the selected game details, B/Esc returns, search has a dedicated action, and mouse click/scroll/drag has equivalent behavior.
+- [ ] Preserve selection and scroll position when opening details, returning from gameplay, changing filters or switching systems.
+- [ ] Pin exact releases of the SNES cartridge assets from `retro-cartridge-models`, record their provenance, verify release checksums, and keep large creative binaries outside the application Git history.
+- [ ] Add a reproducible asset preparation step that fetches or consumes the pinned cartridge package, verifies it and stages only the required GLB/material resources for the Godot build and release process.
+- [ ] Build a reusable Godot `Cartridge3D` scene around the SNES GLB with a stable transform, camera anchor, material slots, label surface, lighting hooks and neutral fallback materials.
+- [ ] Add a runtime label pipeline that can use user-local or otherwise permitted artwork when available and can always generate a clean neutral label from game metadata when artwork is absent. Do not commit or redistribute proprietary game artwork as application-owned source.
+- [ ] Implement the horizontal 3D carousel: selected cartridge large and centered, immediate neighbors smaller and offset in perspective, farther entries represented cheaply, and transitions driven by short interruptible tweens rather than blocking animations.
+- [ ] Add restrained physical motion to the selected cartridge, such as a small idle tilt or pointer parallax, while keeping the normal browser camera controlled and readable rather than turning the library into a free-form 3D viewer.
+- [ ] Add selected-game typography and metadata below or beside the hero cartridge with clear hierarchy for title, system and concise status. Avoid repeating technical source/debug strings in the primary visual hierarchy.
+- [ ] Make ROM import feel integrated with the new library: newly imported games appear in the correct sorted/filter state, become selectable immediately and can animate into focus without rebuilding the whole scene.
+- [ ] Instantiate only the selected cartridge and a small neighborhood around it, reuse pooled 3D nodes, prefetch nearby textures and keep off-screen entries as lightweight data so large libraries do not create one live 3D scene per game.
+- [ ] Define texture-size, material and lighting budgets for Apple Silicon and provide graceful fallbacks for lower render quality, missing GLB assets, missing label textures and unsupported material features.
+- [ ] Add responsive camera/layout rules for window resizing and common desktop aspect ratios so the hero cartridge never collides with navigation, title metadata or control hints.
+- [ ] Add reduced-motion behavior, keyboard-visible focus, readable contrast and a non-3D textual fallback path so the library remains usable when motion or 3D presentation is disabled.
+- [ ] Extend deterministic UI smokes to cover left/right navigation, rapid repeated input, system switching, detail round-trips, import insertion, missing-art fallback and missing-model fallback.
+- [ ] Add a synthetic large-library performance fixture with no ROM content and verify that navigation remains responsive, memory use stays bounded and the active 3D node count is limited by the carousel window rather than total library size.
+- [ ] Exercise the complete 3D library natively on macOS with keyboard, physical controller and mouse, then record performance and acceptance evidence before claiming the milestone complete.
+- [ ] Update screenshots, user documentation, third-party notices and release-source packaging for the pinned cartridge assets without merging their independent license or version history into the application repository.
+
+## Future
+
+1. [Add core-compatible](https://github.com/lincolnaleixo/retrolife/issues/3) save states, then separately designed synchronization.
+2. [Validate Steam](https://github.com/lincolnaleixo/retrolife/issues/4) Deck/Linux distribution.
+3. Extend the 3D library to additional systems only after the SNES interaction, asset pipeline and performance model are proven.
+4. Add additional emulation cores and system-specific presentation without weakening the local-library, licensing or release boundaries.
 
 ## Deferred after these ten versions
 
