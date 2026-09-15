@@ -59,7 +59,6 @@ func _ready() -> void:
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("b8c0db")
     environment.ambient_light_energy = 0.8
-    environment.reflected_light_source = Environment.REFLECTED_SOURCE_DISABLED
     environment_node.environment = environment
     _world.add_child(environment_node)
     _camera = Camera3D.new()
@@ -188,7 +187,7 @@ func _emit_selection() -> void:
 
 
 func _layout(animate: bool, refresh := false) -> void:
-    if _world == null:
+    if _world == null or _fallback == null:
         return
     _container.visible = not textual_view
     _fallback.visible = textual_view
@@ -268,13 +267,13 @@ func _gui_input(event: InputEvent) -> void:
     elif event is InputEventMouseMotion:
         if _dragging:
             _drag_distance += absf(event.relative.x)
-            var distance := event.position.x - _drag_origin.x
+            var distance: float = event.position.x - _drag_origin.x
             if absf(distance) >= 65:
                 navigate(-1 if distance > 0 else 1)
                 _drag_origin = event.position
             accept_event()
         elif not reduced_motion:
-            var normalized := (event.position / size.max(Vector2.ONE) - Vector2(0.5, 0.5)) * 2.0
+            var normalized: Vector2 = (event.position / size.max(Vector2.ONE) - Vector2(0.5, 0.5)) * 2.0
             for item in _pool:
                 item.call("set_pointer", normalized.clamp(Vector2(-1, -1), Vector2(1, 1)))
     elif event is InputEventPanGesture:

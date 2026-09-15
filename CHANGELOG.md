@@ -30,6 +30,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Corrected the environment API and explicitly typed pointer calculations identified by the first hosted Godot import; retained an isolated reproduction artifact and included hidden-directory evidence files.
 - Removed the first-page-only library presentation limit and format game counts as integers instead of decimal bridge values.
 - Retained the active session after battery-save failures so users can repair the destination and retry without discarding SRAM.
 - Corrected native logging callbacks, bounded content/save reads, and shutdown delivery when the worker queue is full.
