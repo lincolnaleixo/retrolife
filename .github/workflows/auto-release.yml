@@ -144,6 +144,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
           EXPECTED_SHA: ${{ needs.build.outputs.archive_sha }}
           MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
         run: |
           set -euo pipefail
