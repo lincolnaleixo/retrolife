@@ -175,6 +175,8 @@ class WorkflowBoundary(unittest.TestCase):
         self.assertNotIn("secrets.", build)
         self.assertIn("runs-on: retrolife", workflow)
         self.assertIn("RETROLIFE_SIGNING_MODE", workflow)
+        self.assertIn("/usr/local/libexec/retrolife-sign-release", workflow)
+        self.assertNotIn("scripts/ci-sign-macos-release.py", workflow)
         self.assertNotIn("RETROLIFE_SIGNING_RUNNER", workflow)
         publish = workflow.split("  publish:\n", 1)[1]
         self.assertNotIn("secrets.", publish)

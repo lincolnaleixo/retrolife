@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(arguments: list[str], env: dict | None = None) -> str:
-    process = subprocess.run(arguments, cwd=ROOT, env=env, capture_output=True, text=True)
+    process = subprocess.run(arguments, cwd=ROOT, env=env or public_environment(), capture_output=True, text=True)
     if process.returncode:
         # Error messages intentionally do not contain command arguments or output.
         raise RuntimeError(Path(arguments[0]).name + " failed; release remains unpublished")
@@ -178,10 +178,13 @@ def main() -> None:
         if len(matching) != 1:
             raise ValueError("The certificate must contain exactly one matching Developer ID Application identity")
         account = "io.github.lincolnaleixo.retrolife.sparkle"
-        if run([str(sdk / "bin/generate_keys"), "--account", account, "-p"]) != public:
-            raise ValueError("Persistent Sparkle signing key does not match the app's public key")
-        if not local_mode:
+        if local_mode:
+            if run([str(sdk / "bin/generate_keys"), "--account", account, "-p"]) != public:
+                raise ValueError("Persistent Sparkle signing key does not match the app's public key")
+        else:
             run([str(sdk / "bin/generate_keys"), "--account", account, "-f", str(sparkle_key)], clean_env)
+            if run([str(sdk / "bin/generate_keys"), "--account", account, "-p"], clean_env) != public:
+                raise ValueError("Imported Sparkle signing key does not match the app's public key")
             profile = "retrolife-ci-notary"
             if api_ready:
                 notary_key = private_dir / "app-store-connect-api-key.p8"
@@ -206,16 +209,28 @@ def main() -> None:
         print("Developer ID signing, notarization, stapling, DMG and ZIP signature checks passed.")
     finally:
         # Always restore the runner's configuration, including after failure.
-        subprocess.run(["security", "default-keychain", "-d", "user", "-s", original_default], capture_output=True, env=clean_env)
-        subprocess.run(["security", "list-keychains", "-d", "user", "-s", *original_list], capture_output=True, env=clean_env)
+        cleanup_errors = []
+        for arguments in (
+            ["security", "default-keychain", "-d", "user", "-s", original_default],
+            ["security", "list-keychains", "-d", "user", "-s", *original_list],
+        ):
+            result = subprocess.run(arguments, capture_output=True, env=clean_env)
+            if result.returncode:
+                cleanup_errors.append(arguments[1])
         if local_mode:
             if local_keychain is not None:
-                subprocess.run(["security", "lock-keychain", str(local_keychain)], capture_output=True, env=clean_env)
+                result = subprocess.run(["security", "lock-keychain", str(local_keychain)], capture_output=True, env=clean_env)
+                if result.returncode:
+                    cleanup_errors.append("lock-keychain")
         else:
             if keychain is not None:
-                subprocess.run(["security", "delete-keychain", str(keychain)], capture_output=True, env=clean_env)
+                result = subprocess.run(["security", "delete-keychain", str(keychain)], capture_output=True, env=clean_env)
+                if result.returncode:
+                    cleanup_errors.append("delete-keychain")
             if private_dir is not None:
                 shutil.rmtree(private_dir)
+        if cleanup_errors:
+            raise RuntimeError("Signing environment cleanup failed; release remains unpublished")
     for name in ALL_PROTECTED_SECRETS:
         os.environ.pop(name, None)
     # Private signing material is gone before executing the signed application.

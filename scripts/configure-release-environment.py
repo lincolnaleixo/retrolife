@@ -30,6 +30,17 @@ def command(args: list[str], input_value: str | None = None, missing: bool = Fal
     return result.stdout.strip()
 
 
+def delete_alternate_notary_secrets(selected_api_key_mode: bool) -> None:
+    raw = command(["gh", "secret", "list", "--repo", REPO, "--env", ENVIRONMENT,
+                   "--json", "name", "--jq", ".[].name"]) or ""
+    names = set(raw.splitlines())
+    alternate = {"APPLE_ID", "APPLE_APP_PASSWORD"} if selected_api_key_mode else {
+        "APPLE_API_KEY_ID", "APPLE_API_ISSUER_ID", "APPLE_API_KEY_P8_BASE64"
+    }
+    for name in sorted(alternate & names):
+        command(["gh", "secret", "delete", name, "--repo", REPO, "--env", ENVIRONMENT], "y\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("certificate", type=Path, help="An explicitly exported Developer ID Application .p12 identity")
@@ -103,6 +114,7 @@ def main() -> None:
         for name, value in values.items():
             command(["gh", "secret", "set", name, "--repo", REPO, "--env", ENVIRONMENT], value)
         values.clear()
+    delete_alternate_notary_secrets(api_key_mode)
     for name, value in {"APPLE_TEAM_ID": args.team_id, "SPARKLE_PUBLIC_KEY": public}.items():
         command(["gh", "variable", "set", name, "--repo", REPO, "--env", ENVIRONMENT], value)
     command(["gh", "workflow", "run", "auto-release.yml", "--repo", REPO, "--ref", "main"])
