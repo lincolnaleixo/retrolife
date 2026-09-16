@@ -43,8 +43,8 @@ lipo "$engine" -verify_arch arm64
 # home, which is not RetroLife build input but would trip our private-path
 # audit.  Rewrite only that known vendor prefix, preserving its byte length;
 # any project checkout path remains untouched and is rejected by verification.
-perl -0pi -e 's#/Users/runner(?=/\.cargo/registry/src/)#/vendor/godot#g' "$engine"
-if grep -a -q '/Users/runner/.cargo/registry/src/' "$engine"; then
+perl -0pi -e 's#\x2fUsers\x2frunner(?=\x2f\.cargo\x2fregistry\x2fsrc\x2f)#\x2fvendor\x2fgodot#g' "$engine"
+if ! perl -0ne 'exit 1 if /\x2fUsers\x2frunner\x2f\.cargo\x2fregistry\x2fsrc\x2f/' "$engine"; then
   echo 'The pinned Godot template vendor path was not sanitized.' >&2
   exit 1
 fi
