@@ -48,6 +48,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Sanitize the pinned Godot template's public hosted-runner source paths before packaging and reject private build paths in the unsigned packaging regression.
 - Give the update dialog an opaque, high-contrast surface so cartridge artwork cannot interfere with update controls.
 - Preserve the pinned Sparkle downloader entitlements when re-signing embedded components, following the upstream manual-signing procedure.
 - Require EdDSA verification before extracting update archives and align the native bridge with the pinned Rust formatter.
