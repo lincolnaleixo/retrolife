@@ -25,6 +25,7 @@ API_KEY_NOTARY_SECRETS = (
     "APPLE_API_KEY_ID", "APPLE_API_ISSUER_ID", "APPLE_API_KEY_P8_BASE64",
 )
 LOCAL_KEYCHAIN_SECRETS = ("MACOS_KEYCHAIN_PASSWORD",)
+LOCAL_SPARKLE_SECRETS = ("SPARKLE_PRIVATE_KEY",)
 # Kept as the legacy password-based set for callers that need the historical
 # names.  A release may use either the password pair or the API-key trio.
 REQUIRED_SECRETS = (*SIGNING_SECRETS, *PASSWORD_NOTARY_SECRETS)
@@ -75,7 +76,8 @@ def next_version(base: str, tags: list[str]) -> str:
 def configuration_errors(env: dict) -> list[str]:
     local_mode = env.get("SIGNING_MODE") == "local-keychain"
     if local_mode:
-        missing = [name for name in LOCAL_KEYCHAIN_SECRETS if env.get("HAS_" + name) != "true"]
+        missing = [name for name in (*LOCAL_KEYCHAIN_SECRETS, *LOCAL_SPARKLE_SECRETS)
+                   if env.get("HAS_" + name) != "true"]
         if not env.get("LOCAL_KEYCHAIN_PATH"):
             missing.append("LOCAL_KEYCHAIN_PATH (environment variable, local runner path)")
         if not env.get("NOTARY_PROFILE"):

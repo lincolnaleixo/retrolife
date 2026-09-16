@@ -57,6 +57,7 @@ class Configuration(unittest.TestCase):
         api_env.update(APPLE_TEAM_ID="ABCDEF1234", SPARKLE_PUBLIC_KEY=KEY)
         self.assertEqual(release.configuration_errors(api_env), [])
         local_env = {"SIGNING_MODE": "local-keychain", "HAS_MACOS_KEYCHAIN_PASSWORD": "true",
+                     "HAS_SPARKLE_PRIVATE_KEY": "true",
                      "LOCAL_KEYCHAIN_PATH": "/test-fixture/signing.keychain-db",
                      "NOTARY_PROFILE": "retrolife-openemu", "APPLE_TEAM_ID": "ABCDEF1234",
                      "SPARKLE_PUBLIC_KEY": KEY}
