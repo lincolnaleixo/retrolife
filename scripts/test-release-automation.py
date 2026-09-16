@@ -53,7 +53,15 @@ class Configuration(unittest.TestCase):
         self.assertEqual(release.configuration_errors(env), [])
         env["HAS_SPARKLE_PRIVATE_KEY"] = "false"
         self.assertEqual(release.configuration_errors(env), ["SPARKLE_PRIVATE_KEY"])
-        self.assertGreaterEqual(len(release.configuration_errors({})), 7)
+        api_env = {"HAS_" + key: "true" for key in release.SIGNING_SECRETS + release.API_KEY_NOTARY_SECRETS}
+        api_env.update(APPLE_TEAM_ID="ABCDEF1234", SPARKLE_PUBLIC_KEY=KEY)
+        self.assertEqual(release.configuration_errors(api_env), [])
+        local_env = {"SIGNING_MODE": "local-keychain", "HAS_MACOS_KEYCHAIN_PASSWORD": "true",
+                     "LOCAL_KEYCHAIN_PATH": "/test-fixture/signing.keychain-db",
+                     "NOTARY_PROFILE": "retrolife-openemu", "APPLE_TEAM_ID": "ABCDEF1234",
+                     "SPARKLE_PUBLIC_KEY": KEY}
+        self.assertEqual(release.configuration_errors(local_env), [])
+        self.assertGreaterEqual(len(release.configuration_errors({})), 6)
 
     def test_disallow_pr_tag_fork_and_ambiguous_sources(self):
         release.assert_release_context(ENV)
@@ -68,7 +76,7 @@ class Configuration(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("ci_sign", Path(__file__).with_name("ci-sign-macos-release.py"))
         signer = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(signer)
-        env = {key: "sensitive-fixture" for key in (*release.REQUIRED_SECRETS, "GH_TOKEN", "GITHUB_TOKEN")}
+        env = {key: "sensitive-fixture" for key in (*release.ALL_PROTECTED_SECRETS, "GH_TOKEN", "GITHUB_TOKEN")}
         with patch.dict(os.environ, {**env, "SPARKLE_PUBLIC_KEY": KEY}, clear=True):
             self.assertEqual(signer.public_environment(), {"SPARKLE_PUBLIC_KEY": KEY})
 
@@ -165,6 +173,9 @@ class WorkflowBoundary(unittest.TestCase):
             self.assertRegex(ref, r"^actions/[a-z-]+@[0-9a-f]{40}$")
         build = workflow.split("  build:\n", 1)[1].split("  sign:\n", 1)[0]
         self.assertNotIn("secrets.", build)
+        self.assertIn("runs-on: retrolife", workflow)
+        self.assertIn("RETROLIFE_SIGNING_MODE", workflow)
+        self.assertNotIn("RETROLIFE_SIGNING_RUNNER", workflow)
         publish = workflow.split("  publish:\n", 1)[1]
         self.assertNotIn("secrets.", publish)
         self.assertIn("release_automation.py feed", workflow)

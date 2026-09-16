@@ -17,10 +17,18 @@ from updates.common import FEED_URL, BUNDLE_ID, decode_key, sha256, validate_met
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "lincolnaleixo/retrolife"
-REQUIRED_SECRETS = (
-    "MACOS_CERTIFICATE_P12_BASE64", "MACOS_CERTIFICATE_PASSWORD", "APPLE_ID",
-    "APPLE_APP_PASSWORD", "SPARKLE_PRIVATE_KEY",
+SIGNING_SECRETS = (
+    "MACOS_CERTIFICATE_P12_BASE64", "MACOS_CERTIFICATE_PASSWORD", "SPARKLE_PRIVATE_KEY",
 )
+PASSWORD_NOTARY_SECRETS = ("APPLE_ID", "APPLE_APP_PASSWORD")
+API_KEY_NOTARY_SECRETS = (
+    "APPLE_API_KEY_ID", "APPLE_API_ISSUER_ID", "APPLE_API_KEY_P8_BASE64",
+)
+LOCAL_KEYCHAIN_SECRETS = ("MACOS_KEYCHAIN_PASSWORD",)
+# Kept as the legacy password-based set for callers that need the historical
+# names.  A release may use either the password pair or the API-key trio.
+REQUIRED_SECRETS = (*SIGNING_SECRETS, *PASSWORD_NOTARY_SECRETS)
+ALL_PROTECTED_SECRETS = (*SIGNING_SECRETS, *PASSWORD_NOTARY_SECRETS, *API_KEY_NOTARY_SECRETS, *LOCAL_KEYCHAIN_SECRETS)
 PAYLOAD_FILES = (
     "RetroLife-macos-arm64.zip", "RetroLife-macos-arm64.dmg", "retrolife-update.json",
     "retrolife-source.tar.gz", "retrolife-rust-dependencies.tar.gz", "bsnes-jg.tar.gz",
@@ -65,7 +73,21 @@ def next_version(base: str, tags: list[str]) -> str:
 
 
 def configuration_errors(env: dict) -> list[str]:
-    missing = [name for name in REQUIRED_SECRETS if env.get("HAS_" + name) != "true"]
+    local_mode = env.get("SIGNING_MODE") == "local-keychain"
+    if local_mode:
+        missing = [name for name in LOCAL_KEYCHAIN_SECRETS if env.get("HAS_" + name) != "true"]
+        if not env.get("LOCAL_KEYCHAIN_PATH"):
+            missing.append("LOCAL_KEYCHAIN_PATH (environment variable, local runner path)")
+        if not env.get("NOTARY_PROFILE"):
+            missing.append("NOTARY_PROFILE (environment variable, local Keychain profile)")
+    else:
+        missing = [name for name in SIGNING_SECRETS if env.get("HAS_" + name) != "true"]
+        password_missing = [name for name in PASSWORD_NOTARY_SECRETS if env.get("HAS_" + name) != "true"]
+        api_missing = [name for name in API_KEY_NOTARY_SECRETS if env.get("HAS_" + name) != "true"]
+        password_ready = not password_missing
+        api_ready = not api_missing
+        if not password_ready and not api_ready:
+            missing.append("APPLE_ID + APPLE_APP_PASSWORD or " + ", ".join(API_KEY_NOTARY_SECRETS))
     if not re.fullmatch(r"[A-Z0-9]{10}", env.get("APPLE_TEAM_ID", "")):
         missing.append("APPLE_TEAM_ID (environment variable, 10 characters)")
     try:

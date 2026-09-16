@@ -46,9 +46,16 @@ jobs:
         env:
           HAS_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
           HAS_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          HAS_MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD != '' }}
           HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
           HAS_APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD != '' }}
+          HAS_APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID != '' }}
+          HAS_APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID != '' }}
+          HAS_APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 != '' }}
           HAS_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+          SIGNING_MODE: ${{ vars.RETROLIFE_SIGNING_MODE }}
+          LOCAL_KEYCHAIN_PATH: ${{ vars.RETROLIFE_KEYCHAIN_PATH }}
+          NOTARY_PROFILE: ${{ vars.RETROLIFE_NOTARY_PROFILE }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
         run: python3 scripts/release_automation.py preflight
@@ -117,7 +124,7 @@ jobs:
           if-no-files-found: error
   sign:
     needs: [plan, configuration, build, source-security]
-    runs-on: macos-15
+    runs-on: retrolife
     environment: macos-release
     timeout-minutes: 60
     outputs:
@@ -143,14 +150,24 @@ jobs:
       - name: Sign, notarize and verify the installed updater
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.MACOS_CERTIFICATE_P12_BASE64 || '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.APPLE_ID || '' }}
+          APPLE_APP_PASSWORD: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.APPLE_APP_PASSWORD || '' }}
+          APPLE_API_KEY_ID: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER_ID: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.APPLE_API_ISSUER_ID || '' }}
+          APPLE_API_KEY_P8_BASE64: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.APPLE_API_KEY_P8_BASE64 || '' }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ vars.RETROLIFE_SIGNING_MODE == 'local-keychain' && secrets.MACOS_KEYCHAIN_PASSWORD || '' }}
+          SPARKLE_PRIVATE_KEY: ${{ vars.RETROLIFE_SIGNING_MODE != 'local-keychain' && secrets.SPARKLE_PRIVATE_KEY || '' }}
+          RETROLIFE_SIGNING_MODE: ${{ vars.RETROLIFE_SIGNING_MODE }}
+          RETROLIFE_KEYCHAIN_PATH: ${{ vars.RETROLIFE_KEYCHAIN_PATH }}
+          RETROLIFE_NOTARY_PROFILE: ${{ vars.RETROLIFE_NOTARY_PROFILE }}
           SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-        run: python3 scripts/ci-sign-macos-release.py "$RELEASE_VERSION"
+        run: |
+          set -euo pipefail
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          python3 scripts/ci-sign-macos-release.py "$RELEASE_VERSION"
       - id: upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

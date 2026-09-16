@@ -12,18 +12,45 @@ Versions are selected from existing tags and releases, including drafts. Beta.2 
 
 Create an environment named `macos-release` in the repository's Settings > Environments. Set **Deployment branches and tags > Selected branches and tags > Branch > main** as its only allowed deployment rule. Do not allow PR refs, tags, wildcards or other branches. Existing approval rules may remain; when configured, each release waits for them. Store signing values as environment secrets, not source files or repository-wide secrets.
 
+The pipeline supports two mutually exclusive signing modes. Hosted signing
+uses the P12 and notarization values below. A trusted self-hosted Apple
+Silicon runner may instead use the local Keychain mode; that is the mode used
+when reusing the existing InputMate signing Mac. In local mode the certificate,
+notary profile and Sparkle private key never leave that Mac.
+
 | Environment secret | Value |
 | --- | --- |
 | `MACOS_CERTIFICATE_P12_BASE64` | Base64 of the specifically exported Developer ID Application identity, including its private key. |
 | `MACOS_CERTIFICATE_PASSWORD` | Password protecting that P12. |
-| `APPLE_ID` | Apple account authorized to notarize for the team. |
-| `APPLE_APP_PASSWORD` | Apple app-specific password, not the normal login password. |
 | `SPARKLE_PRIVATE_KEY` | Sparkle's private-key export from the persistent signing account. Reuse the same key on every build. |
+| `APPLE_API_KEY_ID` | App Store Connect API key ID for the team API key. |
+| `APPLE_API_ISSUER_ID` | App Store Connect API issuer ID for that key. |
+| `APPLE_API_KEY_P8_BASE64` | Base64 of the App Store Connect API key's private `.p8` file. |
+| `MACOS_KEYCHAIN_PASSWORD` | Local signing Keychain password; required only for `local-keychain` mode. |
 
 | Environment variable | Value |
 | --- | --- |
 | `APPLE_TEAM_ID` | The Apple Developer team identifier, 10 characters. |
 | `SPARKLE_PUBLIC_KEY` | Canonical base64 public key from that same Sparkle account. |
+| `RETROLIFE_SIGNING_MODE` | `local-keychain` for the trusted Mac mode; omit for hosted signing. |
+| `RETROLIFE_KEYCHAIN_PATH` | Absolute local Keychain path on the signing Mac. |
+| `RETROLIFE_NOTARY_PROFILE` | Existing local `notarytool` Keychain profile name. |
+
+The three `APPLE_API_*` secrets are the preferred notarization route. The
+legacy app-specific-password route remains supported as an alternative: use
+`APPLE_ID` and `APPLE_APP_PASSWORD` instead of the API-key trio. Never set a
+partial notarization credential set. The API key ID and issuer are stored as
+environment secrets here so all notarization configuration stays inside the
+protected `macos-release` boundary; none belongs in source or public release
+assets.
+
+For `local-keychain` mode, do not set the hosted P12/API-key secrets. The
+signing job unlocks only the configured local Keychain, selects the Developer
+ID identity for `APPLE_TEAM_ID`, uses `RETROLIFE_NOTARY_PROFILE`, and signs
+with the persistent Sparkle account already in that Keychain. The runner must
+be registered only for this repository, use a dedicated custom label, and
+never execute pull-request jobs. Its working directory and logs are not
+release assets.
 
 The certificate and notary credentials from previous manually signed betas are not automatically present on GitHub's hosted runners. Never paste a private key/password into an issue, PR, chat or workflow log. Do not generate a new unrelated Sparkle signing key for every release. A missing key is a configuration failure, not permission to weaken verification.
 
@@ -31,10 +58,20 @@ A helper is provided for a one-time interactive setup from the trusted Mac with 
 
 ```sh
 python3 scripts/configure-release-environment.py /path/to/DeveloperID.p12 \
-  --team-id YOURTEAMID --apple-id your-apple-account
+  --team-id YOURTEAMID \
+  --apple-api-key-p8 /secure/path/AuthKey_KEYID.p8 \
+  --apple-api-key-id KEYID --apple-api-issuer-id ISSUER_UUID
 ```
 
-It verifies the main-only environment scope, prompts for passwords without echo, exports only the selected Sparkle account to a temporary private file, sends secret values through `gh` standard input, sets the two public variables and starts the main workflow. Existing environment reviewer rules are not deliberately removed. Broader preexisting deployment rules cause setup to stop rather than deleting them silently.
+It verifies the main-only environment scope, prompts for the P12 password
+without echo, exports only the selected Sparkle account to a temporary private
+file, sends secret values through `gh` standard input, sets the two public
+variables and starts the main workflow. The `.p8` file is read only from the
+explicit local path and is never copied into the repository. The previous
+password-based route remains available with `--apple-id`; it prompts for the
+app-specific password without echo. Existing environment reviewer rules are
+not deliberately removed. Broader preexisting deployment rules cause setup to
+stop rather than deleting them silently.
 
 Only for the first setup when no persistent Sparkle key exists, add `--initialize-sparkle-key`. An existing account is reused. Back up that key securely according to Sparkle's procedure; GitHub does not let you retrieve stored secret plaintext later. Export the specific Developer ID identity with Keychain Access, not your complete Keychain. The helper does not enumerate or export unrelated private identities.
 
