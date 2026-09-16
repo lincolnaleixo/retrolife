@@ -34,6 +34,12 @@ def main() -> None:
     for component in ("Sparkle.framework/Sparkle", "libretrolife_updater.dylib", "libretrolife_godot.dylib", "bsnes-jg_libretro.dylib"):
         binary = app / "Contents/Frameworks" / component
         subprocess.run(["lipo", str(binary), "-verify_arch", "arm64"], check=True)
+    private_roots = (str(ROOT).encode(), str(Path.home()).encode())
+    for path in app.rglob("*"):
+        if path.is_file() and not path.is_symlink():
+            data = path.read_bytes()
+            if any(root in data for root in private_roots):
+                raise ValueError("A private build path leaked into " + str(path.relative_to(app)))
     for notice in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "Sparkle-LICENSE", "retro-cartridge-models/LICENSE", "retro-cartridge-models/provenance.json"):
         if not (app / "Contents/Resources/licenses" / notice).is_file():
             raise ValueError("Missing packaged notice: " + notice)
