@@ -3,6 +3,9 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: release-automation-checks-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   release-contracts:
     runs-on: ubuntu-24.04
@@ -11,18 +14,35 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Validate existing release contracts
+      - name: Validate immutable versioning, release assets and workflow boundaries
         run: |
           python3 scripts/test-updates.py
+          python3 scripts/test-release-automation.py
           python3 scripts/audit-publication.py
-      - name: Archive reviewed public source for isolated validation
-        run: |
-          mkdir -p .cache/release-evidence
-          git archive --format=tar.gz HEAD > .cache/release-evidence/source.tar.gz
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          bash -n scripts/install-godot-release.sh scripts/build-macos-release.sh scripts/prepare-macos-release.sh
+  release-package:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: release-source-validation
-          path: .cache/release-evidence/source.tar.gz
-          retention-days: 3
+          persist-credentials: false
+      - name: Install pinned Godot and templates
+        run: scripts/install-godot-release.sh
+      - name: Exercise the real release build with a public fixture key and no credentials
+        run: |
+          set -euo pipefail
+          mkdir -p .cache
+          PUBLIC_FIXTURE=$(python3 -c 'import base64; print(base64.b64encode(bytes(range(32))).decode())')
+          scripts/build-macos-release.sh 0.1.0-beta.3 "$PUBLIC_FIXTURE" 2>&1 | tee .cache/release-package.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/release-package.log
+          python3 scripts/test-release-packaging.py 0.1.0-beta.3 "$PUBLIC_FIXTURE" 2>&1 | tee -a .cache/release-package.log
+      - name: Keep test logs, never distribute unsigned test applications
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-package-evidence
+          path: .cache/release-package.log
+          retention-days: 14
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
