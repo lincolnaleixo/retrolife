@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Isolated release-contract validation while implementing automatic signed macOS prereleases. This preparation does not publish a new application.
 - In-app macOS update checks, native menu entry, persisted stable/beta and automatic-download/install preferences using checksum-pinned Sparkle.
 - A Rust-owned gameplay/save barrier preventing update checks or relaunch during an active session and rejecting game starts during installation.
 - Versioned release packaging with an embedded Ed25519 public key, inside-out Sparkle signing, verified ZIP signatures and release metadata, plus automatic appcast publication from GitHub Releases.

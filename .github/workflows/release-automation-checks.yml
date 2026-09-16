@@ -1,0 +1,28 @@
+name: Release automation checks
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  release-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate existing release contracts
+        run: |
+          python3 scripts/test-updates.py
+          python3 scripts/audit-publication.py
+      - name: Archive reviewed public source for isolated validation
+        run: |
+          mkdir -p .cache/release-evidence
+          git archive --format=tar.gz HEAD > .cache/release-evidence/source.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-source-validation
+          path: .cache/release-evidence/source.tar.gz
+          retention-days: 3
+          include-hidden-files: true
+          if-no-files-found: error
