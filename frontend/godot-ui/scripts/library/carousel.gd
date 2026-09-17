@@ -28,6 +28,7 @@ var reduced_motion := false
 var low_quality := false
 var textual_view := false
 var force_fallback_model := false
+var label_fetch_enabled := true
 var labels := LabelCache.new()
 var _indices: Dictionary = {}
 var _pool: Array[Node3D] = []
@@ -53,6 +54,9 @@ var _inspect_target_yaw := 0.0
 var _inspect_target_pitch := 0.0
 var _inspect_target_zoom := 1.0
 var _idle_time := 0.0
+var _http: HTTPRequest
+var _label_requests: Dictionary = {}
+var _active_label_asset := ""
 
 
 func _ready() -> void:
@@ -61,6 +65,10 @@ func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_STOP
     clip_contents = true
     custom_minimum_size = Vector2(0, 220)
+    _http = HTTPRequest.new()
+    _http.timeout = 30.0
+    _http.request_completed.connect(_on_label_download_completed)
+    add_child(_http)
     _container = SubViewportContainer.new()
     _container.stretch = true
     _container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -205,6 +213,55 @@ func pool_size() -> int:
     return _pool.size()
 
 
+func set_label_fetching(enabled: bool) -> void:
+    label_fetch_enabled = enabled
+
+
+func _queue_label_fetch(game_id: String, title: String) -> void:
+    if title.is_empty() or not label_fetch_enabled:
+        return
+    var pending := labels.pending_fetch(title)
+    if pending.is_empty():
+        return
+    var asset_id := str(pending.get("assetId", ""))
+    var url := str(pending.get("url", ""))
+    var sha256 := str(pending.get("sha256", ""))
+    if asset_id.is_empty() or url.is_empty() or sha256.is_empty():
+        return
+    if _label_requests.has(asset_id) or _active_label_asset == asset_id:
+        return
+    _label_requests[asset_id] = {"game_id": game_id, "url": url, "sha256": sha256}
+    _start_next_label_fetch()
+
+
+func _start_next_label_fetch() -> void:
+    if not _active_label_asset.is_empty() or _label_requests.is_empty():
+        return
+    var asset_id: String = _label_requests.keys()[0]
+    var request: Dictionary = _label_requests[asset_id]
+    if _http.request(str(request["url"])) != OK:
+        _label_requests.erase(asset_id)
+        call_deferred("_start_next_label_fetch")
+        return
+    _active_label_asset = asset_id
+
+
+func _on_label_download_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+    var asset_id := _active_label_asset
+    _active_label_asset = ""
+    var request: Dictionary = _label_requests.get(asset_id, {})
+    _label_requests.erase(asset_id)
+    if not asset_id.is_empty() and not request.is_empty() \
+        and result == HTTPRequest.RESULT_SUCCESS and code == 200:
+        var error := labels.install_downloaded_label(asset_id, body, str(request["sha256"]))
+        if error.is_empty():
+            labels.invalidate_all()
+            var game_id := str(request.get("game_id", ""))
+            if not game_id.is_empty():
+                refresh_artwork(game_id)
+    call_deferred("_start_next_label_fetch")
+
+
 func _emit_selection() -> void:
     var game: Dictionary = games[selected_index] if selected_index >= 0 else {}
     selection_changed.emit(game, selected_index)
@@ -258,7 +315,11 @@ func _layout(animate: bool, refresh := false) -> void:
         if rebound:
             item = free.pop_back()
         if rebound or refresh:
-            item.call("bind_game", game, index, labels.texture_for(id, str(game.get("title", ""))))
+            var title := str(game.get("title", ""))
+            var artwork := labels.texture_for(id, title)
+            if artwork == null:
+                _queue_label_fetch(id, title)
+            item.call("bind_game", game, index, artwork)
         var distance := index - selected_index
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)

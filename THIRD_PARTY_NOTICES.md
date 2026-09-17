@@ -24,7 +24,7 @@ Original model contributions retain **CC BY-NC-ND 4.0**, not the application's A
 
 `assets/cartridges.lock.json` records the exact archive and selected-file hashes. The build stages the unchanged GLB with its `LICENSE`, `CREDITS.md`, `NOTICE.md` and machine-readable provenance. Exported application resources include these notices; macOS release preparation additionally places them in `Contents/Resources/licenses/retro-cartridge-models`. Release source includes the asset lock and staging tool so the same model inputs can be verified without placing creative binaries into the software Git history.
 
-The neutral metadata label and procedural missing-model fallback are original application presentation code. User-selected PNG labels are local display overlays, not edits to or redistributed replacements of the pinned GLB. The textured Super Mario World example is not bundled.
+The neutral metadata label and procedural missing-model fallback are original application presentation code. User-selected PNG labels are local display overlays, not edits to or redistributed replacements of the pinned GLB. The textured Super Mario World example is not bundled. Approved label exports from the collection can be downloaded on request into the user's local cache and are verified against the collection's published checksums; they are not part of application source, releases or public evidence.
 
 ## Game content
 

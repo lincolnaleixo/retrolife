@@ -134,9 +134,14 @@ class CollectionLabelIndexTest(unittest.TestCase):
             for entry in lock.get("labels", [])
         }
         self.assertEqual(recorded, expected)
-        for _, (path, digest) in recorded.items():
-            self.assertRegex(path, r"^assets/cartridges/labels/.+\.png$")
-            self.assertRegex(digest, r"^[a-f0-9]{64}$")
+        host = "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/"
+        for entry in index["labels"]:
+            source = next(item for item in lock["labels"] if item["title"] == entry["title"])
+            self.assertEqual(entry["bytes"], source["front"]["bytes"])
+            self.assertEqual(entry["url"], host + source["tag"] + "/" + source["front"]["path"])
+            self.assertNotIn("/main/", entry["url"])
+            self.assertRegex(entry["sha256"], r"^[a-f0-9]{64}$")
+            self.assertRegex(entry["front"], r"^res://assets/cartridges/labels/.+\.png$")
 
 
 if __name__ == "__main__":
