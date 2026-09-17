@@ -5,7 +5,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
-- Executor guide covering environment prerequisites, hard guardrails (including the two-branch policy and the never-delete `updates` feed), the standard change/pull-request/release loop, verification commands, the owner-only acceptance gates and a recommended first task order.
+- Executor guide covering environment prerequisites, hard guardrails, the standard change/pull-request/release loop, verification commands, the owner-only acceptance gates and a recommended first task order; records the two long-lived branch policy in `rules.md`.
 - Automatic main-branch macOS beta pipeline with credential-free native builds, separate protected signing/notarization, immutable GitHub releases, full source/notices/checksums and explicit public update-feed publication.
 - Sequential beta allocation with numeric ordering, Apple suffix rollover, duplicate/stale-source protection and no publication on missing signing configuration.
 - Real exported-app updater-availability probe, offline release contracts, unsigned macOS packaging regression and secure one-time environment configuration helper. Production publication still requires the maintainer's actual credentials.

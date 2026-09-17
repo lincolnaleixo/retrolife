@@ -16,17 +16,17 @@ If the environment cannot clone, build, run `scripts/check.sh` and open pull req
 
 ## 2. Hard guardrails
 
-- **There are exactly two branches by design.** `main` is protected and receives changes only through pull requests. `updates` is the published Sparkle update feed (`appcast.xml`) served to already-installed applications; the release pipeline maintains it automatically. Never delete, rewrite, force-push or merge `updates` into `main`. Deleting it breaks in-app updates for every installed build. If an instruction says "keep only main", that instruction is wrong about this repository.
+Follow [rules.md](../rules.md) for all development rules, including English-only documentation, the same-commit changelog requirement and the licensing and signing boundaries. Execution-specific rules for this repository:
+
+- **Two long-lived branches.** `main` is protected and receives changes only through pull requests. `updates` is the published Sparkle update feed (`appcast.xml`) served to already-installed applications; the release pipeline maintains it automatically. Short-lived `feat/`, `fix/` and `docs/` branches are expected, and are deleted after their pull request merges. Never delete, rewrite, force-push or merge `updates` into `main`. Deleting it breaks in-app updates for every installed build. If an instruction says "keep only main", that instruction is wrong about this repository.
 - Never push directly to `main`; the required `validate` check, linear history and conversation resolution are enforced.
 - Never commit ROMs, saves, proprietary game artwork, credentials, private paths or personal data. The publication audit and secret scan run on every pull request.
-- Use English for code, documentation, commits, UI and release notes.
-- Update `CHANGELOG.md` in the same commit as every change.
 - CI green is not product acceptance. Owner gates in section 5 stay unchecked until the owner records real results.
-- Keep pinned dependencies pinned. Never weaken signing, updater verification, privacy rules or rights boundaries to make a check pass.
+- Never weaken signing, updater verification, privacy rules or rights boundaries to make a check pass.
 
 ## 3. The standard loop
 
-1. Pick the next unchecked deliverable in the current milestone of [plan.md](../plan.md). Work in milestone order (v0.2, then v0.3, and so on); the remaining v0.1.0 work is owner-side acceptance.
+1. Pick the next unchecked deliverable in the current milestone of [plan.md](../plan.md). Work in milestone order. v0.1.0 still has executor-actionable items (documentation and version reconciliation, plus preparing the final bundle rebuild and audit that acceptance will use) in addition to the owner acceptance; finish those, then continue to v0.2.
 2. Create a small issue (or reuse a milestone issue) with the deliverable checklist so progress is visible.
 3. Branch from updated `main` (`feat/...`, `fix/...`, `docs/...`) and implement one bounded deliverable.
 4. Run `scripts/check.sh` locally, or the subset that applies, and add focused tests with the change.
@@ -66,11 +66,12 @@ Record results in the acceptance issue (currently [issue #1](https://github.com/
 
 The owner's most recent review of the installed beta drives the first work:
 
-1. v0.2 — 2K-class default window. `frontend/godot-ui/project.godot` currently opens at 1280x720 with a 720x540 minimum; raise the default and the floor to the plan's targets, keep the smokes passing and add window checks.
-2. v0.2 — macOS menu-bar and shortcut parity plus appearance handling. The application menu currently contains only the updater item.
-3. v0.3 — cartridge idle motion and free inspection, then the close-up and 2K visual evidence.
-4. v0.3 — the label path: local override first, then the prepared Super Mario World package through the collection's catalog and manifest, under the rights and privacy rules in `plan.md`.
-5. Continue through the remaining v0.2 and v0.3 deliverables, then later milestones in order.
+1. v0.1 — reconcile README, changelog and release instructions with published beta evidence, and prepare the exact source/artifact rebuild and audit that acceptance will use.
+2. v0.2 — 2K-class default window. `frontend/godot-ui/project.godot` currently opens at 1280x720 with a 720x540 minimum; raise the default and the floor to the plan's targets, keep the smokes passing and add window checks.
+3. v0.2 — macOS menu-bar and shortcut parity plus appearance handling. The application menu currently contains only the updater item.
+4. v0.3 — cartridge idle motion and free inspection, then the close-up and 2K visual evidence.
+5. v0.3 — the label path: local override first, then the prepared Super Mario World package through the collection's catalog and manifest, under the rights and privacy rules in `plan.md`.
+6. Continue through the remaining v0.2 and v0.3 deliverables, then later milestones in order.
 
 ## 7. When blocked
 
