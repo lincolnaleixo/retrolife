@@ -29,3 +29,7 @@ The neutral metadata label and procedural missing-model fallback are original ap
 ## Game content
 
 The application contains no Nintendo artwork, ROMs, BIOS or personal saves. User-imported games and labels are not distributed with the application. Synthetic UI test titles and generated test content are separate from the user's collection.
+
+## Sparkle
+
+The macOS updater embeds Sparkle 2.10.0 from https://github.com/sparkle-project/Sparkle/releases/tag/2.10.0 under its upstream permissive license and included component notices. The exact official SDK is checksum-pinned by `scripts/prepare-sparkle.py`; its complete LICENSE is distributed as `Contents/Resources/licenses/Sparkle-LICENSE` in the app. The updater test host, ephemeral signing seeds and test-only trust exceptions are never distributed. Sparkle is not relicensed by the application license.

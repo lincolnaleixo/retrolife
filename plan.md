@@ -379,6 +379,22 @@ Implementation status: the code, asset pipeline, documentation and automated ver
 - [ ] Exercise the complete 3D library natively on macOS with keyboard, physical controller and mouse, then record performance and acceptance evidence before claiming the milestone complete. Hosted Apple Silicon headless tests do not close this hands-on gate.
 - [x] Update screenshots, user documentation, third-party notices and release-source packaging for the pinned cartridge assets without merging their independent license or version history into the application repository. The capture workflow and release helpers are updated; new signed artifacts still need release verification.
 
+## In progress: In-app macOS updates
+
+Implementation and verification: [PR #11](https://github.com/lincolnaleixo/retrolife/pull/11). User and release guide: [updates](docs/updates.md).
+
+- [x] Add an in-app Check for Updates action and a native macOS menu item.
+- [x] Persist automatic-check, optional automatic-install and stable/beta settings.
+- [x] Integrate checksum-pinned Sparkle with EdDSA verification, Developer ID host checks, safe installation and relaunch.
+- [x] Hold an update barrier across active gameplay and saving; do not restart to install during a game.
+- [x] Embed the updater in the signed release workflow with correct bundle versions, independent notices and protected Keychain signing keys.
+- [x] Generate signed-update metadata and automatically publish a restricted appcast from GitHub Releases on a separate distribution branch.
+- [x] Add offline release/security contracts and Godot action/settings/error/layout regression tests.
+- [x] Verify production native helper compilation and real Sparkle upgrade/relaunch on hosted Apple Silicon; record actual workflow results before closing.
+- [ ] Publish and validate a newly signed updater-enabled beta, including signed-to-signed replacement, Gatekeeper and existing library/save preservation on the target Mac.
+
+Existing beta.1 and beta.2 have no updater. They require a one-time manual installation of the first new updater-enabled signed build. Adding this code does not modify those immutable releases or claim a newly distributed app.
+
 ## Future
 
 These later milestones remain unimplemented; they are not implied by completion of the cartridge presentation code.
@@ -397,6 +413,14 @@ Additional consoles; Intel Mac support; [Steam Deck/Linux distribution](https://
 Repository status and implementation: [architecture](docs/architecture.md), [release instructions](docs/releases.md), [development rules](rules.md), [published beta.2](https://github.com/lincolnaleixo/retrolife/releases/tag/v0.1.0-beta.2), [frontend shell](frontend/godot-ui/scripts/main.gd), [managed library](crates/retrolife-library/src/lib.rs), [emulation worker](crates/retrolife-emulation/src/lib.rs), and [source-release workflow](.github/workflows/release.yml).
 
 Creative dependency: [cartridge collection](https://github.com/lincolnaleixo/retro-cartridge-models), [pinned neutral-model manifest](https://github.com/lincolnaleixo/retro-cartridge-models/blob/a5a184ff1b463b540c56a081e1da625f70067d7a/assets/snes-ntsc-u/versions/0.1.0.json), and the collection's license, credits and notices. Refer to the manifest for exact package/GLB checksums rather than trusting a filename.
+### In-app updater
+
+[Updater run 35014267751](https://github.com/lincolnaleixo/retrolife/actions/runs/35014267751), for revision `5e3c49c8abbebe0f7ffcc5cb6da6d3b8f9d4e48e`, passed both the Linux contract/interface job and the standard hosted Apple Silicon native job. The production Objective-C helper compiled with warnings treated as errors. Sixteen Python release/security tests and the Godot updater interface smoke passed.
+
+Nine native scenarios used real Sparkle with ephemeral signing keys, a local feed and disposable ad-hoc-signed bundles: settings/gameplay exclusion, no update, downgrade refusal, stable-only channel, incompatible OS, network failure, disallowed download origin, tampered signature, and a real beta.2-to-beta.10 bundle replacement/relaunch. The tests verified installed-bundle identity and unchanged user-data sentinels. The test-only user driver automated UI choices; it did not replace Sparkle download, verification or installation. No production signing credentials, real user libraries or game saves were used. Evidence is retained in the workflow artifacts and PR #11.
+
+This does not establish a newly published Developer ID/notarized release, a signed-to-signed update of the packaged Godot application, or an upgrade using the public GitHub feed. Those distribution checks remain open above and require a new reviewed, signed release.
+
 ### Cartridge implementation
 
 [Cartridge UI run 35006031561](https://github.com/lincolnaleixo/retrolife/actions/runs/35006031561), for application revision `48bd6d2d8fbda74105251c51af44d31d381a3ad0`, passed both the Linux presentation job and the standard hosted Apple Silicon native job. The latter verified arm64, built the pinned core and bridge, and ran formatting, Clippy, Rust tests, publication/dependency checks, asset tests, Godot import, gameplay/input checks and the 10,000-entry cartridge smoke. No signing credentials or trusted signing-machine access were used.

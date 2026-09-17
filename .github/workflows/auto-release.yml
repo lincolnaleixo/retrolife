@@ -1,0 +1,231 @@
+name: Automatic macOS beta release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: retrolife-automatic-macos-release
+  queue: max
+jobs:
+  plan:
+    if: github.repository == 'lincolnaleixo/retrolife' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      published: ${{ steps.plan.outputs.published }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        name: Allocate the next unused beta for this exact source commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_automation.py plan
+  configuration:
+    needs: plan
+    if: needs.plan.outputs.published != 'true'
+    runs-on: ubuntu-24.04
+    environment: macos-release
+    timeout-minutes: 5
+    outputs:
+      public_key: ${{ steps.check.outputs.public_key }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: check
+        name: Fail early when the protected signing environment is not configured
+        env:
+          HAS_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
+          HAS_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          HAS_MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD != '' }}
+          HAS_APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          HAS_APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD != '' }}
+          HAS_APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID != '' }}
+          HAS_APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID != '' }}
+          HAS_APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 != '' }}
+          HAS_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+          SIGNING_MODE: ${{ vars.RETROLIFE_SIGNING_MODE }}
+          LOCAL_KEYCHAIN_PATH: ${{ vars.RETROLIFE_KEYCHAIN_PATH }}
+          NOTARY_PROFILE: ${{ vars.RETROLIFE_NOTARY_PROFILE }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+        run: python3 scripts/release_automation.py preflight
+  source-security:
+    needs: configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Audit publication boundary and scan source history
+        run: |
+          set -euo pipefail
+          python3 scripts/audit-publication.py
+          curl --fail --location --retry 3 https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner
+  build:
+    needs: [plan, configuration]
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      archive_sha: ${{ steps.archive.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install verified Godot and macOS export templates
+        run: scripts/install-godot-release.sh
+      - name: Test and export without production signing credentials
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          SPARKLE_PUBLIC_KEY: ${{ needs.configuration.outputs.public_key }}
+        run: |
+          set -euo pipefail
+          mkdir -p .cache
+          python3 scripts/test-release-automation.py
+          scripts/build-macos-release.sh "$RELEASE_VERSION" "$SPARKLE_PUBLIC_KEY" 2>&1 | tee .cache/release-build.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/release-build.log
+          python3 scripts/test-updater-native.py
+          python3 scripts/test-release-packaging.py "$RELEASE_VERSION" "$SPARKLE_PUBLIC_KEY"
+      - name: Locked dependency vulnerability audit
+        run: |
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo audit
+      - id: archive
+        name: Preserve executable modes and internal framework links
+        run: |
+          set -euo pipefail
+          COPYFILE_DISABLE=1 tar -czf "$RUNNER_TEMP/unsigned-macos.tar.gz" -C dist unsigned
+          echo "sha=$(shasum -a 256 "$RUNNER_TEMP/unsigned-macos.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unsigned-macos-${{ github.sha }}
+          path: ${{ runner.temp }}/unsigned-macos.tar.gz
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+  sign:
+    needs: [plan, configuration, build, source-security]
+    runs-on: retrolife
+    environment: macos-release
+    timeout-minutes: 60
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: ${{ runner.temp }}/build-input
+          merge-multiple: true
+      - name: Sign, notarize and verify the installed updater
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          EXPECTED_SHA: ${{ needs.build.outputs.archive_sha }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          /usr/local/libexec/retrolife-sign-release \
+            "$GITHUB_WORKSPACE" \
+            "$RUNNER_TEMP/build-input/unsigned-macos.tar.gz" \
+            "$RELEASE_VERSION" \
+            "$SPARKLE_PUBLIC_KEY" \
+            "$GITHUB_SHA" \
+            "$GITHUB_RUN_ID" \
+            "$EXPECTED_SHA"
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-release-${{ github.sha }}
+          path: dist/release/*
+          retention-days: 7
+          if-no-files-found: error
+  verify-signed:
+    needs: [plan, configuration, sign]
+    if: needs.plan.outputs.published != 'true'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          path: dist/release
+          merge-multiple: true
+      - name: Verify the signed app on a disposable hosted runner
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          SPARKLE_PUBLIC_KEY: ${{ needs.configuration.outputs.public_key }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: python3 scripts/verify-signed-release.py "$RELEASE_VERSION" "$SPARKLE_PUBLIC_KEY" "$APPLE_TEAM_ID"
+  publish:
+    needs: [plan, sign, verify-signed]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          path: dist/release
+          merge-multiple: true
+      - name: Audit allowlisted assets, publish a draft, then verify every uploaded digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: python3 scripts/release_automation.py publish --version "$RELEASE_VERSION"
+  feed:
+    needs: [plan, publish]
+    if: always() && needs.plan.result == 'success' && (needs.plan.outputs.published == 'true' || needs.publish.result == 'success')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    concurrency:
+      group: retrolife-update-feed
+      queue: max
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Explicitly publish the appcast after GITHUB_TOKEN-created releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_automation.py feed
+      - name: Release summary
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          printf '## Published %s\n\nSigned DMG, updater ZIP, corresponding source, checksums and update feed are published.\n\nhttps://github.com/lincolnaleixo/retrolife/releases/tag/%s\n' "$TAG" "$TAG" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,25 @@
+name: Publish update feed
+on:
+  release:
+    types: [published, edited, deleted, unpublished, released, prereleased]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-retrolife-update-feed
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify publication contracts
+        run: python3 scripts/test-updates.py
+      - name: Rebuild feed from published signed-update metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-update-feed.py --publish

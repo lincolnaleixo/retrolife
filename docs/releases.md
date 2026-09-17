@@ -8,9 +8,9 @@ The application uses bundle identifier `io.github.lincolnaleixo.retrolife`, sepa
 
 For a reviewed clean commit, run all checks, build the release bridge and core, and export the macOS application. Provide `SIGNING_IDENTITY` and `NOTARY_PROFILE` through the private signing environment. Never store their resolved credentials in this repository or logs.
 
-The signing script signs nested dylibs before the application, notarizes a temporary ZIP, staples the application and recreates the final ZIP. It rejects non-Apple-Silicon hosts and unsigned output. Its output is local; publication follows verification of the downloaded package and sustained gameplay, input, sound and save restoration.
+The signing script signs nested dylibs and all Sparkle executables, XPC services and framework components before the application, notarizes a temporary ZIP, staples the application and recreates the final ZIP. It rejects non-Apple-Silicon hosts and unsigned output. Its output is local; publication follows verification of the downloaded package and sustained gameplay, input, sound and save restoration.
 
-Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable `v0.1.0` prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. Automatic updates are outside this release.
+Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable `v0.1.0` prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. In-app updates require the versioned, signed ZIP and updater metadata described in [in-app updates](updates.md). Old beta downloads do not acquire that feature retroactively.
 
 The exported release template does not run the editor-only `--script` smokes. Use `--headless --quit-after 5` for packaged startup, and keep the full script-driven integration checks in the editor build. Packaged startup alone does not verify physical controls or audible output.
 
@@ -28,3 +28,5 @@ cargo test --workspace --locked --offline
 ```
 
 This verifies the Rust sources and dependencies; it does not build or export a runnable app. Install the pinned Rust toolchain and a native C/C++ compiler/linker first (Xcode Command Line Tools on macOS). The separate core-source archive contains the exact bsnes-jg revision; Godot and its matching export templates are independent build prerequisites. The generated test ROM remains reproducible from its original source script and is not bundled with the app.
+
+Run `scripts/prepare-macos-release.sh <version>` for updater-enabled releases. Upload the final ZIP and `retrolife-update.json` alongside the existing required release assets before publishing the release. The generated appcast is maintained automatically on the separate `updates` branch. See [the updater release guide](updates.md) for key management, channel rules and verification.

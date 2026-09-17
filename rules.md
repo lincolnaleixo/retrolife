@@ -8,7 +8,7 @@
 - Never commit credentials, private hostnames/paths, ROMs, saves, personal photographs, proprietary artwork, or private submodules.
 - Original code is AGPL-3.0-only. Preserve all third-party notices; never relicense game artwork under the application license.
 - Build only pinned dependencies. Run formatting, Clippy, tests, Godot checks, and the publication audit before merging.
-- Do not execute pull-request code on the signing machine or expose signing credentials to CI.
+- Never execute pull-request code on a trusted signing machine or expose production signing credentials to pull-request CI. The main-only automatic release workflow may use the protected `macos-release` environment in a separate hosted signing job, after credential-free builds and tests. Preserve branch restrictions, pinned dependencies, temporary Keychain cleanup and immutable artifacts.
 - Publish distributable alpha and beta builds in GitHub Releases, marked as prereleases with explicit version tags (for example, `v0.1.0-beta.1`). Do not withhold a testing release merely because final hands-on acceptance is pending. Include the downloadable app, checksums, required corresponding source and notices, verified checks, known limitations, and pending tests. Privacy, licensing, and required signing/notarization checks still apply; a prerelease does not claim stable-release acceptance.
 - Immutable version tags identify releases. Fix a release by publishing a new version.
 - Archive code is historical reference only: do not include it in the workspace, Godot imports, or release artifacts.

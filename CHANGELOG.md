@@ -5,6 +5,13 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Automatic main-branch macOS beta pipeline with credential-free native builds, separate protected signing/notarization, immutable GitHub releases, full source/notices/checksums and explicit public update-feed publication.
+- Sequential beta allocation with numeric ordering, Apple suffix rollover, duplicate/stale-source protection and no publication on missing signing configuration.
+- Real exported-app updater-availability probe, offline release contracts, unsigned macOS packaging regression and secure one-time environment configuration helper. Production publication still requires the maintainer's actual credentials.
+- In-app macOS update checks, native menu entry, persisted stable/beta and automatic-download/install preferences using checksum-pinned Sparkle.
+- A Rust-owned gameplay/save barrier preventing update checks or relaunch during an active session and rejecting game starts during installation.
+- Versioned release packaging with an embedded Ed25519 public key, inside-out Sparkle signing, verified ZIP signatures and release metadata, plus automatic appcast publication from GitHub Releases.
+- Offline updater/security contracts, Godot update settings tests and a native real-Sparkle test host with disposable keys and applications. New signed distribution acceptance remains pending.
 - Cartridge-first Godot library with a pooled seven-model 3D carousel, interruptible transitions, local labels, compact search/import controls, selection restoration and accessible text/low-power views.
 - Pinned neutral SNES model staging with archive/member checksums, offline inputs, independent notices and malicious-archive unit tests.
 - Synthetic 10,000-game interface smoke and a separate hosted rendering workflow that captures the real UI without ROMs or proprietary artwork. Hands-on native macOS and physical-controller acceptance remain pending.
@@ -21,6 +28,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Added a protected local-Keychain signing mode through a host-installed signer for the trusted Apple Silicon release runner, while retaining hosted App Store Connect API-key notarization and keeping private signing material off the repository.
+- Feed the protected Sparkle private key to the host signer through standard input, validate its public-key pairing before signing and require it in local release preflight.
+- Recorded passing real-Sparkle upgrade/relaunch and security scenarios on Apple Silicon, and kept the update dialog Close action visible at narrow window sizes.
+- Connected the native updater to the Godot settings and Rust session lifecycle, and added signed release-feed tooling with isolated automated verification.
 - Recorded completed cartridge implementation tasks separately from pending visual/physical acceptance and future milestones, with passing Linux and Apple Silicon evidence for revision 48bd6d2.
 - Apply per-game labels to the actual curved model label surface, render each label only when it changes, and preserve local-image proportions.
 - Refined hero scale, lighting and keyboard focus; kept desktop text readable at narrow window sizes and bounded the text fallback to the available height.
@@ -37,6 +48,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Sanitize the pinned Godot template's public hosted-runner source paths before packaging and reject private build paths in the unsigned packaging regression.
+- Give the update dialog an opaque, high-contrast surface so cartridge artwork cannot interfere with update controls.
+- Preserve the pinned Sparkle downloader entitlements when re-signing embedded components, following the upstream manual-signing procedure.
+- Require EdDSA verification before extracting update archives and align the native bridge with the pinned Rust formatter.
 - Kept navigation hints visible in a 720 by 540 window when a long title and a multiline import error appear together; added a regression for that combined layout.
 - Kept checksum verification compatible with Python installations without hashlib.file_digest.
 - Corrected the environment API and explicitly typed pointer calculations identified by the first hosted Godot import; retained an isolated reproduction artifact and included hidden-directory evidence files.
