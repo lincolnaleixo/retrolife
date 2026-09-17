@@ -102,6 +102,42 @@ class StagingTests(unittest.TestCase):
         assets.stage(archive, lock, destination)
         self.assertEqual(before, (destination / "snes-ntsc-u.glb").stat().st_mtime_ns)
 
+    def test_release_stage_rejects_owner_staged_labels(self) -> None:
+        archive, lock = self.package()
+        destination = self.root / "stage"
+        assets.stage(archive, lock, destination)
+        labels = destination / "labels" / "snes-super-mario-world"
+        labels.mkdir(parents=True)
+        (labels / "front.png").write_bytes(b"owner-only")
+        with self.assertRaisesRegex(ValueError, "Owner-only"):
+            assets.verify_stage(lock, destination)
+
+
+class CollectionLabelIndexTest(unittest.TestCase):
+    """The committed app-side label metadata must match the pinned lock."""
+
+    def test_index_matches_lock(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        lock = json.loads((root / "assets/cartridges.lock.json").read_text())
+        index = json.loads(
+            (root / "frontend/godot-ui/scripts/library/collection_labels.json").read_text()
+        )
+        recorded = {
+            entry["title"]: (entry["front"].removeprefix("res://"), entry["sha256"])
+            for entry in index["labels"]
+        }
+        expected = {
+            entry["title"]: (
+                f"assets/cartridges/labels/{entry['assetId']}/{entry['front']['path'].rsplit('/', 1)[-1]}",
+                entry["front"]["sha256"],
+            )
+            for entry in lock.get("labels", [])
+        }
+        self.assertEqual(recorded, expected)
+        for _, (path, digest) in recorded.items():
+            self.assertRegex(path, r"^assets/cartridges/labels/.+\.png$")
+            self.assertRegex(digest, r"^[a-f0-9]{64}$")
+
 
 if __name__ == "__main__":
     unittest.main()
