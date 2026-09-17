@@ -2,15 +2,23 @@
 
 Release `v0.1.0` remains pending until the native acceptance checks pass. Do not publish an unsigned fallback or mark a build playable based only on compilation.
 
-CI runs on hosted runners. Signing is a separate private Apple Silicon operation; never register the signing machine as a runner that executes public pull requests. Verify Developer ID Application access and a working notary Keychain profile there before release preparation.
+## Automatic beta releases
 
-The application uses bundle identifier `io.github.lincolnaleixo.retrolife`, separate from previous applications. Pin Godot 4.7.2, Rust 1.98.1 and the core commit. Install matching Godot export templates on the signing machine.
+Every push to `main` starts the automatic macOS beta release. Credential-free builds and tests run on hosted runners, signing and notarization run in the protected `macos-release` environment against the trusted Apple Silicon release machine, a separate job verifies the signed bundle, and publication then refreshes the public appcast on the `updates` branch. Version allocation, signing modes, the complete asset allowlist, failure behavior and the one-time environment setup are documented in [automatic releases](automatic-releases.md). This is the normal path for every distributable beta; do not hand-publish releases while the pipeline is healthy.
 
-For a reviewed clean commit, run all checks, build the release bridge and core, and export the macOS application. Provide `SIGNING_IDENTITY` and `NOTARY_PROFILE` through the private signing environment. Never store their resolved credentials in this repository or logs.
+Never register the signing machine as a runner that executes public pull requests, and never expose signing credentials to pull-request CI. Verify Developer ID Application access and a working notary profile on that machine before changing release configuration.
+
+## Manual preparation and special builds
+
+The manual path remains for work the pipeline does not cover — for example, reproducing a historical artifact or preparing a locally signed special build.
+
+The application uses bundle identifier `io.github.lincolnaleixo.retrolife`. Pin Godot 4.7.2, Rust 1.98.1 and the core commit. Install matching Godot export templates on the signing machine.
+
+For a reviewed clean commit, run all checks, build the release bridge and core, and export the macOS application. Provide the signing identity and notary profile through the private signing environment. Never store their resolved credentials in this repository or logs.
 
 The signing script signs nested dylibs and all Sparkle executables, XPC services and framework components before the application, notarizes a temporary ZIP, staples the application and recreates the final ZIP. It rejects non-Apple-Silicon hosts and unsigned output. Its output is local; publication follows verification of the downloaded package and sustained gameplay, input, sound and save restoration.
 
-Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable `v0.1.0` prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. In-app updates require the versioned, signed ZIP and updater metadata described in [in-app updates](updates.md). Old beta downloads do not acquire that feature retroactively.
+Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. In-app updates require the versioned, signed ZIP and updater metadata described in [in-app updates](updates.md). Releases before beta.3 do not acquire that feature retroactively.
 
 The exported release template does not run the editor-only `--script` smokes. Use `--headless --quit-after 5` for packaged startup, and keep the full script-driven integration checks in the editor build. Packaged startup alone does not verify physical controls or audible output.
 

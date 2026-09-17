@@ -40,7 +40,7 @@ Upload all assets to a draft GitHub Release first, then publish it. Its tag must
 
 The generated `updates` branch is a distribution artifact, not application source or a second roadmap. Update implementation changes still require a changelog entry on the source branch. The feed is served over HTTPS; individual ZIP signatures are verified by clients. The publication job needs only repository `contents:write` and is never triggered by pull-request code.
 
-The existing beta.1 and beta.2 cannot gain an updater retroactively. Users must install the first newly built and signed updater-enabled version once. After that, later compatible signed releases can install from within RetroLife.
+The existing beta.1 and beta.2 cannot gain an updater retroactively. Beta.3 and later are updater-enabled; users install the first updater-enabled version once, and later compatible signed releases install from within RetroLife.
 
 ## Verification boundaries
 
