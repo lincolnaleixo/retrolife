@@ -371,6 +371,8 @@ Maintain approved visual baselines for the key screens — including the 2K-clas
 
 Implement one bounded milestone at a time. Keep each one usable, update this plan with its real status/evidence and remaining blockers, and follow the normal same-commit changelog rule for implementation work. Patch releases may fix earlier milestones without widening this ten-version scope.
 
+A step-by-step execution procedure — environment prerequisites, the standard change/pull-request/release loop, verification commands, the branch policy and the owner-only gates — is in [docs/executor-guide.md](docs/executor-guide.md). The repository deliberately has exactly two branches: protected `main` and the machine-managed `updates` update feed. Never delete or rewrite `updates`; deleting it breaks in-app updates for already-installed applications.
+
 Before marking a milestone complete, run the applicable pinned formatting, Clippy, Rust tests, real-core checks, Godot import/UI smokes, migration/error tests and publication audit. UI work additionally needs native visual/input evidence. Releases additionally need downloaded signed-artifact acceptance. Report unavailable hardware or failed checks explicitly; compilation is not product acceptance.
 
 A release record includes source commit, tag/build number, supported macOS/architecture, core/model/updater pins, relevant data/state schemas, tests actually run, manual evidence, known limitations, artifact checksums and signing/notarization results. Never pre-check future work or publish a release merely because planning/code changes were committed.
