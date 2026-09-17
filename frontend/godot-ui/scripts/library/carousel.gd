@@ -8,6 +8,19 @@ const LabelCache = preload("res://scripts/library/label_cache.gd")
 const POOL_SIZE := 7
 const REPEAT_DELAY := 0.34
 const REPEAT_INTERVAL := 0.11
+const INSPECT_DAMP := 14.0
+const PITCH_LIMIT := PI / 3.0
+const ZOOM_MINIMUM := 0.75
+const ZOOM_MAXIMUM := 1.6
+const ROTATE_PER_PIXEL := 0.0075
+const PITCH_PER_PIXEL := 0.0055
+const WHEEL_ZOOM_STEP := 0.06
+const KEY_ROTATE_SPEED := 1.7
+const KEY_PITCH_SPEED := 1.1
+const KEY_ZOOM_SPEED := 0.7
+const IDLE_YAW_AMPLITUDE := 0.045
+const IDLE_BOB_AMPLITUDE := 0.035
+const IDLE_SPEED := 0.9
 
 var games: Array = []
 var selected_index := -1
@@ -31,6 +44,15 @@ var _drag_distance := 0.0
 var _pan_distance := 0.0
 var _held_direction := 0
 var _repeat_remaining := REPEAT_DELAY
+var _hero: Node3D
+var _inspecting := false
+var _inspect_yaw := 0.0
+var _inspect_pitch := 0.0
+var _inspect_zoom := 1.0
+var _inspect_target_yaw := 0.0
+var _inspect_target_pitch := 0.0
+var _inspect_target_zoom := 1.0
+var _idle_time := 0.0
 
 
 func _ready() -> void:
@@ -109,6 +131,8 @@ func set_games(entries: Array, preferred_id := "") -> void:
         selected_index = int(_indices[old_id])
     else:
         selected_index = clampi(selected_index, 0, games.size() - 1) if not games.is_empty() else -1
+    if selected_id() != old_id:
+        _reset_inspection()
     _layout(false, true)
     _emit_selection()
 
@@ -133,6 +157,7 @@ func select_index(index: int) -> void:
     if next == selected_index:
         return
     selected_index = next
+    _reset_inspection()
     _layout(not reduced_motion)
     _emit_selection()
 
@@ -242,31 +267,47 @@ func _layout(animate: bool, refresh := false) -> void:
         item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound)
         item.call("set_motion_enabled", not reduced_motion)
         item.call("set_pointer", Vector2.ZERO)
+        if distance == 0:
+            _hero = item
+    _apply_inspection()
 
 
 func _gui_input(event: InputEvent) -> void:
     if not _active:
         return
     if event is InputEventMouseButton:
-        if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_UP]:
-            navigate(-1)
+        if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+            _zoom_by(WHEEL_ZOOM_STEP)
             accept_event()
-        elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_RIGHT, MOUSE_BUTTON_WHEEL_DOWN]:
-            navigate(1)
+        elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+            _zoom_by(-WHEEL_ZOOM_STEP)
+            accept_event()
+        elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+            navigate(-1 if event.button_index == MOUSE_BUTTON_WHEEL_LEFT else 1)
             accept_event()
         elif event.button_index == MOUSE_BUTTON_LEFT:
             if event.pressed:
                 grab_focus()
-                _dragging = true
                 _drag_origin = event.position
                 _drag_distance = 0.0
+                _inspecting = selected_index >= 0 and _cartridge_index_at(event.position) == selected_index
+                _dragging = not _inspecting
+            elif _inspecting:
+                _inspecting = false
+                if _drag_distance < 14.0 and _cartridge_index_at(event.position) == selected_index:
+                    game_activated.emit(selected_id())
             elif _dragging:
                 _dragging = false
                 if _drag_distance < 14.0:
                     _click_cartridge(event.position)
             accept_event()
     elif event is InputEventMouseMotion:
-        if _dragging:
+        if _inspecting:
+            _drag_distance += absf(event.relative.x) + absf(event.relative.y)
+            _inspect_target_yaw = wrapf(_inspect_target_yaw - event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
+            _inspect_target_pitch = clampf(_inspect_target_pitch - event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
+            accept_event()
+        elif _dragging:
             _drag_distance += absf(event.relative.x)
             var distance: float = event.position.x - _drag_origin.x
             if absf(distance) >= 65:
@@ -283,7 +324,15 @@ func _gui_input(event: InputEvent) -> void:
             navigate(1 if _pan_distance > 0 else -1)
             _pan_distance = 0.0
         accept_event()
+    elif event is InputEventMagnifyGesture:
+        _zoom_by((event.factor - 1.0) * 1.2)
+        accept_event()
     elif event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+        # Shift is the inspection modifier; a shifted key also matches this
+        # plain action, so browsing must ignore it here.
+        if event is InputEventKey and (event as InputEventKey).shift_pressed:
+            accept_event()
+            return
         var direction := -1 if event.is_action_pressed("ui_left") else 1
         navigate(direction)
         _held_direction = direction
@@ -295,10 +344,16 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-    if not _active or not has_focus():
+    if not _active:
         _held_direction = 0
         return
-    var direction := int(Input.is_action_pressed("ui_right")) - int(Input.is_action_pressed("ui_left"))
+    _idle_time += delta
+    _step_inspection(delta)
+    if not has_focus():
+        _held_direction = 0
+        return
+    var shift_held := Input.is_key_pressed(KEY_SHIFT)
+    var direction := 0 if shift_held else int(Input.is_action_pressed("ui_right")) - int(Input.is_action_pressed("ui_left"))
     if direction == 0:
         _held_direction = 0
         return
@@ -312,9 +367,58 @@ func _process(delta: float) -> void:
         _repeat_remaining += REPEAT_INTERVAL
 
 
-func _click_cartridge(at: Vector2) -> void:
-    if textual_view or _viewport.size.x <= 0:
+func _step_inspection(delta: float) -> void:
+    if has_focus():
+        var rotate := Vector2(
+            Input.get_action_strength("library_inspect_right") - Input.get_action_strength("library_inspect_left"),
+            Input.get_action_strength("library_inspect_down") - Input.get_action_strength("library_inspect_up")
+        )
+        if rotate != Vector2.ZERO:
+            _inspect_target_yaw = wrapf(_inspect_target_yaw - rotate.x * KEY_ROTATE_SPEED * delta, -PI, PI)
+            _inspect_target_pitch = clampf(
+                _inspect_target_pitch - rotate.y * KEY_PITCH_SPEED * delta, -PITCH_LIMIT, PITCH_LIMIT
+            )
+        var zoom := Input.get_action_strength("library_zoom_in") - Input.get_action_strength("library_zoom_out")
+        if zoom != 0.0:
+            _zoom_by(zoom * KEY_ZOOM_SPEED * delta)
+        if Input.is_action_just_pressed("library_reset_view"):
+            _reset_inspection()
+    var weight := 1.0 if reduced_motion else 1.0 - exp(-INSPECT_DAMP * delta)
+    _inspect_yaw = lerp_angle(_inspect_yaw, _inspect_target_yaw, weight)
+    _inspect_pitch = lerpf(_inspect_pitch, _inspect_target_pitch, weight)
+    _inspect_zoom = lerpf(_inspect_zoom, _inspect_target_zoom, weight)
+    _apply_inspection()
+
+
+func _apply_inspection() -> void:
+    if _hero == null or not is_instance_valid(_hero) or not _hero.visible:
         return
+    var yaw := _inspect_yaw
+    var float_offset := 0.0
+    if not reduced_motion and not _inspecting:
+        yaw += sin(_idle_time * IDLE_SPEED) * IDLE_YAW_AMPLITUDE
+        float_offset = sin(_idle_time * IDLE_SPEED * 1.37) * IDLE_BOB_AMPLITUDE
+    _hero.call("set_inspection", yaw, _inspect_pitch, _inspect_zoom, float_offset)
+
+
+func _zoom_by(step: float) -> void:
+    _inspect_target_zoom = clampf(_inspect_target_zoom + step, ZOOM_MINIMUM, ZOOM_MAXIMUM)
+
+
+func _reset_inspection() -> void:
+    _inspect_target_yaw = 0.0
+    _inspect_target_pitch = 0.0
+    _inspect_target_zoom = 1.0
+    if reduced_motion:
+        _inspect_yaw = 0.0
+        _inspect_pitch = 0.0
+        _inspect_zoom = 1.0
+    _apply_inspection()
+
+
+func _cartridge_index_at(at: Vector2) -> int:
+    if textual_view or _viewport.size.x <= 0:
+        return -1
     var point := at * Vector2(_viewport.size) / size.max(Vector2.ONE)
     var best_index := -1
     var closest := INF
@@ -329,6 +433,11 @@ func _click_cartridge(at: Vector2) -> void:
         if relative.x <= 1.0 and relative.y <= 1.0 and distance < closest:
             closest = distance
             best_index = int(item.get("library_index"))
+    return best_index
+
+
+func _click_cartridge(at: Vector2) -> void:
+    var best_index := _cartridge_index_at(at)
     if best_index < 0:
         return
     if best_index == selected_index:

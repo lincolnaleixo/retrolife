@@ -121,6 +121,7 @@ func _run() -> void:
         _check(not imported.uses_fallback, "The staged GLB must actually instantiate", errors)
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
+    await _exercise_inspection(shell, carousel, errors)
     await _exercise_compact_layout(shell, errors)
     _exercise_preferences(shell, errors)
     await _exercise_artwork(errors)
@@ -223,7 +224,8 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
     mouse.position = carousel.get_global_rect().get_center()
     Input.parse_input_event(mouse)
     await process_frame
-    _check(carousel.selected_index == 101, "Routed mouse wheel input must move one cartridge", errors)
+    _check(carousel.selected_index == 100, "Mouse wheel must not change the selection", errors)
+    _check(float(carousel.get("_inspect_target_zoom")) < 1.0, "Mouse wheel must zoom the inspection view", errors)
     var action := InputEventAction.new()
     action.action = "ui_accept"
     action.pressed = true
@@ -236,14 +238,16 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
     Input.parse_input_event(action)
     shell._close_details()
     await process_frame
-    _check(carousel.selected_index == 101, "Input-driven details must retain selection", errors)
+    _check(carousel.selected_index == 100, "Input-driven details must retain selection", errors)
     var selected_before: int = carousel.selected_index
+    var zoom_before: float = float(carousel.get("_inspect_target_zoom"))
     var wheel := InputEventMouseButton.new()
     wheel.button_index = MOUSE_BUTTON_WHEEL_UP
     wheel.pressed = true
     carousel.set_active(false)
     carousel._gui_input(wheel)
     _check(carousel.selected_index == selected_before, "Inactive library must reject navigation input", errors)
+    _check(is_equal_approx(float(carousel.get("_inspect_target_zoom")), zoom_before), "Inactive library must reject inspection input", errors)
     carousel.set_active(true)
     var original_size := root.size
     for dimensions in [Vector2i(720, 540), Vector2i(1600, 900), Vector2i(1920, 800), Vector2i(2560, 1440)]:
@@ -255,6 +259,109 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
         var viewport: SubViewport = carousel.get("_viewport")
         _check(viewport.size.x <= 2560 and viewport.size.y <= 1440, "Resizing must retain the 2K render-resolution budget", errors)
     root.size = original_size
+    await process_frame
+
+
+func _exercise_inspection(shell: Control, carousel: Control, errors: Array[String]) -> void:
+    carousel.set_presentation(false, false, false)
+    carousel.select_index(100)
+    carousel.grab_focus()
+    await process_frame
+    var hero: Node3D = carousel.get("_hero")
+    var camera: Camera3D = carousel.get("_camera")
+    var viewport: SubViewport = carousel.get("_viewport")
+    _check(hero != null and camera != null, "Inspection requires a hero cartridge and camera", errors)
+    if hero == null or camera == null:
+        return
+    var view_point := camera.unproject_position(hero.global_position)
+    var point := view_point * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
+    var press := InputEventMouseButton.new()
+    press.button_index = MOUSE_BUTTON_LEFT
+    press.pressed = true
+    press.position = point
+    Input.parse_input_event(press)
+    await process_frame
+    _check(bool(carousel.get("_inspecting")), "Dragging the selected cartridge must start inspection", errors)
+    var drag := InputEventMouseMotion.new()
+    drag.position = point + Vector2(48, 16)
+    drag.global_position = drag.position
+    drag.relative = Vector2(48, 16)
+    Input.parse_input_event(drag)
+    await process_frame
+    _check(absf(float(carousel.get("_inspect_target_yaw"))) > 0.1, "Horizontal drag must rotate the cartridge", errors)
+    _check(float(carousel.get("_inspect_target_pitch")) < -0.05, "Vertical drag must pitch the cartridge", errors)
+    var release := InputEventMouseButton.new()
+    release.button_index = MOUSE_BUTTON_LEFT
+    release.pressed = false
+    release.position = drag.position
+    Input.parse_input_event(release)
+    await process_frame
+    _check(carousel.selected_index == 100, "Inspection drag must not change the selection", errors)
+    _check(not (shell.get("_details_overlay") as Control).visible, "Inspection drag must not open details", errors)
+
+    var reset_key := InputEventKey.new()
+    reset_key.keycode = KEY_R
+    reset_key.pressed = true
+    Input.parse_input_event(reset_key)
+    await process_frame
+    reset_key = InputEventKey.new()
+    reset_key.keycode = KEY_R
+    reset_key.pressed = false
+    Input.parse_input_event(reset_key)
+    await process_frame
+    _check(absf(float(carousel.get("_inspect_target_yaw"))) < 0.001, "R must reset the inspection yaw", errors)
+    _check(absf(float(carousel.get("_inspect_target_pitch"))) < 0.001, "R must reset the inspection pitch", errors)
+    _check(is_equal_approx(float(carousel.get("_inspect_target_zoom")), 1.0), "R must reset the inspection zoom", errors)
+
+    var shift_right := InputEventKey.new()
+    shift_right.keycode = KEY_RIGHT
+    shift_right.shift_pressed = true
+    shift_right.pressed = true
+    Input.parse_input_event(shift_right)
+    var rotated := false
+    for _frame in range(240):
+        await process_frame
+        if absf(float(carousel.get("_inspect_target_yaw"))) > 0.001:
+            rotated = true
+            break
+    _check(carousel.selected_index == 100, "Shifted arrows must not browse the library", errors)
+    _check(rotated, "Shifted arrows must rotate the cartridge", errors)
+    shift_right = InputEventKey.new()
+    shift_right.keycode = KEY_RIGHT
+    shift_right.shift_pressed = true
+    shift_right.pressed = false
+    Input.parse_input_event(shift_right)
+    await process_frame
+    var stopped_yaw := float(carousel.get("_inspect_target_yaw"))
+    for _frame in range(60):
+        await process_frame
+    _check(is_equal_approx(float(carousel.get("_inspect_target_yaw")), stopped_yaw), "Releasing the shifted arrow must stop rotation", errors)
+
+    for _step in range(40):
+        var zoom_in := InputEventMouseButton.new()
+        zoom_in.button_index = MOUSE_BUTTON_WHEEL_UP
+        zoom_in.pressed = true
+        zoom_in.position = point
+        Input.parse_input_event(zoom_in)
+    await process_frame
+    _check(float(carousel.get("_inspect_target_zoom")) <= 1.6 + 0.0001, "Zoom must respect the upper limit", errors)
+    for _step in range(60):
+        var zoom_out := InputEventMouseButton.new()
+        zoom_out.button_index = MOUSE_BUTTON_WHEEL_DOWN
+        zoom_out.pressed = true
+        zoom_out.position = point
+        Input.parse_input_event(zoom_out)
+    await process_frame
+    _check(float(carousel.get("_inspect_target_zoom")) >= 0.75 - 0.0001, "Zoom must respect the lower limit", errors)
+    var cleanup := InputEventKey.new()
+    cleanup.keycode = KEY_R
+    cleanup.pressed = true
+    Input.parse_input_event(cleanup)
+    await process_frame
+    cleanup = InputEventKey.new()
+    cleanup.keycode = KEY_R
+    cleanup.pressed = false
+    Input.parse_input_event(cleanup)
     await process_frame
 
 
