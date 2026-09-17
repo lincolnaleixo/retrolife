@@ -116,6 +116,14 @@ class StagingTests(unittest.TestCase):
 class CollectionLabelIndexTest(unittest.TestCase):
     """The committed app-side label metadata must match the pinned lock."""
 
+    def test_label_index_is_included_in_exports(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        text = (root / "frontend/godot-ui/export_presets.cfg").read_text()
+        include_lines = [line for line in text.splitlines() if line.startswith("include_filter=")]
+        self.assertEqual(len(include_lines), 2)
+        for line in include_lines:
+            self.assertIn("scripts/library/collection_labels.json", line)
+
     def test_index_matches_lock(self) -> None:
         root = Path(__file__).resolve().parent.parent
         lock = json.loads((root / "assets/cartridges.lock.json").read_text())
