@@ -462,6 +462,7 @@ func _apply_inspection() -> void:
         yaw += sin(_idle_time * IDLE_SPEED) * IDLE_YAW_AMPLITUDE
         pitch += sin(_idle_time * IDLE_SPEED * 0.73) * IDLE_PITCH_AMPLITUDE
         float_offset = sin(_idle_time * IDLE_SPEED * 1.37) * IDLE_BOB_AMPLITUDE
+    pitch = clampf(pitch, -PITCH_LIMIT, PITCH_LIMIT)
     _hero.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
 
 
