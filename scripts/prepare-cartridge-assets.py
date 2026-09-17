@@ -112,6 +112,15 @@ def verify_stage(lock: dict, destination: Path) -> None:
     if json.loads((destination / "provenance.json").read_text()) != lock:
         raise ValueError("Staged provenance does not match the asset lock")
     validate_glb(destination / "snes-ntsc-u.glb")
+    # Development-only collection labels are owner-staged artwork. A release
+    # stage must stay free of commercial game artwork, so refuse to verify a
+    # stage that still contains them; export presets also exclude the path.
+    labels = destination / "labels"
+    if labels.exists() and any(labels.rglob("*")):
+        raise ValueError(
+            "Owner-only label artwork is staged in assets/cartridges/labels; "
+            "remove it before building a release stage"
+        )
 
 
 def main() -> None:

@@ -70,8 +70,14 @@ func _collection_texture(title: String) -> Texture2D:
     for label_title in _collection:
         if not titles_match(title, str(label_title)):
             continue
-        var full := COLLECTION_DIRECTORY.path_join(str(_collection[label_title]))
+        var entry: Dictionary = _collection[label_title]
+        var full := COLLECTION_DIRECTORY.path_join(str(entry.get("front", "")))
         if not FileAccess.file_exists(full):
+            return null
+        var expected := str(entry.get("sha256", ""))
+        if expected.is_empty() or FileAccess.get_sha256(full) != expected:
+            # A modified or unverifiable label must never stand in for the
+            # approved export; fall back to the neutral label instead.
             return null
         var image := Image.new()
         if image.load(full) != OK:
@@ -99,27 +105,29 @@ func _load_collection() -> void:
         if entry is Dictionary:
             var entry_title := str(entry.get("title", ""))
             var front := str(entry.get("front", ""))
+            var sha256 := str(entry.get("sha256", ""))
             if not entry_title.is_empty() and not front.is_empty():
-                _collection[entry_title] = front
+                _collection[entry_title] = {"front": front, "sha256": sha256}
 
 
 static func normalize_title(text: String) -> String:
     var cleaned := ""
-    var depth := 0
     for character in text.to_lower():
-        if character == "(" or character == "[":
-            depth += 1
-        elif character == ")" or character == "]":
-            depth = maxi(0, depth - 1)
-        elif depth == 0:
-            cleaned += character if (character >= "a" and character <= "z") or (character >= "0" and character <= "9") else " "
+        cleaned += character if (character >= "a" and character <= "z") or (character >= "0" and character <= "9") else " "
     var words: Array[String] = []
+    var skipped_region := false
     for word in cleaned.split(" ", false):
-        if word in ["usa", "us", "europe", "eu", "japan", "jp", "world", "rev"]:
+        if word in ["usa", "us", "europe", "eu", "japan", "jp", "rev"]:
+            skipped_region = true
             continue
+        if skipped_region and word.is_valid_int():
+            # Duplicate markers such as "(USA) 2" from the importer only
+            # follow a region tag; a semantic sequel number such as
+            # "Super Mario 2" has no preceding region tag and is preserved.
+            skipped_region = false
+            continue
+        skipped_region = false
         words.append(word)
-    while not words.is_empty() and words[words.size() - 1].is_valid_int():
-        words.resize(words.size() - 1)
     return " ".join(words)
 
 
