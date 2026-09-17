@@ -738,6 +738,15 @@ func _ensure_input_actions() -> void:
     _ensure_key_action("ui_up", KEY_UP)
     _ensure_key_action("ui_down", KEY_DOWN)
     _ensure_key_action("library_search", KEY_SLASH)
+    _ensure_key_action("library_inspect_left", KEY_LEFT, true)
+    _ensure_key_action("library_inspect_right", KEY_RIGHT, true)
+    _ensure_key_action("library_inspect_up", KEY_UP, true)
+    _ensure_key_action("library_inspect_down", KEY_DOWN, true)
+    _ensure_key_action("library_zoom_in", KEY_EQUAL)
+    _ensure_key_action("library_zoom_in", KEY_KP_ADD)
+    _ensure_key_action("library_zoom_out", KEY_MINUS)
+    _ensure_key_action("library_zoom_out", KEY_KP_SUBTRACT)
+    _ensure_key_action("library_reset_view", KEY_R)
 
     _ensure_joy_button_action("ui_accept", 0)
     _ensure_joy_button_action("ui_cancel", 1)
@@ -752,6 +761,13 @@ func _ensure_input_actions() -> void:
     _ensure_joy_motion_action("ui_right", 0, 1.0)
     _ensure_joy_motion_action("ui_up", 1, -1.0)
     _ensure_joy_motion_action("ui_down", 1, 1.0)
+    _ensure_joy_motion_action("library_inspect_left", 2, -1.0)
+    _ensure_joy_motion_action("library_inspect_right", 2, 1.0)
+    _ensure_joy_motion_action("library_inspect_up", 3, -1.0)
+    _ensure_joy_motion_action("library_inspect_down", 3, 1.0)
+    _ensure_joy_motion_action("library_zoom_in", 5, 1.0)
+    _ensure_joy_motion_action("library_zoom_out", 4, 1.0)
+    _ensure_joy_button_action("library_reset_view", JOY_BUTTON_RIGHT_STICK)
 
     # SNES gameplay actions stay separate from library navigation actions.
     # The native bridge receives the logical action name, so the same mapping
@@ -794,14 +810,15 @@ func _ensure_input_actions() -> void:
     _ensure_joy_motion_action("game_down", 1, 1.0)
 
 
-func _ensure_key_action(action: StringName, keycode: int) -> void:
+func _ensure_key_action(action: StringName, keycode: int, shift := false) -> void:
     if not InputMap.has_action(action):
         InputMap.add_action(action)
     for event in InputMap.action_get_events(action):
-        if event is InputEventKey and event.keycode == keycode:
+        if event is InputEventKey and event.keycode == keycode and event.shift_pressed == shift:
             return
     var key := InputEventKey.new()
     key.keycode = keycode
+    key.shift_pressed = shift
     InputMap.action_add_event(action, key)
 
 

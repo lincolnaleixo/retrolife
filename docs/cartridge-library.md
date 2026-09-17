@@ -6,19 +6,24 @@ This document specifies the implemented presentation and how to verify it. `plan
 
 The library is a full-window dark showcase rather than a grid of cards. A restrained radial glow and dotted background frame a centered SNES cartridge. The selected object is full size with a slight three-quarter angle. Neighbors recede horizontally and in depth; edges do not wrap or duplicate entries. The camera is controlled by the interface, never a free-orbit viewer.
 
-At the reference 1280 by 720 logical window size, the header contains the small RetroLife wordmark and Search, Import ROM and View buttons. Compact system chips sit beneath it. Most vertical space belongs to the cartridge stage. The selected game's title, short system/playability line, index and controller hints sit below it. Bridge status and source identifiers are only available through optional diagnostics in View.
+At the 2K-class default window (or the nearest size the usable display allows), the header contains the small RetroLife wordmark and Search, Import ROM and View buttons. Compact system chips sit beneath it. Most vertical space belongs to the cartridge stage. The selected game's title, short system/playability line, index and controller hints sit below it. Bridge status and source identifiers are only available through optional diagnostics in View.
 
 The first supported model is the neutral SNES NTSC-U shell. No other console is presented as playable just because a model can be displayed. A procedural neutral cartridge substitutes for an unavailable model; it is an explicit fallback, not the acceptance target when verified GLB assets are staged.
 
-Transitions last 220 ms with cubic easing. A new input interrupts the previous transition and targets the new selection immediately. Pointer movement adds at most a few degrees of tilt. Reduce motion removes both transitions and pointer tilt. Low-power rendering reduces the neighborhood to three models, lowers the internal resolution and disables multisample antialiasing. The text view disables 3D rendering entirely and shows at most seven rows, adapting to available height.
+Transitions last 220 ms with cubic easing. A new input interrupts the previous transition and targets the new selection immediately. Pointer movement adds at most a few degrees of parallax tilt, and the selected cartridge rests in a gentle idle sway and float so the showcase never looks frozen. Reduce motion removes transitions, idle motion and pointer tilt, while manual inspection stays available with direct, undamped response. Low-power rendering reduces the neighborhood to three models, lowers the internal resolution and disables multisample antialiasing. The text view disables 3D rendering entirely and shows at most seven rows, adapting to available height.
 
 ## Controls and everyday use
 
 Import your own `.sfc` or `.smc` files with Import ROM. Successful imports clear an active search and select the newly imported game, while failed imports remain visible as errors. Files continue to use the existing managed local library and battery-save implementation.
 
+The selected cartridge can be inspected directly: drag it to rotate through the full 360° yaw with bounded pitch, zoom with the wheel or a pinch, and reset the framed view with `R`. Dragging the hero never launches or deselects a game.
+
 | Action | Keyboard | Controller | Mouse / trackpad |
 | --- | --- | --- | --- |
-| Previous / next game | Left / right arrows | D-pad or left stick | Wheel, horizontal drag, pan or side arrows |
+| Previous / next game | Left / right arrows | D-pad or left stick | Horizontal drag, pan or side arrows |
+| Inspect the selected cartridge | Shift + arrows | Right stick | Drag the selected cartridge |
+| Zoom inspection | `+` / `-` | Left / right trigger | Wheel or pinch |
+| Reset inspection | `R` | Right stick click | — |
 | Details | Enter | A | Click the selected cartridge |
 | Select a visible neighbor | Arrows | D-pad | Click that cartridge |
 | Switch system | Focus a system chip with Tab | LB / RB | Click a chip |

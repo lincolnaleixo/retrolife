@@ -19,6 +19,10 @@ var _movement: Tween
 var _selected := false
 var _motion_enabled := true
 var _artwork_present := false
+var _pointer := Vector2.ZERO
+var _inspect_yaw := 0.0
+var _inspect_pitch := 0.0
+var _inspect_zoom := 1.0
 
 
 func _ready() -> void:
@@ -81,6 +85,13 @@ func place(target: Vector3, angles: Vector3, size_factor: float, selected: bool,
     if _movement != null and _movement.is_valid():
         _movement.kill()
     _selected = selected
+    if not selected and (_pointer != Vector2.ZERO or _inspect_yaw != 0.0 or _inspect_pitch != 0.0 or _inspect_zoom != 1.0):
+        _pointer = Vector2.ZERO
+        _inspect_yaw = 0.0
+        _inspect_pitch = 0.0
+        _inspect_zoom = 1.0
+        _visual.position.y = 0.0
+        _apply_visual()
     if not animate or not visible:
         position = target
         rotation = angles
@@ -97,14 +108,34 @@ func place(target: Vector3, angles: Vector3, size_factor: float, selected: bool,
 func set_motion_enabled(enabled: bool) -> void:
     _motion_enabled = enabled
     if not enabled:
-        _visual.rotation = Vector3.ZERO
+        _pointer = Vector2.ZERO
+    _apply_visual()
 
 
 func set_pointer(normalized: Vector2) -> void:
-    if _selected and _motion_enabled:
-        _visual.rotation = Vector3(-normalized.y * 0.022, normalized.x * 0.035, 0)
-    else:
-        _visual.rotation = Vector3.ZERO
+    _pointer = normalized if _selected and _motion_enabled else Vector2.ZERO
+    _apply_visual()
+
+
+func set_inspection(yaw: float, pitch: float, zoom: float, float_offset: float) -> void:
+    _inspect_yaw = yaw
+    _inspect_pitch = pitch
+    _inspect_zoom = zoom
+    _visual.position.y = float_offset
+    _apply_visual()
+
+
+func inspection_state() -> Vector3:
+    return Vector3(_inspect_yaw, _inspect_pitch, _inspect_zoom)
+
+
+func _apply_visual() -> void:
+    _visual.rotation = Vector3(
+        _inspect_pitch - _pointer.y * 0.022,
+        _inspect_yaw + _pointer.x * 0.035,
+        0.0
+    )
+    _visual.scale = Vector3.ONE * _inspect_zoom
 
 
 func _box(dimensions: Vector3, at: Vector3, color: Color) -> MeshInstance3D:

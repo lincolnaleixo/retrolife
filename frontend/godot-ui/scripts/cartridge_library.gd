@@ -123,7 +123,7 @@ func _build_shell() -> void:
     _hero_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     bottom.add_child(_hero_count)
     bottom.add_child(_button(">", _navigate.bind(1)))
-    var hints := _label("Arrows / D-pad  Browse     A / Enter  Details     LB / RB  System     Y / /  Search     B / Esc  Back", 12, MUTED_COLOR)
+    var hints := _label("Arrows / D-pad Browse  Drag Inspect  A / Enter Details  LB / RB System  Y / / Search  B / Esc Back", 12, MUTED_COLOR)
     hints.name = "InputHints"
     hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hints.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

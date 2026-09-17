@@ -66,14 +66,54 @@ func _run() -> void:
         _fail("pause must include Guide and right-stick click")
         return
 
+    var inspect_keys := {
+        "library_inspect_left": KEY_LEFT,
+        "library_inspect_right": KEY_RIGHT,
+        "library_inspect_up": KEY_UP,
+        "library_inspect_down": KEY_DOWN,
+    }
+    for action in inspect_keys:
+        if not _has_key(action, int(inspect_keys[action]), true):
+            _fail("missing shifted inspect binding for %s" % action)
+            return
+    var inspect_axes := {
+        "library_inspect_left": [2, -1.0],
+        "library_inspect_right": [2, 1.0],
+        "library_inspect_up": [3, -1.0],
+        "library_inspect_down": [3, 1.0],
+        "library_zoom_in": [5, 1.0],
+        "library_zoom_out": [4, 1.0],
+    }
+    for action in inspect_axes:
+        if not _has_motion(action, int(inspect_axes[action][0]), float(inspect_axes[action][1])):
+            _fail("missing gamepad inspection axis for %s" % action)
+            return
+    for action in ["library_zoom_in", "library_zoom_out", "library_reset_view"]:
+        if InputMap.action_get_events(action).is_empty():
+            _fail("missing key binding for %s" % action)
+            return
+    if not _has_button("library_reset_view", JOY_BUTTON_RIGHT_STICK):
+        _fail("reset view must include the right-stick click")
+        return
+
     main.free()
     print("RetroLife input mapping smoke passed")
     quit(0)
 
 
-func _has_key(action: String, keycode: int) -> bool:
+func _has_key(action: String, keycode: int, require_shift := false) -> bool:
     for event in InputMap.action_get_events(action):
-        if event is InputEventKey and (event as InputEventKey).keycode == keycode:
+        if event is InputEventKey and (event as InputEventKey).keycode == keycode \
+            and (event as InputEventKey).shift_pressed == require_shift:
+            return true
+    return false
+
+
+func _has_motion(action: String, axis: int, axis_value: float) -> bool:
+    for event in InputMap.action_get_events(action):
+        if event is InputEventJoypadMotion \
+            and (event as InputEventJoypadMotion).axis == axis \
+            and is_equal_approx((event as InputEventJoypadMotion).axis_value, axis_value):
             return true
     return false
 
