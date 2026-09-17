@@ -6,8 +6,7 @@ const MAX_FILE_BYTES := 8 * 1024 * 1024
 const MAX_SOURCE_EDGE := 2048
 const TEXTURE_EDGE := 1024
 const DIRECTORY := "user://artwork"
-const COLLECTION_DIRECTORY := "res://assets/cartridges/labels"
-const COLLECTION_INDEX := "index.json"
+const COLLECTION_INDEX := "res://scripts/library/collection_labels.json"
 
 var _textures: Dictionary = {}
 var _order: Array[String] = []
@@ -71,12 +70,13 @@ func _collection_texture(title: String) -> Texture2D:
         if not titles_match(title, str(label_title)):
             continue
         var entry: Dictionary = _collection[label_title]
-        var full := COLLECTION_DIRECTORY.path_join(str(entry.get("front", "")))
-        if not FileAccess.file_exists(full):
+        var full := str(entry.get("front", ""))
+        if full.is_empty() or not FileAccess.file_exists(full):
             return null
         var expected := str(entry.get("sha256", ""))
         if expected.is_empty() or FileAccess.get_sha256(full) != expected:
-            # A modified or unverifiable label must never stand in for the
+            # The committed index carries the pinned checksum, so a modified
+            # or unverifiable artwork file must never stand in for the
             # approved export; fall back to the neutral label instead.
             return null
         var image := Image.new()
@@ -92,10 +92,9 @@ func _load_collection() -> void:
     if _collection_loaded:
         return
     _collection_loaded = true
-    var index_path := COLLECTION_DIRECTORY.path_join(COLLECTION_INDEX)
-    if not FileAccess.file_exists(index_path):
+    if not FileAccess.file_exists(COLLECTION_INDEX):
         return
-    var file := FileAccess.open(index_path, FileAccess.READ)
+    var file := FileAccess.open(COLLECTION_INDEX, FileAccess.READ)
     if file == null:
         return
     var parsed: Variant = JSON.parse_string(file.get_as_text())
@@ -111,24 +110,48 @@ func _load_collection() -> void:
 
 
 static func normalize_title(text: String) -> String:
-    var cleaned := ""
-    for character in text.to_lower():
-        cleaned += character if (character >= "a" and character <= "z") or (character >= "0" and character <= "9") else " "
     var words: Array[String] = []
+    var grouped: Array[bool] = []
+    var current := ""
+    var depth := 0
+    for character in text.to_lower() + " ":
+        if character == "(" or character == "[":
+            _push_word(words, grouped, current, depth)
+            current = ""
+            depth += 1
+        elif character == ")" or character == "]":
+            _push_word(words, grouped, current, depth)
+            current = ""
+            depth = maxi(0, depth - 1)
+        elif (character >= "a" and character <= "z") or (character >= "0" and character <= "9"):
+            current += character
+        else:
+            _push_word(words, grouped, current, depth)
+            current = ""
+    var result: Array[String] = []
     var skipped_region := false
-    for word in cleaned.split(" ", false):
-        if word in ["usa", "us", "europe", "eu", "japan", "jp", "rev"]:
+    for index in range(words.size()):
+        var word := words[index]
+        # Inside parentheses, World is a region marker such as "(World)";
+        # a bare World is a semantic title word. Region and revision tags
+        # alone are dropped; a duplicate number that directly follows one
+        # is the importer's marker, while a semantic sequel number is kept.
+        if word in ["usa", "us", "europe", "eu", "japan", "jp", "rev"] or (grouped[index] and word == "world"):
             skipped_region = true
             continue
         if skipped_region and word.is_valid_int():
-            # Duplicate markers such as "(USA) 2" from the importer only
-            # follow a region tag; a semantic sequel number such as
-            # "Super Mario 2" has no preceding region tag and is preserved.
             skipped_region = false
             continue
         skipped_region = false
-        words.append(word)
-    return " ".join(words)
+        result.append(word)
+    return " ".join(result)
+
+
+static func _push_word(words: Array[String], grouped: Array[bool], word: String, depth: int) -> void:
+    if word.is_empty():
+        return
+    words.append(word)
+    grouped.append(depth > 0)
 
 
 static func titles_match(game_title: String, label_title: String) -> bool:

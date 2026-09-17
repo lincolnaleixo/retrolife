@@ -160,6 +160,8 @@ func _exercise_artwork(errors: Array[String]) -> void:
     _check(not cache.validate_png(oversized).is_empty(), "Reject oversized PNG dimensions before decoding", errors)
     _check(LabelCache.titles_match("Super Mario World (USA) 2", "Super Mario World"), "Region and dedup markers must not block a collection label match", errors)
     _check(LabelCache.titles_match("Donkey Kong Country (USA) (Rev 1)", "Donkey Kong Country"), "Revision markers must not block a collection label match", errors)
+    _check(LabelCache.titles_match("Game (World)", "Game"), "A parenthesized World region marker must not block a match", errors)
+    _check(LabelCache.titles_match("Super Mario World", "Super Mario World"), "A bare World title word must be preserved", errors)
     _check(not LabelCache.titles_match("Super Mario 2", "Super Mario World"), "A sequel number without a region marker must change the title", errors)
     _check(not LabelCache.titles_match("Super Mario World 2: Yoshi's Island", "Super Mario World"), "A different game must not match a collection label", errors)
     _check(not LabelCache.titles_match("Donkey Kong Country", "Super Mario World"), "Unrelated titles must not match a collection label", errors)
