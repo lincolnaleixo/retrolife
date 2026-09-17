@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-09-17. Product focus: SNES on macOS, with a clean, premium cartridge-first library.
 
-This is the only roadmap. This revision records the owner's review of the installed beta.3/beta.4 builds — the default window opens too small, the hero cartridge barely moves, and real game labels are not shown — and folds those requirements into the design specification, milestones and quality gates below. Its scope is **plan.md plus the repository-required changelog entry**; no application code is changed here. The normal changelog and verification rules apply to the implementation work that follows.
+This is the only roadmap. This revision records the owner's review of the installed beta.3/beta.4 builds — the default window opens too small, the hero cartridge barely moves, and real game labels are not shown — and an expansion pass that adds the play-feel, data-portability, privacy, diagnostics and release-operations items below. Its scope is **plan.md plus the repository-required changelog entry**; no application code is changed here. The normal changelog and verification rules apply to the implementation work that follows.
 
 ## Product outcome
 
@@ -160,11 +160,14 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 - [ ] Turn the visual specification above into shared theme tokens and reusable library, toolbar, navigation, detail, dialog, status and action components. Break up the monolithic shell without moving domain logic into Godot.
 - [ ] Open the shell at a 2K-class default window: target a 2560x1440 content area when the display can fit it, otherwise open near the full usable display area, never below the 1024x640 floor. Keep wide layouts balanced and centered rather than stretched, and prepare window size/position persistence for v0.8.0.
+- [ ] Establish macOS menu-bar and shortcut parity: App/File/View/Help menus with real actions only (⌘O import, ⌘F search, ⌘, settings, ⌘Q graceful save-and-quit), correct enabled/disabled states, and no stub items.
+- [ ] Declare and handle system appearance: the dark showcase stays the default, the app remains legible under light system settings, and a dark-only decision is documented rather than accidental.
 - [ ] Implement the responsive composition, comfortable spacing and typography. Remove persistent backend/debug/catalog-source labels from normal browsing; put diagnostics in a dedicated surface.
 - [ ] Scope the visible product to the user's imported SNES library. Hide multi-console controls and demo catalog entries from normal use without destroying useful test contracts.
 - [ ] Design and connect real empty/loading/error/search/import/detail states. Keep unavailable future actions hidden or explicitly unavailable; do not ship clickable mock Play, Resume or Update buttons.
 - [ ] Establish consistent pointer, keyboard and gamepad focus, macOS search shortcuts, modal focus return, reduced motion and adequate contrast. Validate actual platform accessibility support and document any gaps rather than claiming full screen-reader support from keyboard tests alone.
 - [ ] Introduce migration/backup handling before any persisted UI/library schema change; preserve v1 libraries and SRAM.
+- [ ] Add a debug-only performance overlay (never user-facing) that records frame time, render time and memory for the quality gates on the target Mac.
 - [ ] Complete the early serialization, Sparkle/export and cartridge-surface/permission checks. Record the exact pinned dependency versions, results and unresolved blockers in this plan or linked bounded evidence.
 
 **Acceptance:** the real app is coherent at 1024x640, 1280x720, the 2K-class default opening size and a Retina desktop size; no clipped primary controls, inconsistent section alignment or unexplained empty panels. Import/play/back still works from the redesigned shell. Capture empty, populated, details and error screens plus one keyboard/gamepad navigation recording. This milestone approves the shell, not the final 3D integration.
@@ -182,6 +185,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Implement a reusable cartridge view with stable camera framing, presentation pivot, soft lights, neutral environment, contact shadow and realistic plastic/label response.
 - [ ] Support safe per-game label textures: resolve the prepared Super Mario World package from the public collection as the first owner-directed real label onto the shared neutral shell, keep a basic local image override, and always provide an original title-based neutral fallback. Correct aspect ratio, crop, orientation, edge behavior, filtering and color-space handling. Rights stay governed by the collection's notices and nothing is bundled with the app.
 - [ ] Add lively, directly controllable inspection: visible idle sway and float, free drag rotation (360° yaw, bounded pitch) with damped follow, sensible zoom limits, reset view, keyboard/gamepad equivalents, focus/hover feedback and reduced-motion behavior. Inspection must not accidentally launch or deselect a game.
+- [ ] Verify close-up and 2K quality: capture the hero stage at 2560x1440 and Retina without shimmer, aliasing or label bleed at maximum zoom, and keep label textures within a measured VRAM budget with correct mipmaps and filtering.
 - [ ] Handle absent/corrupt resources, unsupported mappings and missing labels without a blank screen. Isolate each game's label material while sharing the shell geometry and unchanged textures.
 - [ ] Package the model for offline use. Measure actual geometry/texture residency and initial load time; do not assume a 25 MB file implies 25 MB of GPU/RAM usage.
 
@@ -215,12 +219,15 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 **Deliverables**
 
 - [ ] Support drag-and-drop, multi-file selection, folder import with an explicit recursive option, and local ZIP archives containing `.sfc`/`.smc` files. Nested archives, RAR and 7z are not required in this cycle.
+- [ ] Accept ROMs dropped on the application icon/Dock through macOS open-document events, with the same queue, validation and feedback as in-window drops.
 - [ ] Add a nonblocking queue with discovery/import progress, cancellation, bounded work, per-item results and clear imported/duplicate/skipped/failed totals. One bad file must not discard successfully imported items.
 - [ ] Preserve original files and existing raw SHA-256 identities. Identical content under another filename should resolve to the existing entry; different revisions remain separate even if titles match.
 - [ ] Validate extensions, size and safe header plausibility without treating a filename or header as proof of authenticity. Keep unfamiliar homebrew/hacks distinguishable from clearly invalid files rather than rejecting them solely for missing catalog metadata.
 - [ ] Enforce archive traversal/symlink protection, entry-count and total-uncompressed-size limits, compression-ratio/decoded-size protections, and safe handling of encrypted, truncated and mixed-content archives. Never extract outside staging or scan a whole drive without user selection.
+- [ ] Add property/fuzz tests for archive and metadata parsers with generated, bounded inputs, so malformed archives, headers and metadata fail safely without weakening the import guarantees.
 - [ ] Make cancellation/crash recovery and disk-full handling transactional per item. Preserve the current journal guarantees and serialize conflicting metadata mutations instead of letting multiple import workers corrupt the index.
 - [ ] Add repair/reimport for missing or corrupt managed copies, storage usage, and explicit remove-from-library/delete-managed-copy actions with separate save retention. Do not introduce a mandatory external-folder reference mode or change the application-data root.
+- [ ] Ship a portable library backup: export and restore metadata, SRAM, states and labels as a checksum-validated archive, with a dry-run/merge preview, non-destructive restore and optional ROM inclusion that defaults to off.
 - [ ] Handle macOS picker permissions, inaccessible folders, Unicode filenames and files that change during import with understandable recovery actions.
 
 **Acceptance:** import a mixed test folder and ZIP with valid images, duplicates, corrupt input, unsupported files and multiple ROM entries. Cancellation, restart and simulated write failure leave a consistent library; originals remain byte-identical. Reimport existing beta/v0.1 content without losing SRAM or metadata. UI navigation remains responsive throughout import. No rejected archive entry can write outside the staging area.
@@ -242,6 +249,8 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Represent shell region honestly. Use the North American asset for appropriate editions; use a clearly neutral/generic presentation for unmatched regional shells rather than claiming an accurate PAL/Japanese reconstruction that does not exist.
 - [ ] Cache validated label derivatives and thumbnails by content/version; bound image dimensions and memory usage. Keep artwork sources and rights separate from application code. Online scraping or a provider account is not a dependency of this release.
 - [ ] Consume per-game label packages from the public collection under the documented trust model: resolve packages through the repository's published catalog by catalog identity and title with recorded provenance/confidence (never a loose filename guess), verify manifest checksums, cache atomically with the resolved catalog/manifest revision recorded, refresh only on explicit or reviewed updates, and never silently replace a verified cache entry. Precedence is explicit user override, then a verified collection label, then the neutral title label; an unreachable collection degrades to the local cache or neutral and never blocks browsing or play.
+- [ ] Keep label lookup privacy-preserving: fetch the published catalog whole and match locally, never transmit library contents, filenames, hashes or play data anywhere, and document every network request the app can make.
+- [ ] Add a catalog refresh surface: show the collection catalog version and date, allow a manual refresh, and let the user pin or exclude a problematic catalog revision without losing current labels.
 - [ ] Curate the external collection for consumption: stable per-system/per-title packages with front/top label images (rear optional), versioned manifests with checksums, attribution and rights notes, previews, and a documented add-a-cartridge workflow with CI validation, so new cartridges reach RetroLife without an application release.
 
 **Acceptance:** test known and unknown titles, regional variants, headered/unheadered images, translations, revisions and manual corrections. Repeated import preserves overrides and existing SRAM. The shelf shows different games with correctly fitted labels; missing artwork remains visually polished. Fetch and cache a real collection label for a known title (starting with the prepared Super Mario World package) in owner-side validation, repeat offline to prove the cache, and confirm unknown or unavailable titles remain neutral. Fetched artwork stays out of the application bundle and public evidence. A metadata or label change can never change ROM identity, saves or the launched game, and a metadata mistake is editable without retargeting Play.
@@ -262,6 +271,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Add automatic state capture on orderly exit/game switch and before an accepted update restart. Offer Resume only when a compatible state exists; keep New Game/normal battery-save boot explicit and non-destructive. Do not promise recovery of unsaved progress after a hard crash or core hang.
 - [ ] Write states atomically, retain previous valid slots, reject corrupt/oversized/wrong-ROM/incompatible-core states before applying them, and show recoverable errors. Preserve existing battery-save files independently of state files.
 - [ ] Define SRAM behavior when restoring a state that contains older cartridge memory. Keep a recovery snapshot and SRAM backup before a destructive load; expose a last-load recovery action. Do not immediately overwrite the durable battery file on failed restoration. If rollback cannot safely restore the session, stop with a visible recovery path without committing corrupted progress.
+- [ ] Rotate battery-save backups on successful saves (a bounded number of generations) with a recovery action that restores an earlier SRAM generation without touching state files, and show per-slot storage size in the picker.
 - [ ] Keep the pinned core revision through this cycle unless a necessary fix is reviewed. A core change requires explicit compatibility tests and a safe migration/incompatibility message, not a blanket promise that all older states will load.
 
 **Acceptance:** save at a recognizable point, continue, restore the exact point, quit the app, reopen and restore again. Verify all slot types and thumbnails, multiple games, battery persistence, a full disk, interrupted writes, bad checksums, wrong ROM/core and failed unserialization. Test core load/state operations under pause, rapid requests and session changes. Use real-core tests and native interaction, not only mocked byte round trips.
@@ -275,9 +285,13 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 **Deliverables**
 
 - [ ] Finish fullscreen/windowed transitions, remembered window/UI settings, Retina scaling, native file/menu behavior and consistent shortcuts without stealing input while typing or using a modal.
+- [ ] Add gameplay display options: persisted fullscreen toggle, aspect-ratio modes (native 4:3, pixel-perfect and integer scaling), nearest/sharp texture filtering and letterboxing, reachable from the keyboard, menus and gamepad.
 - [ ] Improve controller mapping, two-player input where supported, hot-plug/reconnect and actionable controller feedback. Test at least two documented physical controller families rather than claiming support from synthetic input alone.
+- [ ] Ship a controller remapping surface: per-game profiles plus global defaults, button/axis rebinding with deadzones, reset-to-default and clear hot-plug/reconnect messaging.
 - [ ] Handle focus loss, sleep/wake and audio-device changes. Avoid stale held buttons, runaway frame catch-up and stuck/duplicated audio after resuming.
+- [ ] Provide a persisted master volume and mute (including an optional mute-on-focus-loss), and recover smoothly from audio-device changes.
 - [ ] Keep pause, states, library return and errors visually consistent. Eliminate unnecessary collection rendering during gameplay and verify clean session stop before closing the app.
+- [ ] Make quitting safe during gameplay: closing the window or pressing Cmd-Q during a session confirms or saves-and-exits through the acknowledged save path, fullscreen play hides chrome, and Escape returns to the pause menu.
 - [ ] Integrate a pinned, security-reviewed Sparkle 2 framework through a minimal macOS-native adapter at the frontend/platform boundary. Initialize and call its UI-facing lifecycle on the appropriate main thread; keep Cocoa/platform code out of Rust domain/emulation crates.
 - [ ] Ship the actual updater engine, trusted feed URL, embedded public verification key, increasing build number and a working manual Check for Updates action. A placeholder button or only a release-page link does not satisfy the foundation.
 - [ ] Prove framework/helper packaging, rpaths, preserved symlinks, required entitlements and signing/notarization with the Godot-exported bundle. Do not weaken production library validation or run public PR code on the signing machine.
@@ -297,6 +311,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Extend the release process so approved source/build checks, native packaging/signing/notarization, checksums, notices, corresponding source and update metadata agree on the exact commit and version. Publish the feed only after every referenced artifact is downloadable and verified.
 - [ ] Keep application release names, core/asset pins and user-facing version reporting coherent. Use a monotonic numeric bundle build number for ordering and keep prerelease labels separate where macOS metadata requires numeric versions. Never reuse build numbers or compare version strings lexicographically.
 - [ ] Support manual checking, consent-controlled periodic checking, release notes, current/available version, download progress, cancellation/retry, Skip and Remind Later. Install/restart requires the user's approval and cannot interrupt active gameplay.
+- [ ] Offer install-now or install-on-next-quit scheduling, show the download size before starting, and keep deferred installs pending safely across restarts.
 - [ ] Define stable and beta channels explicitly. Stable excludes prereleases; beta is opt-in. Exclude drafts, incompatible macOS/architecture builds, missing signatures, withdrawn candidates and older/equal versions. Do not rely solely on GitHub's latest-release shortcut to discover beta releases.
 - [ ] Verify the update archive's EdDSA signature against the embedded trust key and verify the app's expected signing identity/bundle identity; use notarized artifacts and HTTPS. Checksums are useful integrity metadata, not a replacement for authentication. Keep private Apple/updater signing keys outside public CI, repository content and logs.
 - [ ] Before replacement, stop gameplay through the acknowledged save path and flush metadata, SRAM and resume state. A save failure blocks restart and offers retry/cancel. Never force-terminate a still-saving or hung core to make an update look successful.
@@ -321,6 +336,12 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Complete reliability tests for import interruptions, missing files, migration failures, corrupt states, controller reconnects, sleep/wake and failed updates. Document the known in-process core-hang limitation and a non-destructive recovery route; do not promise process isolation that is not implemented.
 - [ ] Fix all critical/high-severity data-loss, crash, wrong-game-selection, update-authentication and launch blockers. Record remaining lower-severity issues explicitly rather than labeling the product universally compatible.
 - [ ] Finish onboarding, keyboard/controller help, privacy-safe diagnostics, About/license credits, save/data backup guidance, support matrix and release notes. No private paths, ROMs, saves, proprietary labels or signing material enter public artifacts.
+- [ ] Ship the final application icon set at all macOS sizes and correct version/build display in About.
+- [ ] Consolidate the end-user guide — getting started, importing, controls, saves, updates and troubleshooting (Gatekeeper/translocation, missing saves, failed updates, where data lives) — and keep it in sync with each release.
+- [ ] Add a privacy-safe diagnostics export for bug reports (versions, environment, logs, stable error codes) that never includes ROMs, saves, labels or private paths.
+- [ ] Publish the privacy statement — no telemetry — enumerate every network endpoint (update feed, cartridge catalog) and provide an offline switch that disables all network requests.
+- [ ] Give the DMG a final presentation pass (background, icon layout, license text) and verify it from a clean standard-user account.
+- [ ] Formalize the compatibility matrix with PAL-region timing sanity (50 Hz) and enhancement-chip spot checks (SA-1, SuperFX, DSP), recording known limitations instead of claiming universal support.
 - [ ] Rebuild and publish reviewed, signed/notarized artifacts, exact corresponding source and verified appcast entries from the same immutable release revision. Capture final owner-facing visual and interaction evidence.
 
 **Acceptance:** the full product outcome at the top of this plan is demonstrable on a standard-user Apple Silicon Mac from downloaded artifacts, with no developer tooling or required online service. All ten milestone acceptance records are linked, visual review is complete, and a real in-app update preserves a playable library and loadable compatible progress. This is a complete SNES-focused milestone, not an automatic claim of v1.0 or support for every SNES title.
@@ -338,9 +359,13 @@ These are proposed acceptance targets, not benchmarks already achieved. Establis
 | Memory/energy | Initial library-mode resident-memory budget: 1 GiB on the reference machine. Record actual GPU/texture residency, cache limits and 50 browse/detail/game-return cycles; no unbounded growth. Hidden/minimized/gameplay states stop unnecessary showcase work. |
 | Cartridge fidelity | Review hero/front/top/rear/close-up views, multiple labels and neutral fallback in the exported Mac app. No texture bleeding, stretched labels, clipped silhouettes or stale-title/model combinations. Also verify motion at the real default window size: visible idle sway/float, full-yaw drag with bounded pitch, zoom limits, predictable reset and reduced-motion behavior. |
 | Progress safety | Real-core state restore plus app-restart tests; atomic write failure/retry tests for SRAM, states and metadata; incompatible states never silently apply. |
+| Play input latency | Measure and publish input-to-photon latency on the target Mac in windowed and fullscreen play; document the method and guard against regressions between releases. |
+| Audio stability | A 30-minute session without recurring underruns, crackle or stuck/duplicated audio; audio-device switch and sleep/wake recover cleanly. |
 | Distribution/update | Downloaded-artifact Gatekeeper acceptance and two-real-build update evidence. Verify source/build/feed alignment and user-data preservation, including deliberate failure cases. |
 
 Adjust a numeric budget only with a recorded measurement and an explicit explanation of the tradeoff. Do not hide poor 3D performance by silently making the primary view a static gallery. Native audio, hardware input, visual approval and update installation remain manual/native gates even when CI is green.
+
+Maintain approved visual baselines for the key screens — including the 2K-class default window — and diff each milestone's captures against them; intentional changes are recorded with the milestone rather than silently accepted.
 
 ## Execution and completion rules
 
@@ -349,6 +374,13 @@ Implement one bounded milestone at a time. Keep each one usable, update this pla
 Before marking a milestone complete, run the applicable pinned formatting, Clippy, Rust tests, real-core checks, Godot import/UI smokes, migration/error tests and publication audit. UI work additionally needs native visual/input evidence. Releases additionally need downloaded signed-artifact acceptance. Report unavailable hardware or failed checks explicitly; compilation is not product acceptance.
 
 A release record includes source commit, tag/build number, supported macOS/architecture, core/model/updater pins, relevant data/state schemas, tests actually run, manual evidence, known limitations, artifact checksums and signing/notarization results. Never pre-check future work or publish a release merely because planning/code changes were committed.
+
+**Release operations.** At least once per cycle, rehearse recovery of the release identity: restore the Sparkle private-key backup and the Developer ID signing identity on a second Mac or a fresh Keychain, publish a staging release, and verify the appcast signature chain and an installation from it. Keep the protected-environment secret inventory and rotation steps current.
+
+**Dependency and runtime maintenance.** Refresh pinned GitHub Actions, toolchains and security-pinned dependencies when GitHub or upstream deprecates their runtime — the current Node 20 deprecation warnings in release logs are the first case — without weakening SHA pinning or the protected signing boundary, and re-verify a release after such a change.
+
+**Owner evidence pack.** Each milestone links a short, reviewable evidence page — screenshots, one recording, the actual measurements and the remaining gaps — so the owner can approve it without reading CI logs.
+
 Current acceptance work: physical keyboard/gamepad gameplay, audible output, sustained-session behavior and user-game save restoration remain pending. Signing and automatic updater-enabled publication are resolved: beta.3 and beta.4 are signed, notarized and updater-enabled, and every reviewed `main` push publishes the next beta automatically. These testing prereleases do not close hands-on acceptance or claim the final v0.1.0 milestone.
 
 Next acceptance step: record actual gameplay/audio/controller/save results in [issue #1](https://github.com/lincolnaleixo/retrolife/issues/1) against the installed updater-enabled beta, and record the first signed-to-signed in-app upgrade (beta.3 to beta.4) on the target Mac. Existing releases remain immutable.
@@ -410,6 +442,9 @@ These later milestones remain unimplemented; they are not implied by completion 
 2. [Validate Steam](https://github.com/lincolnaleixo/retrolife/issues/4) Deck/Linux distribution.
 3. Extend the 3D library to additional systems only after the SNES interaction, asset pipeline and performance model are proven.
 4. Add additional emulation cores and system-specific presentation without weakening the local-library, licensing or release boundaries.
+5. Add fast-forward/turbo and cheat-code support once the core session, save and input contracts are stable.
+6. Add in-game screenshot capture and short clip export with the same privacy rules as diagnostics.
+7. Add localization infrastructure with a first non-English translation (for example Brazilian Portuguese), keeping user-authored labels and game metadata untouched.
 
 ## Deferred after these ten versions
 
