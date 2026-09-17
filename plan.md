@@ -154,12 +154,12 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 2. v0.2.0: clean frontend foundation
 
-**Status:** planned. Start the visual work immediately after the baseline instead of leaving all design to v0.10.0. Link design evidence to [issue #2](https://github.com/lincolnaleixo/retrolife/issues/2).
+**Status:** in progress. Start the visual work immediately after the baseline instead of leaving all design to v0.10.0. Link design evidence to [issue #2](https://github.com/lincolnaleixo/retrolife/issues/2). The 2K-class default window is implemented, covered by `window_layout_smoke.gd`, and measured live at 2560x1440 content on the target Mac; owner visual review and the remaining deliverables are open.
 
 **Deliverables**
 
 - [ ] Turn the visual specification above into shared theme tokens and reusable library, toolbar, navigation, detail, dialog, status and action components. Break up the monolithic shell without moving domain logic into Godot.
-- [ ] Open the shell at a 2K-class default window: target a 2560x1440 content area when the display can fit it, otherwise open near the full usable display area, never below the 1024x640 floor. Keep wide layouts balanced and centered rather than stretched, and prepare window size/position persistence for v0.8.0.
+- [x] Open the shell at a 2K-class default window: target a 2560x1440 content area when the display can fit it, otherwise open near the full usable display area, never below the 1024x640 floor. Keep wide layouts balanced and centered rather than stretched, and prepare window size/position persistence for v0.8.0.
 - [ ] Establish macOS menu-bar and shortcut parity: App/File/View/Help menus with real actions only (⌘O import, ⌘F search, ⌘, settings, ⌘Q graceful save-and-quit), correct enabled/disabled states, and no stub items.
 - [ ] Declare and handle system appearance: the dark showcase stays the default, the app remains legible under light system settings, and a dark-only decision is documented rather than accidental.
 - [ ] Implement the responsive composition, comfortable spacing and typography. Remove persistent backend/debug/catalog-source labels from normal browsing; put diagnostics in a dedicated surface.

@@ -61,7 +61,7 @@ The scene pool is exactly seven cartridges, or at most three visible in low-powe
 
 The shell opens at a 2K-class window by default: `window_layout.gd` targets a 2560x1440 content area when the usable display provides it with breathing room, otherwise it opens near the full usable area and centers the window. The minimum logical window size is 1024x640 and a smaller window is not silently accepted. Window size and position persistence is planned for v0.8.0.
 
-The responsive camera protects the centered object at narrower aspect ratios. The minimum application window is 720 by 540 logical pixels; controls resize without shrinking all interface text, and details scroll rather than relying on a fixed-width panel. Keyboard focus remains visible and all primary commands have text alternatives. This establishes keyboard/text usability, not an untested claim of complete screen-reader support.
+The responsive camera protects the centered object at narrower aspect ratios. The minimum application window is 1024 by 640 logical pixels; controls resize without shrinking all interface text, and details scroll rather than relying on a fixed-width panel. Keyboard focus remains visible and all primary commands have text alternatives. This establishes keyboard/text usability, not an untested claim of complete screen-reader support.
 
 ## Verification
 

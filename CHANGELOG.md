@@ -53,6 +53,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Correct the stale 720x540 minimum-window statement in the cartridge guide and record the implemented 2K-window status and automated evidence in the roadmap.
 - Reconciled README, release, update and cartridge documentation with the published updater-enabled betas and the automatic pipeline: beta.3 and later contain the cartridge interface and in-app updater, the automatic main-branch release is the normal publication path, and the first public signed-to-signed upgrade remains explicitly pending validation.
 - Sanitize the pinned Godot template's public hosted-runner source paths before packaging and reject private build paths in the unsigned packaging regression.
 - Give the update dialog an opaque, high-contrast surface so cartridge artwork cannot interfere with update controls.
