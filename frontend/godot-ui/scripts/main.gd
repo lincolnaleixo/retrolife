@@ -2,6 +2,7 @@ extends Control
 
 const ExtensionLoader = preload("res://scripts/extension_loader.gd")
 const CatalogClient = preload("res://scripts/catalog_client.gd")
+const WindowLayout = preload("res://scripts/window_layout.gd")
 
 const GRID_COLUMNS := 3
 const PAGE_LIMIT := 500
@@ -52,6 +53,7 @@ var _details_state: Label
 
 
 func _ready() -> void:
+    WindowLayout.apply_default_window(get_window())
     _ensure_input_actions()
     _build_shell()
 

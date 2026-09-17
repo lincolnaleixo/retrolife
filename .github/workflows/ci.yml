@@ -61,6 +61,7 @@ jobs:
         run: |
           /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path frontend/godot-ui --script res://scripts/local_library_smoke.gd
           /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path frontend/godot-ui --script res://scripts/input_mapping_smoke.gd
+          /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path frontend/godot-ui --script res://scripts/window_layout_smoke.gd
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
