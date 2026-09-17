@@ -160,12 +160,8 @@ func _load_collection() -> void:
     if not parsed is Dictionary:
         return
     for entry in (parsed as Dictionary).get("labels", []):
-        if entry is Dictionary:
-            var entry_title := str(entry.get("title", ""))
-            var front := str(entry.get("front", ""))
-            var sha256 := str(entry.get("sha256", ""))
-            if not entry_title.is_empty() and not front.is_empty():
-                _collection[entry_title] = {"front": front, "sha256": sha256}
+        if entry is Dictionary and not str(entry.get("title", "")).is_empty() and not str(entry.get("front", "")).is_empty():
+            _collection[str(entry["title"])] = entry
 
 
 static func normalize_title(text: String) -> String:

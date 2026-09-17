@@ -57,6 +57,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Keep the label index working in exported applications: load the full label entry so the download address survives indexing, ship the committed index in both export presets, and pin that coverage in the style tests.
 - Give the release publish job a 60-minute upload budget: slow runner transfers to GitHub Releases were exceeding the previous 15-minute limit, cancelling the job mid-upload and leaving an incomplete draft for the next queued source to supersede.
 - Keep development-only collection labels out of release exports with an export exclusion and a verify-stage refusal; verify staged labels against a committed index whose checksums are checked against the asset lock; preserve semantic title words and sequel numbers while treating a parenthesized World marker as a region.
 - Correct the stale 720x540 minimum-window statement in the cartridge guide and record the implemented 2K-window status and automated evidence in the roadmap.
