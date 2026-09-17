@@ -29,6 +29,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Open the library shell at a 2K-class default window (2560x1440 content when the usable display fits it, otherwise near the usable area, never below the 1024x640 floor), raise the 3D render-viewport budget to 2560x1440, and add a headless window-layout smoke covering the sizing policy and floor.
 - Expanded the plan roadmap with further owner-requested quality and operational items: macOS menu-bar/shortcut parity, gameplay display, volume and controller-remapping options, portable library backup, label-fetch privacy rules, battery-save backup rotation, safe quit during gameplay, install scheduling, app icon/branding, a consolidated end-user guide, diagnostics export, privacy statement, DMG presentation, compatibility matrix, visual/input/audio quality gates, release-identity recovery rehearsal, dependency/runtime maintenance and future localization, capture and fast-forward candidates.
 - Recorded the owner's review of the installed beta: the library must open at a 2K-class default window, the hero cartridge must visibly move and support free 360° inspection, and per-game labels are sourced from the public cartridge collection; updated the design specification, milestones and quality gates, and refreshed the baseline to the updater-enabled beta.3/beta.4 releases.
 - Adopted a ten-version SNES macOS roadmap with a cartridge-first 3D library design, explicit platform and architecture contracts, measurable quality gates and evidence rules for the upcoming milestones.
@@ -52,6 +53,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Correct the stale 720x540 minimum-window statement in the cartridge guide and record the implemented 2K-window status and automated evidence in the roadmap.
 - Reconciled README, release, update and cartridge documentation with the published updater-enabled betas and the automatic pipeline: beta.3 and later contain the cartridge interface and in-app updater, the automatic main-branch release is the normal publication path, and the first public signed-to-signed upgrade remains explicitly pending validation.
 - Sanitize the pinned Godot template's public hosted-runner source paths before packaging and reject private build paths in the unsigned packaging regression.
 - Give the update dialog an opaque, high-contrast surface so cartridge artwork cannot interfere with update controls.

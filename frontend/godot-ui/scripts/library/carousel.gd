@@ -348,7 +348,7 @@ func _resize_view() -> void:
     var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
     _camera.position = Vector3(0, 0.55, maxf(7.5, 7.0 / ratio))
     _camera.look_at(Vector3(0, -0.05, 0), Vector3.UP)
-    var budget_shrink := maxi(1, ceili(maxf(size.x / 1920.0, size.y / 1080.0)))
+    var budget_shrink := maxi(1, ceili(maxf(size.x / 2560.0, size.y / 1440.0)))
     _container.stretch_shrink = maxi(2 if low_quality else 1, budget_shrink)
     _viewport.msaa_3d = Viewport.MSAA_DISABLED if low_quality else Viewport.MSAA_2X
     _layout(false)
