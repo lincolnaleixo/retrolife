@@ -236,7 +236,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 6. v0.6.0: accurate game identity, metadata and labels
 
-**Status:** planned. Make a large imported collection attractive and understandable, without guessing artwork or changing save identities.
+**Status:** in progress. The pinned fetch pipeline is implemented: local title matching against the committed index, user-initiated downloads from the collection's release tag, SHA-256 verification before atomic caching in the user directory, a settings switch that can disable fetching, and the neutral fallback. Catalog-driven resolution, collection curation and owner visual review remain open.
 
 **Deliverables**
 
@@ -249,7 +249,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 - [ ] Represent shell region honestly. Use the North American asset for appropriate editions; use a clearly neutral/generic presentation for unmatched regional shells rather than claiming an accurate PAL/Japanese reconstruction that does not exist.
 - [ ] Cache validated label derivatives and thumbnails by content/version; bound image dimensions and memory usage. Keep artwork sources and rights separate from application code. Online scraping or a provider account is not a dependency of this release.
 - [ ] Consume per-game label packages from the public collection under the documented trust model: resolve packages through the repository's published catalog by catalog identity and title with recorded provenance/confidence (never a loose filename guess), verify manifest checksums, cache atomically with the resolved catalog/manifest revision recorded, refresh only on explicit or reviewed updates, and never silently replace a verified cache entry. Precedence is explicit user override, then a verified collection label, then the neutral title label; an unreachable collection degrades to the local cache or neutral and never blocks browsing or play.
-- [ ] Keep label lookup privacy-preserving: fetch the published catalog whole and match locally, never transmit library contents, filenames, hashes or play data. Acknowledge the residual disclosure honestly: requesting a per-title package reveals that catalog ID to the hosting service, so package downloads are user-initiated rather than silently prefetched for the whole library, the settings include a switch to disable label fetching entirely, and every network request the app can make is documented for the user.
+- [x] Keep label lookup privacy-preserving: fetch the published catalog whole and match locally, never transmit library contents, filenames, hashes or play data. Acknowledge the residual disclosure honestly: requesting a per-title package reveals that catalog ID to the hosting service, so package downloads are user-initiated rather than silently prefetched for the whole library, the settings include a switch to disable label fetching entirely, and every network request the app can make is documented for the user.
 - [ ] Add a catalog refresh surface: show the collection catalog version and date, allow a manual refresh, and let the user pin or exclude a problematic catalog revision without losing current labels.
 - [ ] Curate the external collection for consumption: stable per-system/per-title packages with front/top label images (rear optional), versioned manifests with checksums, attribution and rights notes, previews, and a documented add-a-cartridge workflow with CI validation, so new cartridges reach RetroLife without an application release.
 

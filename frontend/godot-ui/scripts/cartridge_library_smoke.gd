@@ -167,6 +167,18 @@ func _exercise_artwork(errors: Array[String]) -> void:
     _check(not LabelCache.titles_match("Super Mario World 2: Yoshi's Island", "Super Mario World"), "A different game must not match a collection label", errors)
     _check(not LabelCache.titles_match("Donkey Kong Country", "Super Mario World"), "Unrelated titles must not match a collection label", errors)
     _check(not LabelCache.titles_match("", "Super Mario World"), "Empty titles must never match", errors)
+
+    var payload := PackedByteArray([7, 11, 13, 17, 19])
+    var context := HashingContext.new()
+    context.start(HashingContext.HASH_SHA256)
+    context.update(payload)
+    var digest := context.finish().hex_encode()
+    _check(not LabelCache.install_downloaded_label("smoke-label", payload, "0".repeat(64)).is_empty(), "A fetched label with the wrong checksum must be rejected", errors)
+    _check(not FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label")), "A rejected label must not be installed", errors)
+    _check(LabelCache.install_downloaded_label("smoke-label", payload, digest).is_empty(), "A verified fetched label must install", errors)
+    _check(FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label")), "The fetched label must land in the user cache", errors)
+    _check(FileAccess.get_sha256(LabelCache.collection_cache_path("smoke-label")) == digest, "The cached label must match its approved checksum", errors)
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(LabelCache.collection_cache_path("smoke-label")))
     for path in [source, invalid, oversized, LabelCache.path_for(id)]:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(directory))
