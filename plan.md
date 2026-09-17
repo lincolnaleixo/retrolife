@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-09-09. Product focus: SNES on macOS, with a clean, premium cartridge-first library.
 
-This is the only roadmap. The owner's scope for this revision is **plan.md only**: no application code, assets, dependencies, changelog, version fields, tags, releases, or other repository files are changed. The normal changelog and verification rules apply to subsequent implementation work.
+This is the only roadmap. The owner's scope for this revision is **plan.md only**: no application code, assets, dependencies, version fields, tags, releases, or other repository files are changed, apart from the single Unreleased changelog entry the repository rules require for this planning revision. The normal changelog and verification rules apply to subsequent implementation work.
 
 ## Product outcome
 
@@ -403,6 +403,7 @@ These later milestones remain unimplemented; they are not implied by completion 
 2. [Validate Steam](https://github.com/lincolnaleixo/retrolife/issues/4) Deck/Linux distribution.
 3. Extend the 3D library to additional systems only after the SNES interaction, asset pipeline and performance model are proven.
 4. Add additional emulation cores and system-specific presentation without weakening the local-library, licensing or release boundaries.
+5. Reconcile the System side of RetroLife after the release: the `Hobbies/plan.md` line in `/home/robot/system` still says no code exists as of 2026-09-09 and lists no RetroLife resource, and an older untracked copy of `crates/retrolife-emulation` sits at `/home/robot/system/Personal/crates/`. Point Hobbies at this repository and `retrolife-private`, and drop or move that stray copy once the team confirms nothing in it is newer than `crates/`. Recorded 2026-09-09 while the release work is active; no change to this repository's code.
 
 ## Deferred after these ten versions
 
