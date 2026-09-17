@@ -238,14 +238,14 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
     _check(carousel.selected_index == selected_before, "Inactive library must reject navigation input", errors)
     carousel.set_active(true)
     var original_size := root.size
-    for dimensions in [Vector2i(720, 540), Vector2i(1600, 900), Vector2i(1920, 800)]:
+    for dimensions in [Vector2i(720, 540), Vector2i(1600, 900), Vector2i(1920, 800), Vector2i(2560, 1440)]:
         root.size = dimensions
         for _frame in range(3):
             await process_frame
         _check(carousel.size.x > 0 and carousel.size.y >= 180, "Resized library must retain a usable stage", errors)
         _check(carousel.active_model_count() <= 7, "Resizing must retain the model budget", errors)
         var viewport: SubViewport = carousel.get("_viewport")
-        _check(viewport.size.x <= 1920 and viewport.size.y <= 1080, "Resizing must retain the render-resolution budget", errors)
+        _check(viewport.size.x <= 2560 and viewport.size.y <= 1440, "Resizing must retain the 2K render-resolution budget", errors)
     root.size = original_size
     await process_frame
 
