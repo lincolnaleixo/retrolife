@@ -12,15 +12,16 @@ const INSPECT_DAMP := 14.0
 const PITCH_LIMIT := PI / 3.0
 const ZOOM_MINIMUM := 0.75
 const ZOOM_MAXIMUM := 1.6
-const ROTATE_PER_PIXEL := 0.0075
-const PITCH_PER_PIXEL := 0.0055
+const ROTATE_PER_PIXEL := 0.0095
+const PITCH_PER_PIXEL := 0.007
 const WHEEL_ZOOM_STEP := 0.06
 const KEY_ROTATE_SPEED := 1.7
 const KEY_PITCH_SPEED := 1.1
 const KEY_ZOOM_SPEED := 0.7
-const IDLE_YAW_AMPLITUDE := 0.045
-const IDLE_BOB_AMPLITUDE := 0.035
-const IDLE_SPEED := 0.9
+const IDLE_YAW_AMPLITUDE := 0.1
+const IDLE_PITCH_AMPLITUDE := 0.02
+const IDLE_BOB_AMPLITUDE := 0.06
+const IDLE_SPEED := 1.05
 
 var games: Array = []
 var selected_index := -1
@@ -394,11 +395,13 @@ func _apply_inspection() -> void:
     if _hero == null or not is_instance_valid(_hero) or not _hero.visible:
         return
     var yaw := _inspect_yaw
+    var pitch := _inspect_pitch
     var float_offset := 0.0
     if not reduced_motion and not _inspecting:
         yaw += sin(_idle_time * IDLE_SPEED) * IDLE_YAW_AMPLITUDE
+        pitch += sin(_idle_time * IDLE_SPEED * 0.73) * IDLE_PITCH_AMPLITUDE
         float_offset = sin(_idle_time * IDLE_SPEED * 1.37) * IDLE_BOB_AMPLITUDE
-    _hero.call("set_inspection", yaw, _inspect_pitch, _inspect_zoom, float_offset)
+    _hero.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
 
 
 func _zoom_by(step: float) -> void:
