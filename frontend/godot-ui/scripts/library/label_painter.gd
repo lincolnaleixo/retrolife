@@ -22,8 +22,14 @@ func _draw() -> void:
     var bounds := Rect2(0, 0, 1024, 512)
     draw_rect(bounds, tone.darkened(0.65))
     if artwork != null:
-        # Letterbox rather than stretch covers or differently shaped labels.
         var source := artwork.get_size()
+        var ratio := source.x / maxf(source.y, 1.0)
+        if absf(ratio - 2.0) <= 0.16:
+            # Collection labels share this surface's UV layout: draw them to
+            # fill so front and folded-top regions stay aligned.
+            draw_texture_rect(artwork, bounds, false)
+            return
+        # Letterbox rather than stretch covers or differently shaped labels.
         var factor := minf(1024.0 / maxf(source.x, 1.0), 512.0 / maxf(source.y, 1.0))
         var dimensions := source * factor
         draw_texture_rect(artwork, Rect2((bounds.size - dimensions) * 0.5, dimensions), false)

@@ -131,10 +131,31 @@ func _build_fallback() -> void:
 
 
 static func _find_label(node: Node) -> MeshInstance3D:
-    if node is MeshInstance3D and str(node.name).to_lower().replace("_", " ") == "front printed paper label":
-        return node as MeshInstance3D
+    # The pinned neutral GLB and prepared per-game exports share the same
+    # continuous front-label mesh; identify it by the material family and
+    # prefer the mesh whose name marks the front, never the rear panel.
+    var front: MeshInstance3D = null
+    var fallback: MeshInstance3D = null
+    for candidate in _label_candidates(node):
+        var candidate_name := str(candidate.name).to_lower()
+        if "front" in candidate_name:
+            if front == null:
+                front = candidate
+        elif fallback == null:
+            fallback = candidate
+    if front != null:
+        return front
+    return fallback
+
+
+static func _label_candidates(node: Node) -> Array[MeshInstance3D]:
+    var result: Array[MeshInstance3D] = []
+    if node is MeshInstance3D:
+        var mesh_instance := node as MeshInstance3D
+        var material := mesh_instance.get_active_material(0)
+        var material_name := str(material.resource_name).to_lower() if material != null else ""
+        if "label" in material_name or "label" in str(mesh_instance.name).to_lower():
+            result.append(mesh_instance)
     for child in node.get_children():
-        var found := _find_label(child)
-        if found != null:
-            return found
-    return null
+        result.append_array(_label_candidates(child))
+    return result

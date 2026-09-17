@@ -17,5 +17,22 @@
     "LICENSE": {"bytes": 17452, "sha256": "4f3c4a321eb0c73182eee7afa3fe0111e24dec193f2d6febcf4207f26af26839"},
     "CREDITS.md": {"bytes": 995, "sha256": "cd2badc7e4a19eaa24e149147e920f3f722cbd853d0abd0aba24b9674b727407"},
     "NOTICE.md": {"bytes": 1193, "sha256": "218c60800dd08cf330799bb5060468ab65910d346d4a2a4d26a7ae49e9904277"}
-  }
+  },
+  "labels": [
+    {
+      "title": "Super Mario World",
+      "assetId": "snes-super-mario-world",
+      "tag": "snes-super-mario-world-v0.1.1",
+      "front": {
+        "path": "assets/snes-super-mario-world/labels/front.png",
+        "bytes": 2655936,
+        "sha256": "5a7e9d1fb80fbab4d688f50c0ebba55049a2feb5cbff8938eb051cd07f11dee3"
+      },
+      "rear": {
+        "path": "assets/snes-super-mario-world/labels/rear.png",
+        "bytes": 1054447,
+        "sha256": "316ee3c12998d5ee182698ead900070b35adf61341f54ff44a54c46c18abe428"
+      }
+    }
+  ]
 }

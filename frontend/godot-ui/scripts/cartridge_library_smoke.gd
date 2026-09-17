@@ -158,6 +158,10 @@ func _exercise_artwork(errors: Array[String]) -> void:
     file.store_buffer(PackedByteArray([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,32,0,0,0,32,0]))
     file.close()
     _check(not cache.validate_png(oversized).is_empty(), "Reject oversized PNG dimensions before decoding", errors)
+    _check(LabelCache.titles_match("Super Mario World (USA) 2", "Super Mario World"), "Region and dedup markers must not block a collection label match", errors)
+    _check(not LabelCache.titles_match("Super Mario World 2: Yoshi's Island", "Super Mario World"), "A different game must not match a collection label", errors)
+    _check(not LabelCache.titles_match("Donkey Kong Country", "Super Mario World"), "Unrelated titles must not match a collection label", errors)
+    _check(not LabelCache.titles_match("", "Super Mario World"), "Empty titles must never match", errors)
     for path in [source, invalid, oversized, LabelCache.path_for(id)]:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(directory))
