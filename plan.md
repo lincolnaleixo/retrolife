@@ -119,7 +119,7 @@ Each UI milestone requires screenshots and a short interaction capture from the 
 
 ## The next ten versions
 
-There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The existing v0.1.0-beta.2 is a testing prerelease of the still-open first milestone, not a completed milestone or an extra version in this count. Intermediate beta/RC builds and necessary patch fixes do not add roadmap milestones. All dates remain evidence-based; no release is complete because its heading exists.
+There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The current beta prereleases are testing prereleases of the still-open first milestone, not a completed milestone or extra versions in this count. Intermediate beta/RC builds and necessary patch fixes do not add roadmap milestones. All dates remain evidence-based; no release is complete because its heading exists.
 
 | # | Target | User-visible outcome | Main dependency |
 | --- | --- | --- | --- |
@@ -385,7 +385,7 @@ A release record includes source commit, tag/build number, supported macOS/archi
 
 Current acceptance work: physical keyboard/gamepad gameplay, audible output, sustained-session behavior and user-game save restoration remain pending. Signing and automatic updater-enabled publication are resolved: beta.3 and beta.4 are signed, notarized and updater-enabled, and every reviewed `main` push publishes the next beta automatically. These testing prereleases do not close hands-on acceptance or claim the final v0.1.0 milestone.
 
-Next acceptance step: record actual gameplay/audio/controller/save results in [issue #1](https://github.com/lincolnaleixo/retrolife/issues/1) against the installed updater-enabled beta, and record the first signed-to-signed in-app upgrade (beta.3 to beta.4) on the target Mac. Existing releases remain immutable.
+Next acceptance step: record actual gameplay/audio/controller/save results in [issue #1](https://github.com/lincolnaleixo/retrolife/issues/1) against the installed updater-enabled beta, and record the first signed-to-signed in-app upgrade (beta.3 to the latest published beta) on the target Mac. Existing releases remain immutable.
 
 ## In progress: 3D cartridge library
 

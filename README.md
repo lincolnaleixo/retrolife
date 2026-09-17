@@ -2,7 +2,7 @@
 
 A retro game library built with Rust and Godot, with SNES gameplay inside the application window.
 
-**Status:** signed testing beta available in [GitHub Releases](https://github.com/lincolnaleixo/retrolife/releases). Hands-on gameplay, sound and controller acceptance remain pending. The cartridge-first interface in current development is newer than beta.1 and beta.2 and needs a new build before it appears in a downloaded app. See [the roadmap](plan.md) and [changelog](CHANGELOG.md) for verified progress and remaining work.
+**Status:** signed testing betas are published automatically in [GitHub Releases](https://github.com/lincolnaleixo/retrolife/releases); the latest beta contains the cartridge-first library and the in-app updater. Hands-on gameplay, sound, controller and visual acceptance remain pending, so no beta claims the completed v0.1.0 milestone. See [the roadmap](plan.md) and [changelog](CHANGELOG.md) for verified progress and remaining work, and the [executor guide](docs/executor-guide.md) to contribute to the roadmap.
 
 The first target is macOS 13+ on Apple Silicon. Linux builds support development checks; Linux distribution is a later milestone. Import your own `.sfc` or `.smc` files: RetroLife copies them into its local library and keeps local battery-backed saves. Games and game artwork are not bundled.
 
@@ -29,4 +29,4 @@ Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PA
 
 ## Application updates
 
-Updater-enabled signed macOS builds provide **Settings > Software updates...** and **Check for Updates...** in the macOS application menu. Scheduled checks, optional automatic installation and stable/beta channels use signed Sparkle updates without replacing your library or saves. The current beta.1/beta.2 downloads predate this feature; a new signed build is required once before in-app updating is available. See the [updater guide](docs/updates.md).
+Updater-enabled signed macOS builds provide **Settings > Software updates...** and **Check for Updates...** in the macOS application menu. Scheduled checks, optional automatic installation and stable/beta channels use signed Sparkle updates without replacing your library or saves. Beta.3 and later are updater-enabled: install one of them manually once, after which later releases are expected to arrive inside the app — the first public signed-to-signed upgrade is still pending validation on the target Mac. The older beta.1 and beta.2 downloads predate this feature. See the [updater guide](docs/updates.md).
