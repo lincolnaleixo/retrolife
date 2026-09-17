@@ -233,7 +233,7 @@ func _layout(animate: bool, refresh := false) -> void:
         if rebound:
             item = free.pop_back()
         if rebound or refresh:
-            item.call("bind_game", game, index, labels.texture_for(id))
+            item.call("bind_game", game, index, labels.texture_for(id, str(game.get("title", ""))))
         var distance := index - selected_index
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)

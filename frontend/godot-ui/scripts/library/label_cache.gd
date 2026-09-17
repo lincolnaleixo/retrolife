@@ -6,9 +6,13 @@ const MAX_FILE_BYTES := 8 * 1024 * 1024
 const MAX_SOURCE_EDGE := 2048
 const TEXTURE_EDGE := 1024
 const DIRECTORY := "user://artwork"
+const COLLECTION_DIRECTORY := "res://assets/cartridges/labels"
+const COLLECTION_INDEX := "index.json"
 
 var _textures: Dictionary = {}
 var _order: Array[String] = []
+var _collection: Dictionary = {}
+var _collection_loaded := false
 
 
 static func path_for(game_id: String) -> String:
@@ -37,7 +41,7 @@ static func _read_big_endian(bytes: PackedByteArray, offset: int) -> int:
     return (int(bytes[offset]) << 24) | (int(bytes[offset + 1]) << 16) | (int(bytes[offset + 2]) << 8) | int(bytes[offset + 3])
 
 
-func texture_for(game_id: String) -> Texture2D:
+func texture_for(game_id: String, title := "") -> Texture2D:
     if _textures.has(game_id):
         _order.erase(game_id)
         _order.append(game_id)
@@ -50,11 +54,80 @@ func texture_for(game_id: String) -> Texture2D:
             _fit_image(image)
             image.generate_mipmaps()
             texture = ImageTexture.create_from_image(image)
+    if texture == null and not title.is_empty():
+        texture = _collection_texture(title)
     _textures[game_id] = texture
     _order.append(game_id)
     while _order.size() > MAX_ENTRIES:
         _textures.erase(_order.pop_front())
     return texture
+
+
+## Staged collection labels ship inside the build; matching runs locally on
+## the game title and never consults the network.
+func _collection_texture(title: String) -> Texture2D:
+    _load_collection()
+    for label_title in _collection:
+        if not titles_match(title, str(label_title)):
+            continue
+        var full := COLLECTION_DIRECTORY.path_join(str(_collection[label_title]))
+        if not FileAccess.file_exists(full):
+            return null
+        var image := Image.new()
+        if image.load(full) != OK:
+            return null
+        _fit_image(image)
+        image.generate_mipmaps()
+        return ImageTexture.create_from_image(image)
+    return null
+
+
+func _load_collection() -> void:
+    if _collection_loaded:
+        return
+    _collection_loaded = true
+    var index_path := COLLECTION_DIRECTORY.path_join(COLLECTION_INDEX)
+    if not FileAccess.file_exists(index_path):
+        return
+    var file := FileAccess.open(index_path, FileAccess.READ)
+    if file == null:
+        return
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    if not parsed is Dictionary:
+        return
+    for entry in (parsed as Dictionary).get("labels", []):
+        if entry is Dictionary:
+            var entry_title := str(entry.get("title", ""))
+            var front := str(entry.get("front", ""))
+            if not entry_title.is_empty() and not front.is_empty():
+                _collection[entry_title] = front
+
+
+static func normalize_title(text: String) -> String:
+    var cleaned := ""
+    var depth := 0
+    for character in text.to_lower():
+        if character == "(" or character == "[":
+            depth += 1
+        elif character == ")" or character == "]":
+            depth = maxi(0, depth - 1)
+        elif depth == 0:
+            cleaned += character if (character >= "a" and character <= "z") or (character >= "0" and character <= "9") else " "
+    var words: Array[String] = []
+    for word in cleaned.split(" ", false):
+        if word in ["usa", "us", "europe", "eu", "japan", "jp", "world", "rev"]:
+            continue
+        words.append(word)
+    while not words.is_empty() and words[words.size() - 1].is_valid_int():
+        words.resize(words.size() - 1)
+    return " ".join(words)
+
+
+static func titles_match(game_title: String, label_title: String) -> bool:
+    var game := normalize_title(game_title)
+    if game.is_empty():
+        return false
+    return game == normalize_title(label_title)
 
 
 func import_artwork(game_id: String, source: String) -> String:

@@ -176,7 +176,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 3. v0.3.0: real SNES cartridge showcase
 
-**Status:** planned. This is the first visually complete cartridge vertical slice, using the actual external asset.
+**Status:** in progress. This is the first visually complete cartridge vertical slice, using the actual external asset. Label resolution is implemented (local title matching, continuous front-label mesh mapping with folded-top coverage, fill-mode painting for label-proportioned artwork), and the Super Mario World 0.1.1 label exports are published in the collection; release builds still bundle no commercial game artwork, and owner visual review plus the on-demand fetching milestone remain open.
 
 **Deliverables**
 
