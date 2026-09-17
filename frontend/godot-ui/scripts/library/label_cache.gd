@@ -7,6 +7,7 @@ const MAX_SOURCE_EDGE := 2048
 const TEXTURE_EDGE := 1024
 const DIRECTORY := "user://artwork"
 const COLLECTION_INDEX := "res://scripts/library/collection_labels.json"
+const COLLECTION_CACHE := "user://collection-labels"
 
 var _textures: Dictionary = {}
 var _order: Array[String] = []
@@ -69,15 +70,8 @@ func _collection_texture(title: String) -> Texture2D:
     for label_title in _collection:
         if not titles_match(title, str(label_title)):
             continue
-        var entry: Dictionary = _collection[label_title]
-        var full := str(entry.get("front", ""))
-        if full.is_empty() or not FileAccess.file_exists(full):
-            return null
-        var expected := str(entry.get("sha256", ""))
-        if expected.is_empty() or FileAccess.get_sha256(full) != expected:
-            # The committed index carries the pinned checksum, so a modified
-            # or unverifiable artwork file must never stand in for the
-            # approved export; fall back to the neutral label instead.
+        var full := _verified_collection_path(_collection[label_title])
+        if full.is_empty():
             return null
         var image := Image.new()
         if image.load(full) != OK:
@@ -86,6 +80,71 @@ func _collection_texture(title: String) -> Texture2D:
         image.generate_mipmaps()
         return ImageTexture.create_from_image(image)
     return null
+
+
+## The path of a verified label file: a build-staged export for owner
+## validation, or the user-cache copy of a fetched package. A file whose
+## SHA-256 does not match the committed index is never used.
+func _verified_collection_path(entry: Dictionary) -> String:
+    var expected := str(entry.get("sha256", ""))
+    if expected.is_empty():
+        return ""
+    var candidates: Array[String] = [str(entry.get("front", ""))]
+    var asset_id := str(entry.get("assetId", ""))
+    if not asset_id.is_empty():
+        candidates.append(collection_cache_path(asset_id))
+    for candidate in candidates:
+        if candidate.is_empty() or not FileAccess.file_exists(candidate):
+            continue
+        if FileAccess.get_sha256(candidate) == expected:
+            return candidate
+    return ""
+
+
+static func collection_cache_path(asset_id: String) -> String:
+    return COLLECTION_CACHE.path_join(asset_id + ".png")
+
+
+## Fetch metadata for a matched label that has no verified file yet; the
+## caller decides whether to download it. Empty when nothing needs fetching.
+func pending_fetch(title: String) -> Dictionary:
+    _load_collection()
+    for label_title in _collection:
+        if not titles_match(title, str(label_title)):
+            continue
+        if not _verified_collection_path(_collection[label_title]).is_empty():
+            return {}
+        return _collection[label_title]
+    return {}
+
+
+## Verify a downloaded package against its approved checksum and install it
+## atomically in the user cache. Never call this with unverified bytes as
+## final: a mismatch installs nothing.
+static func install_downloaded_label(asset_id: String, bytes: PackedByteArray, expected_sha256: String) -> String:
+    if asset_id.is_empty() or expected_sha256.is_empty() or bytes.is_empty():
+        return "The downloaded label metadata is incomplete."
+    var context := HashingContext.new()
+    context.start(HashingContext.HASH_SHA256)
+    context.update(bytes)
+    if context.finish().hex_encode() != expected_sha256:
+        return "The downloaded label did not match its approved checksum."
+    if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(COLLECTION_CACHE)) != OK:
+        return "The label cache could not be created."
+    var destination := collection_cache_path(asset_id)
+    var temporary := destination + ".tmp"
+    var file := FileAccess.open(temporary, FileAccess.WRITE)
+    if file == null:
+        return "The label cache is not writable."
+    file.store_buffer(bytes)
+    file.close()
+    var renamed := DirAccess.rename_absolute(
+        ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(destination)
+    )
+    if renamed != OK:
+        DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+        return "The downloaded label could not be installed."
+    return ""
 
 
 func _load_collection() -> void:
@@ -190,6 +249,11 @@ func import_artwork(game_id: String, source: String) -> String:
 func invalidate(game_id: String) -> void:
     _textures.erase(game_id)
     _order.erase(game_id)
+
+
+func invalidate_all() -> void:
+    _textures.clear()
+    _order.clear()
 
 
 func entry_count() -> int:

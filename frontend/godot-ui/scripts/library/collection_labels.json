@@ -4,7 +4,9 @@
       "title": "Super Mario World",
       "assetId": "snes-super-mario-world",
       "front": "res://assets/cartridges/labels/snes-super-mario-world/front.png",
-      "sha256": "5a7e9d1fb80fbab4d688f50c0ebba55049a2feb5cbff8938eb051cd07f11dee3"
+      "sha256": "5a7e9d1fb80fbab4d688f50c0ebba55049a2feb5cbff8938eb051cd07f11dee3",
+      "bytes": 2655936,
+      "url": "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/snes-super-mario-world-v0.1.1/assets/snes-super-mario-world/labels/front.png"
     }
   ]
 }

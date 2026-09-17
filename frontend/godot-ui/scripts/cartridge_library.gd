@@ -27,6 +27,7 @@ var _preferences := ConfigFile.new()
 var _reduce_motion := false
 var _low_quality := false
 var _textual_view := false
+var _fetch_collection_labels := true
 
 
 func _ready() -> void:
@@ -41,6 +42,7 @@ func _load_preferences() -> void:
         _reduce_motion = bool(_preferences.get_value("view", "reduced_motion", false))
         _low_quality = bool(_preferences.get_value("view", "low_quality", false))
         _textual_view = bool(_preferences.get_value("view", "textual_view", false))
+        _fetch_collection_labels = bool(_preferences.get_value("view", "fetch_collection_labels", true))
         _selected_system_id = str(_preferences.get_value("selection", "system", ""))
         _last_game_id = str(_preferences.get_value("selection", "game", ""))
 
@@ -216,6 +218,17 @@ func _build_settings() -> void:
         _apply_presentation()
     )
     column.add_child(text_view)
+    var collection_labels := CheckButton.new()
+    collection_labels.text = "Download approved labels"
+    collection_labels.tooltip_text = "Fetch verified per-game labels from the public cartridge collection when a matching game is shown. Only the approved package URL is requested; your library is never uploaded."
+    collection_labels.button_pressed = _fetch_collection_labels
+    collection_labels.toggled.connect(func(value: bool):
+        _fetch_collection_labels = value
+        _apply_presentation()
+        if value and not _carousel.selected_id().is_empty():
+            _carousel.refresh_artwork(_carousel.selected_id())
+    )
+    column.add_child(collection_labels)
     var diagnostics := CheckButton.new()
     diagnostics.text = "Show diagnostics"
     diagnostics.toggled.connect(func(value: bool):
@@ -230,7 +243,7 @@ func _build_settings() -> void:
     _source_label = _label("Local library", 12, MUTED_COLOR)
     _source_label.hide()
     column.add_child(_source_label)
-    var credit := _label("SNES model v0.1.0 by Lincoln Aleixo\nCC BY-NC-ND 4.0; separate from application code.\nGame artwork is not included.", 12, MUTED_COLOR)
+    var credit := _label("SNES model v0.1.0 by Lincoln Aleixo\nCC BY-NC-ND 4.0; separate from application code.\nApproved labels download on request; bundles stay art-free.", 12, MUTED_COLOR)
     credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(credit)
     column.add_child(HSeparator.new())
@@ -494,6 +507,7 @@ func _show_settings() -> void:
 
 func _apply_presentation() -> void:
     _carousel.set_presentation(_reduce_motion, _low_quality, _textual_view)
+    _carousel.set_label_fetching(_fetch_collection_labels)
     _settings_timer.start()
 
 
@@ -503,6 +517,7 @@ func _save_preferences() -> void:
     _preferences.set_value("view", "reduced_motion", _reduce_motion)
     _preferences.set_value("view", "low_quality", _low_quality)
     _preferences.set_value("view", "textual_view", _textual_view)
+    _preferences.set_value("view", "fetch_collection_labels", _fetch_collection_labels)
     _preferences.set_value("selection", "system", _selected_system_id)
     _preferences.set_value("selection", "game", _last_game_id)
     var temporary := settings_path + ".tmp"
