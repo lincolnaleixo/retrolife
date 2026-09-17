@@ -131,6 +131,8 @@ func set_games(entries: Array, preferred_id := "") -> void:
         selected_index = int(_indices[old_id])
     else:
         selected_index = clampi(selected_index, 0, games.size() - 1) if not games.is_empty() else -1
+    if selected_id() != old_id:
+        _reset_inspection()
     _layout(false, true)
     _emit_selection()
 
@@ -326,6 +328,11 @@ func _gui_input(event: InputEvent) -> void:
         _zoom_by((event.factor - 1.0) * 1.2)
         accept_event()
     elif event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+        # Shift is the inspection modifier; a shifted key also matches this
+        # plain action, so browsing must ignore it here.
+        if event is InputEventKey and (event as InputEventKey).shift_pressed:
+            accept_event()
+            return
         var direction := -1 if event.is_action_pressed("ui_left") else 1
         navigate(direction)
         _held_direction = direction
@@ -345,7 +352,8 @@ func _process(delta: float) -> void:
     if not has_focus():
         _held_direction = 0
         return
-    var direction := int(Input.is_action_pressed("ui_right")) - int(Input.is_action_pressed("ui_left"))
+    var shift_held := Input.is_key_pressed(KEY_SHIFT)
+    var direction := 0 if shift_held else int(Input.is_action_pressed("ui_right")) - int(Input.is_action_pressed("ui_left"))
     if direction == 0:
         _held_direction = 0
         return

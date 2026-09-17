@@ -313,6 +313,30 @@ func _exercise_inspection(shell: Control, carousel: Control, errors: Array[Strin
     _check(absf(float(carousel.get("_inspect_target_pitch"))) < 0.001, "R must reset the inspection pitch", errors)
     _check(is_equal_approx(float(carousel.get("_inspect_target_zoom")), 1.0), "R must reset the inspection zoom", errors)
 
+    var shift_right := InputEventKey.new()
+    shift_right.keycode = KEY_RIGHT
+    shift_right.shift_pressed = true
+    shift_right.pressed = true
+    Input.parse_input_event(shift_right)
+    var rotated := false
+    for _frame in range(240):
+        await process_frame
+        if absf(float(carousel.get("_inspect_target_yaw"))) > 0.001:
+            rotated = true
+            break
+    _check(carousel.selected_index == 100, "Shifted arrows must not browse the library", errors)
+    _check(rotated, "Shifted arrows must rotate the cartridge", errors)
+    shift_right = InputEventKey.new()
+    shift_right.keycode = KEY_RIGHT
+    shift_right.shift_pressed = true
+    shift_right.pressed = false
+    Input.parse_input_event(shift_right)
+    await process_frame
+    var stopped_yaw := float(carousel.get("_inspect_target_yaw"))
+    for _frame in range(60):
+        await process_frame
+    _check(is_equal_approx(float(carousel.get("_inspect_target_yaw")), stopped_yaw), "Releasing the shifted arrow must stop rotation", errors)
+
     for _step in range(40):
         var zoom_in := InputEventMouseButton.new()
         zoom_in.button_index = MOUSE_BUTTON_WHEEL_UP
