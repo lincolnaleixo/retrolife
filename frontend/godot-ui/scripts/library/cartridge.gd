@@ -131,8 +131,8 @@ func inspection_state() -> Vector3:
 
 func _apply_visual() -> void:
     _visual.rotation = Vector3(
-        _inspect_pitch - _pointer.y * 0.022,
-        _inspect_yaw + _pointer.x * 0.035,
+        _inspect_pitch - _pointer.y * 0.035,
+        _inspect_yaw + _pointer.x * 0.055,
         0.0
     )
     _visual.scale = Vector3.ONE * _inspect_zoom
