@@ -1,6 +1,6 @@
 # Contributing
 
-Read [rules.md](rules.md) and [plan.md](plan.md). Use a focused branch and conventional commit messages. Link bounded work to the current milestone and include a changelog entry in every change.
+Read [rules.md](rules.md) and [plan.md](plan.md). Agents executing the roadmap start with the [executor guide](docs/executor-guide.md). Use a focused branch and conventional commit messages. Link bounded work to the current milestone and include a changelog entry in every change.
 
 Run `scripts/check.sh` before opening a pull request. Report platform-specific checks separately; Linux smoke tests do not prove a macOS release works. Never include game files, saves, credentials, or private deployment details in reports or test fixtures.
 
