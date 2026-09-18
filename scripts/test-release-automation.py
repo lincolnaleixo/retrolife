@@ -160,6 +160,20 @@ class Assets(unittest.TestCase):
             self.assertEqual(client.call_count, 2)
             self.assertIn("draft=true", client.call_args.args)
 
+    def test_publish_uploads_delta_assets_too(self):
+        delta = "RetroLife-macos-arm64-from-0.1.0b9.delta"
+        with patch.dict(os.environ, ENV), \
+            patch.object(release, "all_releases", return_value=[]), \
+            patch.object(release, "audit_assets"), \
+            patch.object(release, "delta_assets", return_value=(delta,)), \
+            patch.object(release, "verify_remote"), \
+            patch.object(release, "gh", side_effect=[{}, {"id": 55}, {"assets": []}, {}]), \
+            patch.object(release.subprocess, "run") as upload:
+            upload.return_value.returncode = 0
+            release.publish(self.directory, "0.1.0-beta.3")
+            arguments = upload.call_args.args[0]
+            self.assertIn(str(self.directory / delta), arguments)
+
 
 class WorkflowBoundary(unittest.TestCase):
     def test_pinned_actions_and_exact_main_only_release(self):

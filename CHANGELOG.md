@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 ## Unreleased
 
 ### Added
+- Optional Sparkle binary delta updates: the release workflow hands the previous signed archive to the protected host helper, which builds and verifies a format-4 delta, signs it with the same Ed25519 key as the ZIP, records it in the update metadata and SHA256SUMS, and the feed exposes it under `<sparkle:deltas>`; clients fall back to the full archive whenever a delta is missing or does not apply. Activation needs a one-time helper install on the signing Mac.
 - Download approved per-game labels on request: when a matching game has no verified artwork, the library requests only that pinned package URL from the cartridge collection, verifies the SHA-256 against the committed index before installing it atomically into the user cache, and repaints the cartridge. The "Download approved labels" setting disables fetching, matching stays local, verified files are never silently replaced, and an unreachable collection falls back to the neutral label.
 - Executor guide covering environment prerequisites, hard guardrails, the standard change/pull-request/release loop, verification commands, the owner-only acceptance gates and a recommended first task order; records the two long-lived branch policy in `rules.md`.
 - Automatic main-branch macOS beta pipeline with credential-free native builds, separate protected signing/notarization, immutable GitHub releases, full source/notices/checksums and explicit public update-feed publication.

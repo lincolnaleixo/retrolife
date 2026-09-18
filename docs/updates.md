@@ -10,6 +10,10 @@ The Rust emulation boundary acquires a native update barrier before starting a g
 
 Only the application bundle is replaced. The managed library, labels, preferences and saves remain in their existing user-data directories. Sparkle performs download, EdDSA verification, safe installation and relaunch. RetroLife does not implement shell-based app replacement or launch a downloaded executable itself.
 
+## Delta updates
+
+When the running build matches the newest older published release, RetroLife downloads the signed Sparkle binary delta (`RetroLife-macos-arm64-from-<build>.delta`) instead of the full ZIP, so only the changed bytes are transferred. Each delta is built between two consecutive signed apps with Sparkle's `BinaryDelta` format 4, verified by applying it before publication, and signed with the same Ed25519 key as the full archive; the feed lists it under `<sparkle:deltas>` with its `sparkle:deltaFrom` build. When no delta exists for the running build, or the patch does not apply cleanly, Sparkle falls back to the full signed ZIP automatically.
+
 Development, headless and Linux builds explicitly report that self-update is unavailable. An app running from a read-only disk image or App Translocation asks the user to move it to Applications. An unavailable updater never blocks ordinary development gameplay. A failed update keeps the existing application; the dialog provides retry/cancel rather than claiming a successful update.
 
 ## Trust and release identity
