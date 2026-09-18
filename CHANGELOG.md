@@ -59,6 +59,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Apply label-proportioned artwork directly to the label surface at up to 2048 pixels with mipmapped anisotropic filtering instead of resampling it through the 1024 compositor, so the folded top stays crisp at grazing angles; shaped artwork and the neutral label keep the composed painter.
 - Soften the cartridge shell's specular response with runtime material copies so the sharp molded seam no longer draws a bright highlight line under the showcase lights; the released GLB stays untouched, and the smoke pins the softened response.
 - Correct the inspection drag direction: dragging right now turns the front to the right and dragging down tilts it down, as the pointer does, and the smoke pins the expected direction.
 - Keep the label index working in exported applications: load the full label entry so the download address survives indexing, ship the committed index in both export presets, and pin that coverage in the style tests.

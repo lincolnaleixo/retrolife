@@ -16,6 +16,7 @@ var _label_surface: MeshInstance3D
 var _rear_surface: MeshInstance3D
 var _label_viewport: SubViewport
 var _label_canvas: Node2D
+var _painter_material: StandardMaterial3D
 var _movement: Tween
 var _selected := false
 var _motion_enabled := true
@@ -62,14 +63,14 @@ func _ready() -> void:
     add_child(_label_viewport)
     _label_canvas = LabelPainter.new()
     _label_viewport.add_child(_label_canvas)
-    var material := StandardMaterial3D.new()
-    material.albedo_texture = _label_viewport.get_texture()
-    material.roughness = 0.82
-    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _painter_material = StandardMaterial3D.new()
+    _painter_material.albedo_texture = _label_viewport.get_texture()
+    _painter_material.roughness = 0.82
+    _painter_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+    _painter_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     # Runtime-only material override retains the released mesh, UVs and folded top.
     # The source GLB on disk is never rewritten or re-exported with game artwork.
-    _label_surface.material_override = material
+    _label_surface.material_override = _painter_material
     var anchor := Marker3D.new()
     anchor.name = "CameraAnchor"
     anchor.position = Vector3(0, 0, 0.25)
@@ -80,14 +81,28 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
     game_id = str(game.get("id", ""))
     library_index = index
     var tone: Color = PALETTE[posmod(game_id.hash(), PALETTE.size())]
-    _label_canvas.call("configure", game, index, tone, artwork)
-    _label_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
     _artwork_present = artwork != null
+    if artwork != null and _label_proportioned(artwork):
+        # Label-shaped artwork is applied straight to the mesh: the source
+        # resolution survives and mipmapped anisotropic sampling keeps the
+        # folded top crisp instead of resampling through the 1024 canvas.
+        _label_surface.material_override = _surface_material(artwork)
+    else:
+        _label_canvas.call("configure", game, index, tone, artwork)
+        _label_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+        _label_surface.material_override = _painter_material
     if _rear_surface != null:
         if rear_artwork != null:
             _rear_surface.material_override = _surface_material(rear_artwork)
         else:
             _rear_surface.material_override = null
+
+
+static func _label_proportioned(texture: Texture2D) -> bool:
+    var size := texture.get_size()
+    if size.y <= 0.0:
+        return false
+    return absf(size.x / size.y - 2.0) <= 0.16
 
 
 static func _soften_shell_materials(node: Node) -> void:
@@ -114,7 +129,7 @@ static func _surface_material(texture: Texture2D) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_texture = texture
     material.roughness = 0.82
-    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
 
