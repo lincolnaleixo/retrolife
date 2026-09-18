@@ -102,6 +102,7 @@ func _build_shell() -> void:
     _carousel.game_activated.connect(_open_details)
     column.add_child(_carousel)
     _carousel.set_presentation(_reduce_motion, _low_quality, _textual_view)
+    _carousel.set_label_fetching(_fetch_collection_labels)
     _empty_label = _label("Import an .sfc or .smc file to start your collection.", 16, MUTED_COLOR)
     _empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

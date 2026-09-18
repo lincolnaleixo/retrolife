@@ -60,6 +60,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Keep the contact-shadow plane below the transformed cartridge bounds during idle, hover, rotation and zoom, eliminating the dark stripe across the lower shell. Clamp label textures at the folded UV border to prevent opposite-edge bleeding.
+- Clear pointer tilt when leaving the stage, cancel interrupted pointer gestures when an overlay opens or the window loses focus, and apply the saved label-download preference at library startup.
+- Extend cartridge regressions with extreme inspection bounds and hover interruption checks, and rendered evidence with folded-top, underside and rear views.
 - Accept signed binary deltas in the updater's download allowlist (the previous check rejected every delta with a misleading error) and gate delta creation and feed advertising on `minimumDeltaSource`, so builds that predate the fix keep receiving the full archive instead of a rejected delta.
 - Soften the label and rear materials' specular response too, after isolating a bright line across the lower shell to the label mesh's lit edge: the same treatment already applied to the shell now covers every cartridge material, so the seam and the folded-top corner read as matte plastic instead of a glowing crack or a floating plate.
 - Apply label-proportioned artwork directly to the label surface at up to 2048 pixels with mipmapped anisotropic filtering instead of resampling it through the 1024 compositor, so the folded top stays crisp at grazing angles; shaped artwork and the neutral label keep the composed painter.

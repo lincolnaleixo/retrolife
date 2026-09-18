@@ -43,13 +43,24 @@ func _capture() -> void:
     catalog.entries = catalog.entries.slice(0, 1)
     await shell._refresh_library()
     await _save_frame(path.get_basename() + "-single.png")
+    carousel.set_presentation(true, false, false)
+    carousel.set("_inspect_target_pitch", 0.5)
+    await _save_frame(path.get_basename() + "-folded-top.png")
+    carousel.set("_inspect_target_pitch", -PI / 3.0)
+    carousel.set("_inspect_target_zoom", 1.6)
+    await _save_frame(path.get_basename() + "-inspection.png")
+    carousel.set("_inspect_target_pitch", 0.0)
+    carousel.set("_inspect_target_yaw", PI)
+    carousel.set("_inspect_target_zoom", 1.0)
+    await _save_frame(path.get_basename() + "-rear.png")
+    carousel._reset_inspection()
     catalog.entries.clear()
     await shell._refresh_library()
     await _save_frame(path.get_basename() + "-empty.png")
     shell.queue_free()
     await process_frame
     if _capture_errors.is_empty():
-        print("Cartridge library rendered captures saved: default, narrow, wide, text, low-power, single and empty")
+        print("Cartridge library rendered captures saved: default, narrow, wide, text, low-power, single, folded top, inspection, rear and empty")
         quit(0)
     else:
         for error in _capture_errors:

@@ -37,6 +37,7 @@ var _container: SubViewportContainer
 var _viewport: SubViewport
 var _world: Node3D
 var _camera: Camera3D
+var _shadow: MeshInstance3D
 var _fallback: VBoxContainer
 var _fallback_buttons: Array[Button] = []
 var _active := true
@@ -126,6 +127,8 @@ func _ready() -> void:
     resized.connect(_resize_view)
     focus_entered.connect(queue_redraw)
     focus_exited.connect(queue_redraw)
+    mouse_exited.connect(_clear_pointer)
+    get_window().focus_exited.connect(_cancel_pointer_interaction)
     _resize_view()
     _layout(false)
 
@@ -195,8 +198,20 @@ func set_active(active: bool) -> void:
     _repeat_remaining = REPEAT_DELAY
     _viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if active and not textual_view else SubViewport.UPDATE_DISABLED
     if not active:
-        for item in _pool:
-            item.call("set_pointer", Vector2.ZERO)
+        _cancel_pointer_interaction()
+
+
+func _clear_pointer() -> void:
+    for item in _pool:
+        item.call("set_pointer", Vector2.ZERO)
+
+
+func _cancel_pointer_interaction() -> void:
+    _dragging = false
+    _inspecting = false
+    _drag_distance = 0.0
+    _pan_distance = 0.0
+    _clear_pointer()
 
 
 func refresh_artwork(game_id: String) -> void:
@@ -309,6 +324,7 @@ func _emit_selection() -> void:
 func _layout(animate: bool, refresh := false) -> void:
     if _world == null or _fallback == null:
         return
+    _shadow.visible = not textual_view and not games.is_empty()
     _container.visible = not textual_view
     _fallback.visible = textual_view
     _viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if _active and not textual_view else SubViewport.UPDATE_DISABLED
@@ -449,6 +465,7 @@ func _process(delta: float) -> void:
         return
     _idle_time += delta
     _step_inspection(delta)
+    _update_contact_shadow()
     if not has_focus():
         _held_direction = 0
         return
@@ -588,12 +605,26 @@ func _build_shadow() -> void:
     material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     var mesh := QuadMesh.new()
     mesh.size = Vector2(7, 2.5)
-    var shadow := MeshInstance3D.new()
-    shadow.mesh = mesh
-    shadow.material_override = material
-    shadow.rotation.x = -PI / 2.0
-    shadow.position = Vector3(0, -1.18, 0.2)
-    _world.add_child(shadow)
+    _shadow = MeshInstance3D.new()
+    _shadow.name = "ContactShadow"
+    _shadow.mesh = mesh
+    _shadow.material_override = material
+    _shadow.rotation.x = -PI / 2.0
+    _shadow.position = Vector3(0, -1.5, 0.2)
+    _world.add_child(_shadow)
+
+
+func _update_contact_shadow() -> void:
+    if _shadow == null or not _shadow.visible:
+        return
+    var floor_y := -1.5
+    for item in _pool:
+        if item.visible:
+            var bounds: AABB = item.call("world_bounds")
+            floor_y = minf(floor_y, bounds.position.y - 0.12)
+    # A transparent quad still draws over geometry it intersects. Keep the
+    # entire floor below every visible shell, including inspection and zoom.
+    _shadow.position.y = floor_y
 
 
 func _draw() -> void:

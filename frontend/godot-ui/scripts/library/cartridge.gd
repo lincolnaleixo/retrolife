@@ -12,6 +12,7 @@ var uses_fallback := true
 var game_id := ""
 var library_index := -1
 var _visual: Node3D
+var _visual_bounds := AABB()
 var _label_surface: MeshInstance3D
 var _rear_surface: MeshInstance3D
 var _rear_default_material: Material
@@ -57,6 +58,10 @@ func _ready() -> void:
         _label_surface.mesh = plane
         _label_surface.position = Vector3(0.0, 0.57, 0.28)
         _visual.add_child(_label_surface)
+    # Cache local bounds once; inspection only transforms this box.
+    for mesh in _visual.find_children("*", "MeshInstance3D", true, false):
+        var relative := _visual.global_transform.affine_inverse() * (mesh as MeshInstance3D).global_transform
+        _visual_bounds = _visual_bounds.merge(relative * (mesh as MeshInstance3D).get_aabb())
     _label_viewport = SubViewport.new()
     _label_viewport.name = "LocalLabel"
     _label_viewport.size = Vector2i(1024, 512)
@@ -71,6 +76,7 @@ func _ready() -> void:
     _painter_material.roughness = 0.82
     _painter_material.metallic_specular = 0.1
     _painter_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+    _painter_material.texture_repeat = false
     _painter_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     # Runtime-only material override retains the released mesh, UVs and folded top.
     # The source GLB on disk is never rewritten or re-exported with game artwork.
@@ -137,6 +143,9 @@ static func _surface_material(texture: Texture2D) -> StandardMaterial3D:
     material.roughness = 0.82
     material.metallic_specular = 0.1
     material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+    # The folded label reaches the UV border; wrapping bleeds the opposite
+    # edge into it under anisotropic filtering.
+    material.texture_repeat = false
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
 
@@ -183,6 +192,10 @@ func set_inspection(yaw: float, pitch: float, zoom: float, float_offset: float) 
     _inspect_zoom = zoom
     _visual.position.y = float_offset
     _apply_visual()
+
+
+func world_bounds() -> AABB:
+    return _visual.global_transform * _visual_bounds
 
 
 func inspection_state() -> Vector3:
