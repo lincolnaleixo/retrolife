@@ -30,6 +30,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Reproducible core build, publication audit, and macOS release tooling.
 
 ### Changed
+- Recorded optional Sparkle binary delta updates as a v0.9 deliverable after the owner asked why in-app updates download the full signed archive.
 - Paint the approved rear print too: the collection label pipeline carries front and rear exports, verifies both checksums against the committed index, and applies the rear artwork to the rear printed-information surface; without a rear export that surface keeps its unprinted finish.
 - Make the cartridge feel livelier on owner feedback: stronger idle yaw, pitch and float amplitudes with a slightly quicker rhythm, more responsive drag rotation and a stronger pointer parallax; reduced motion and the bounded inspection limits are unchanged.
 - Give the selected cartridge a visible idle sway and float, free drag inspection (360° yaw, bounded pitch) with damped follow, wheel/pinch and keyboard/trigger zoom with limits, and an `R`/right-stick-click reset. Wheel scrolling now zooms inspection instead of browsing, and reduced motion stops the idle movement while keeping manual inspection.
@@ -58,6 +59,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Soften the cartridge shell's specular response with runtime material copies so the sharp molded seam no longer draws a bright highlight line under the showcase lights; the released GLB stays untouched, and the smoke pins the softened response.
 - Correct the inspection drag direction: dragging right now turns the front to the right and dragging down tilts it down, as the pointer does, and the smoke pins the expected direction.
 - Keep the label index working in exported applications: load the full label entry so the download address survives indexing, ship the committed index in both export presets, and pin that coverage in the style tests.
 - Give the release publish job a 60-minute upload budget: slow runner transfers to GitHub Releases were exceeding the previous 15-minute limit, cancelling the job mid-upload and leaving an incomplete draft for the next queued source to supersede.

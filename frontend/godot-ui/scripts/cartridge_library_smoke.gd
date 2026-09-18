@@ -120,6 +120,12 @@ func _run() -> void:
     if ResourceLoader.exists(Cartridge.MODEL_PATH):
         _check(not imported.uses_fallback, "The staged GLB must actually instantiate", errors)
         _check(imported.get("_rear_surface") != null, "The staged GLB must expose the rear print surface", errors)
+        var shell_softened := false
+        var visual: Node3D = imported.get("_visual")
+        if visual != null:
+            for child in visual.get_children():
+                shell_softened = shell_softened or _has_soft_material(child)
+        _check(shell_softened, "Shell materials must render with the softened specular response", errors)
         var probe := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
         imported.bind_game({"id": "rear-probe", "title": "Rear Probe", "systemId": "snes"}, 0, null, probe)
         _check((imported.get("_rear_surface") as MeshInstance3D).material_override != null, "Rear artwork must override the rear surface material", errors)
@@ -189,6 +195,19 @@ func _exercise_artwork(errors: Array[String]) -> void:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(directory))
     await process_frame
+
+
+func _has_soft_material(node: Node) -> bool:
+    if node is MeshInstance3D:
+        var mesh := node as MeshInstance3D
+        for surface in range(mesh.get_surface_override_material_count()):
+            var material := mesh.get_active_material(surface)
+            if material is StandardMaterial3D and (material as StandardMaterial3D).metallic_specular < 0.2:
+                return true
+    for child in node.get_children():
+        if _has_soft_material(child):
+            return true
+    return false
 
 
 func _settle(shell: Control) -> void:
