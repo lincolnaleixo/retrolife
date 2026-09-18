@@ -236,7 +236,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 6. v0.6.0: accurate game identity, metadata and labels
 
-**Status:** in progress. The pinned fetch pipeline is implemented: local title matching against the committed index, user-initiated downloads from the collection's release tag, SHA-256 verification before atomic caching in the user directory, a settings switch that can disable fetching, and the neutral fallback. Catalog-driven resolution, collection curation and owner visual review remain open.
+**Status:** in progress. The pinned fetch pipeline is implemented: local title matching against the committed index, user-initiated downloads of the front and rear exports from the collection's release tag, SHA-256 verification before atomic caching in the user directory, a settings switch that can disable fetching, and the neutral fallback. Catalog-driven resolution, collection curation and owner visual review remain open.
 
 **Deliverables**
 

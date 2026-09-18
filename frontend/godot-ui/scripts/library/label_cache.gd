@@ -11,6 +11,8 @@ const COLLECTION_CACHE := "user://collection-labels"
 
 var _textures: Dictionary = {}
 var _order: Array[String] = []
+var _rear_textures: Dictionary = {}
+var _rear_order: Array[String] = []
 var _collection: Dictionary = {}
 var _collection_loaded := false
 
@@ -55,7 +57,7 @@ func texture_for(game_id: String, title := "") -> Texture2D:
             image.generate_mipmaps()
             texture = ImageTexture.create_from_image(image)
     if texture == null and not title.is_empty():
-        texture = _collection_texture(title)
+        texture = _collection_texture(title, "front")
     _textures[game_id] = texture
     _order.append(game_id)
     while _order.size() > MAX_ENTRIES:
@@ -63,14 +65,31 @@ func texture_for(game_id: String, title := "") -> Texture2D:
     return texture
 
 
-## Staged collection labels ship inside the build; matching runs locally on
-## the game title and never consults the network.
-func _collection_texture(title: String) -> Texture2D:
+## The verified rear print for the same resolved label, when one exists.
+## Rear entries keep their own bounded cache so the front budget is intact.
+func rear_texture_for(game_id: String, title: String) -> Texture2D:
+    if title.is_empty():
+        return null
+    if _rear_textures.has(game_id):
+        _rear_order.erase(game_id)
+        _rear_order.append(game_id)
+        return _rear_textures[game_id] as Texture2D
+    var texture := _collection_texture(title, "rear")
+    _rear_textures[game_id] = texture
+    _rear_order.append(game_id)
+    while _rear_order.size() > MAX_ENTRIES:
+        _rear_textures.erase(_rear_order.pop_front())
+    return texture
+
+
+## Collection labels ship inside the build (front and rear exports); matching
+## runs locally on the game title and never consults the network.
+func _collection_texture(title: String, side: String) -> Texture2D:
     _load_collection()
     for label_title in _collection:
         if not titles_match(title, str(label_title)):
             continue
-        var full := _verified_collection_path(_collection[label_title])
+        var full := _verified_side_path(_collection[label_title], side)
         if full.is_empty():
             return null
         var image := Image.new()
@@ -82,17 +101,23 @@ func _collection_texture(title: String) -> Texture2D:
     return null
 
 
-## The path of a verified label file: a build-staged export for owner
-## validation, or the user-cache copy of a fetched package. A file whose
-## SHA-256 does not match the committed index is never used.
-func _verified_collection_path(entry: Dictionary) -> String:
-    var expected := str(entry.get("sha256", ""))
+## The path of a verified label file for one side: a build-staged export for
+## owner validation, or the user-cache copy of a fetched package. A file
+## whose SHA-256 does not match the committed index is never used.
+func _verified_side_path(entry: Dictionary, side: String) -> String:
+    if not (entry.get(side) is Dictionary):
+        return ""
+    var meta: Dictionary = entry[side]
+    var expected := str(meta.get("sha256", ""))
     if expected.is_empty():
         return ""
-    var candidates: Array[String] = [str(entry.get("front", ""))]
+    var candidates: Array[String] = [str(meta.get("path", ""))]
     var asset_id := str(entry.get("assetId", ""))
     if not asset_id.is_empty():
-        candidates.append(collection_cache_path(asset_id))
+        candidates.append(collection_cache_path(asset_id, side))
+        if side == "front":
+            # Labels fetched before the two-sided cache used <asset_id>.png.
+            candidates.append(COLLECTION_CACHE.path_join(asset_id + ".png"))
     for candidate in candidates:
         if candidate.is_empty() or not FileAccess.file_exists(candidate):
             continue
@@ -101,28 +126,37 @@ func _verified_collection_path(entry: Dictionary) -> String:
     return ""
 
 
-static func collection_cache_path(asset_id: String) -> String:
-    return COLLECTION_CACHE.path_join(asset_id + ".png")
+static func collection_cache_path(asset_id: String, side: String) -> String:
+    return COLLECTION_CACHE.path_join(asset_id + "-" + side + ".png")
 
 
-## Fetch metadata for a matched label that has no verified file yet; the
-## caller decides whether to download it. Empty when nothing needs fetching.
+func side_verified(title: String, side: String) -> bool:
+    _load_collection()
+    for label_title in _collection:
+        if titles_match(title, str(label_title)):
+            return not _verified_side_path(_collection[label_title], side).is_empty()
+    return false
+
+
+## Fetch metadata for a matched label whose front or rear file is not
+## verified yet; the caller decides whether to download it.
 func pending_fetch(title: String) -> Dictionary:
     _load_collection()
     for label_title in _collection:
         if not titles_match(title, str(label_title)):
             continue
-        if not _verified_collection_path(_collection[label_title]).is_empty():
+        var entry: Dictionary = _collection[label_title]
+        if _verified_side_path(entry, "front") != "" and _verified_side_path(entry, "rear") != "":
             return {}
-        return _collection[label_title]
+        return entry
     return {}
 
 
 ## Verify a downloaded package against its approved checksum and install it
 ## atomically in the user cache. Never call this with unverified bytes as
 ## final: a mismatch installs nothing.
-static func install_downloaded_label(asset_id: String, bytes: PackedByteArray, expected_sha256: String) -> String:
-    if asset_id.is_empty() or expected_sha256.is_empty() or bytes.is_empty():
+static func install_downloaded_label(asset_id: String, side: String, bytes: PackedByteArray, expected_sha256: String) -> String:
+    if asset_id.is_empty() or side.is_empty() or expected_sha256.is_empty() or bytes.is_empty():
         return "The downloaded label metadata is incomplete."
     var context := HashingContext.new()
     context.start(HashingContext.HASH_SHA256)
@@ -131,7 +165,7 @@ static func install_downloaded_label(asset_id: String, bytes: PackedByteArray, e
         return "The downloaded label did not match its approved checksum."
     if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(COLLECTION_CACHE)) != OK:
         return "The label cache could not be created."
-    var destination := collection_cache_path(asset_id)
+    var destination := collection_cache_path(asset_id, side)
     var temporary := destination + ".tmp"
     var file := FileAccess.open(temporary, FileAccess.WRITE)
     if file == null:
@@ -245,11 +279,15 @@ func import_artwork(game_id: String, source: String) -> String:
 func invalidate(game_id: String) -> void:
     _textures.erase(game_id)
     _order.erase(game_id)
+    _rear_textures.erase(game_id)
+    _rear_order.erase(game_id)
 
 
 func invalidate_all() -> void:
     _textures.clear()
     _order.clear()
+    _rear_textures.clear()
+    _rear_order.clear()
 
 
 func entry_count() -> int:

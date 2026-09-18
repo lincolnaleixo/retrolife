@@ -58,6 +58,8 @@ var _idle_time := 0.0
 var _http: HTTPRequest
 var _label_requests: Dictionary = {}
 var _active_label_asset := ""
+var _active_label_side := ""
+var _active_label_sha := ""
 
 
 func _ready() -> void:
@@ -221,17 +223,24 @@ func set_label_fetching(enabled: bool) -> void:
 func _queue_label_fetch(game_id: String, title: String) -> void:
     if title.is_empty() or not label_fetch_enabled:
         return
-    var pending := labels.pending_fetch(title)
-    if pending.is_empty():
+    var entry := labels.pending_fetch(title)
+    if entry.is_empty():
         return
-    var asset_id := str(pending.get("assetId", ""))
-    var url := str(pending.get("url", ""))
-    var sha256 := str(pending.get("sha256", ""))
-    if asset_id.is_empty() or url.is_empty() or sha256.is_empty():
+    var asset_id := str(entry.get("assetId", ""))
+    if asset_id.is_empty() or _label_requests.has(asset_id) or _active_label_asset == asset_id:
         return
-    if _label_requests.has(asset_id) or _active_label_asset == asset_id:
+    var sides: Array = []
+    for side in ["front", "rear"]:
+        if not (entry.get(side) is Dictionary):
+            continue
+        var meta: Dictionary = entry[side]
+        var url := str(meta.get("url", ""))
+        if url.is_empty() or labels.side_verified(title, side):
+            continue
+        sides.append({"side": side, "url": url, "sha256": str(meta.get("sha256", ""))})
+    if sides.is_empty():
         return
-    _label_requests[asset_id] = {"game_id": game_id, "url": url, "sha256": sha256}
+    _label_requests[asset_id] = {"game_id": game_id, "sides": sides, "installed": false}
     _start_next_label_fetch()
 
 
@@ -240,26 +249,54 @@ func _start_next_label_fetch() -> void:
         return
     var asset_id: String = _label_requests.keys()[0]
     var request: Dictionary = _label_requests[asset_id]
-    if _http.request(str(request["url"])) != OK:
-        _label_requests.erase(asset_id)
-        call_deferred("_start_next_label_fetch")
+    var sides: Array = request.get("sides", [])
+    if sides.is_empty():
+        _finish_label_fetch(asset_id, request)
         return
+    var side: Dictionary = sides[0]
     _active_label_asset = asset_id
+    _active_label_side = str(side.get("side", ""))
+    _active_label_sha = str(side.get("sha256", ""))
+    if _http.request(str(side.get("url", ""))) != OK:
+        _active_label_asset = ""
+        _active_label_side = ""
+        _active_label_sha = ""
+        sides.remove_at(0)
+        request["sides"] = sides
+        call_deferred("_start_next_label_fetch")
 
 
 func _on_label_download_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
     var asset_id := _active_label_asset
+    var side := _active_label_side
+    var sha256 := _active_label_sha
     _active_label_asset = ""
+    _active_label_side = ""
+    _active_label_sha = ""
     var request: Dictionary = _label_requests.get(asset_id, {})
+    if request.is_empty():
+        call_deferred("_start_next_label_fetch")
+        return
+    var sides: Array = request.get("sides", [])
+    if not sides.is_empty():
+        sides.remove_at(0)
+    if result == HTTPRequest.RESULT_SUCCESS and code == 200 and not side.is_empty() \
+        and labels.install_downloaded_label(asset_id, side, body, sha256).is_empty():
+        request["installed"] = true
+    if sides.is_empty():
+        _finish_label_fetch(asset_id, request)
+    else:
+        request["sides"] = sides
+        call_deferred("_start_next_label_fetch")
+
+
+func _finish_label_fetch(asset_id: String, request: Dictionary) -> void:
     _label_requests.erase(asset_id)
-    if not asset_id.is_empty() and not request.is_empty() \
-        and result == HTTPRequest.RESULT_SUCCESS and code == 200:
-        var error := labels.install_downloaded_label(asset_id, body, str(request["sha256"]))
-        if error.is_empty():
-            labels.invalidate_all()
-            var game_id := str(request.get("game_id", ""))
-            if not game_id.is_empty():
-                refresh_artwork(game_id)
+    if bool(request.get("installed", false)):
+        labels.invalidate_all()
+        var game_id := str(request.get("game_id", ""))
+        if not game_id.is_empty():
+            refresh_artwork(game_id)
     call_deferred("_start_next_label_fetch")
 
 
@@ -318,9 +355,10 @@ func _layout(animate: bool, refresh := false) -> void:
         if rebound or refresh:
             var title := str(game.get("title", ""))
             var artwork := labels.texture_for(id, title)
-            if artwork == null:
+            var rear_artwork := labels.rear_texture_for(id, title)
+            if artwork == null or rear_artwork == null:
                 _queue_label_fetch(id, title)
-            item.call("bind_game", game, index, artwork)
+            item.call("bind_game", game, index, artwork, rear_artwork)
         var distance := index - selected_index
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)
@@ -366,8 +404,8 @@ func _gui_input(event: InputEvent) -> void:
     elif event is InputEventMouseMotion:
         if _inspecting:
             _drag_distance += absf(event.relative.x) + absf(event.relative.y)
-            _inspect_target_yaw = wrapf(_inspect_target_yaw - event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
-            _inspect_target_pitch = clampf(_inspect_target_pitch - event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
+            _inspect_target_yaw = wrapf(_inspect_target_yaw + event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
+            _inspect_target_pitch = clampf(_inspect_target_pitch + event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
             accept_event()
         elif _dragging:
             _drag_distance += absf(event.relative.x)
@@ -436,9 +474,9 @@ func _step_inspection(delta: float) -> void:
             Input.get_action_strength("library_inspect_down") - Input.get_action_strength("library_inspect_up")
         )
         if rotate != Vector2.ZERO:
-            _inspect_target_yaw = wrapf(_inspect_target_yaw - rotate.x * KEY_ROTATE_SPEED * delta, -PI, PI)
+            _inspect_target_yaw = wrapf(_inspect_target_yaw + rotate.x * KEY_ROTATE_SPEED * delta, -PI, PI)
             _inspect_target_pitch = clampf(
-                _inspect_target_pitch - rotate.y * KEY_PITCH_SPEED * delta, -PITCH_LIMIT, PITCH_LIMIT
+                _inspect_target_pitch + rotate.y * KEY_PITCH_SPEED * delta, -PITCH_LIMIT, PITCH_LIMIT
             )
         var zoom := Input.get_action_strength("library_zoom_in") - Input.get_action_strength("library_zoom_out")
         if zoom != 0.0:

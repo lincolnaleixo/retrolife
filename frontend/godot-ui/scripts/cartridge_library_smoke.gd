@@ -119,6 +119,12 @@ func _run() -> void:
     root.add_child(imported)
     if ResourceLoader.exists(Cartridge.MODEL_PATH):
         _check(not imported.uses_fallback, "The staged GLB must actually instantiate", errors)
+        _check(imported.get("_rear_surface") != null, "The staged GLB must expose the rear print surface", errors)
+        var probe := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+        imported.bind_game({"id": "rear-probe", "title": "Rear Probe", "systemId": "snes"}, 0, null, probe)
+        _check((imported.get("_rear_surface") as MeshInstance3D).material_override != null, "Rear artwork must override the rear surface material", errors)
+        imported.bind_game({"id": "rear-probe", "title": "Rear Probe", "systemId": "snes"}, 0, null, null)
+        _check((imported.get("_rear_surface") as MeshInstance3D).material_override == null, "Without rear artwork the unprinted rear surface must stay untouched", errors)
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
     await _exercise_inspection(shell, carousel, errors)
@@ -173,12 +179,12 @@ func _exercise_artwork(errors: Array[String]) -> void:
     context.start(HashingContext.HASH_SHA256)
     context.update(payload)
     var digest := context.finish().hex_encode()
-    _check(not LabelCache.install_downloaded_label("smoke-label", payload, "0".repeat(64)).is_empty(), "A fetched label with the wrong checksum must be rejected", errors)
-    _check(not FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label")), "A rejected label must not be installed", errors)
-    _check(LabelCache.install_downloaded_label("smoke-label", payload, digest).is_empty(), "A verified fetched label must install", errors)
-    _check(FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label")), "The fetched label must land in the user cache", errors)
-    _check(FileAccess.get_sha256(LabelCache.collection_cache_path("smoke-label")) == digest, "The cached label must match its approved checksum", errors)
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(LabelCache.collection_cache_path("smoke-label")))
+    _check(not LabelCache.install_downloaded_label("smoke-label", "front", payload, "0".repeat(64)).is_empty(), "A fetched label with the wrong checksum must be rejected", errors)
+    _check(not FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label", "front")), "A rejected label must not be installed", errors)
+    _check(LabelCache.install_downloaded_label("smoke-label", "front", payload, digest).is_empty(), "A verified fetched label must install", errors)
+    _check(FileAccess.file_exists(LabelCache.collection_cache_path("smoke-label", "front")), "The fetched label must land in the user cache", errors)
+    _check(FileAccess.get_sha256(LabelCache.collection_cache_path("smoke-label", "front")) == digest, "The cached label must match its approved checksum", errors)
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(LabelCache.collection_cache_path("smoke-label", "front")))
     for path in [source, invalid, oversized, LabelCache.path_for(id)]:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(directory))
@@ -300,8 +306,8 @@ func _exercise_inspection(shell: Control, carousel: Control, errors: Array[Strin
     drag.relative = Vector2(48, 16)
     Input.parse_input_event(drag)
     await process_frame
-    _check(absf(float(carousel.get("_inspect_target_yaw"))) > 0.1, "Horizontal drag must rotate the cartridge", errors)
-    _check(float(carousel.get("_inspect_target_pitch")) < -0.05, "Vertical drag must pitch the cartridge", errors)
+    _check(float(carousel.get("_inspect_target_yaw")) > 0.1, "Dragging right must rotate the cartridge to the right", errors)
+    _check(float(carousel.get("_inspect_target_pitch")) > 0.05, "Dragging down must pitch the cartridge down", errors)
     var release := InputEventMouseButton.new()
     release.button_index = MOUSE_BUTTON_LEFT
     release.pressed = false
