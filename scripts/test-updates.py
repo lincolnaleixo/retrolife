@@ -89,6 +89,52 @@ class Contracts(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 release_item({**release(data), **changes}, data)
 
+    def test_delta_metadata_and_feed_enclosure(self):
+        signature = base64.b64encode(bytes(range(64))).decode()
+        delta_name = "RetroLife-macos-arm64-from-0.1.0b9.delta"
+        delta = {"asset": delta_name, "deltaFrom": "0.1.0b9", "length": 4321,
+                 "sha256": "b" * 64, "edSignature": signature}
+        data = metadata()
+        data["deltas"] = [delta]
+        validate_metadata(data)
+        good = release(data)
+        good["assets"].append({"name": delta_name, "size": delta["length"], "state": "uploaded",
+                               "browser_download_url": download_url(data["tag"], delta_name),
+                               "digest": "sha256:" + delta["sha256"]})
+        item = release_item(good, data)
+        tree = ET.fromstring(render([item]))
+        enclosures = tree.findall(".//sparkle:deltas/enclosure", {"sparkle": SPARKLE})
+        self.assertEqual(len(enclosures), 1)
+        self.assertEqual(enclosures[0].get(f"{{{SPARKLE}}}deltaFrom"), "0.1.0b9")
+        self.assertEqual(enclosures[0].get("length"), str(delta["length"]))
+        self.assertEqual(enclosures[0].get("url"), download_url(data["tag"], delta_name))
+        missing = release(data)
+        with self.assertRaises(ValueError):
+            release_item(missing, data)
+
+    def test_delta_metadata_is_strict(self):
+        signature = base64.b64encode(bytes(range(64))).decode()
+
+        def entry(name="RetroLife-macos-arm64-from-0.1.0b9.delta", delta_from="0.1.0b9", length=1, digest="b" * 64):
+            return {"asset": name, "deltaFrom": delta_from, "length": length, "sha256": digest, "edSignature": signature}
+
+        invalid = [
+            "not a list",
+            [entry(name="RetroLife-macos-arm64-from-0.1.0b9.zip")],
+            [entry(delta_from="0.1.0b8")],
+            [entry(length=0)],
+            [entry(length=True)],
+            [entry(digest="not-a-hash")],
+            [entry() | {"edSignature": ""}],
+            [entry(name="RetroLife-macos-arm64-from-0.1.0b10.delta", delta_from="0.1.0b10")],
+            [entry() for _ in range(4)],
+        ]
+        for deltas in invalid:
+            data = metadata()
+            data["deltas"] = deltas
+            with self.subTest(deltas=deltas), self.assertRaises(ValueError):
+                validate_metadata(data)
+
     def test_feed_preserves_stable_and_beta_and_escapes_html(self):
         items = [release_item(release(metadata(v)), metadata(v)) for v in ("0.1.0-beta.2", "0.1.0-beta.10", "0.1.0")]
         tree = ET.fromstring(render(items))

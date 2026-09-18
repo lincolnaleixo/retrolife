@@ -14,6 +14,8 @@ ASSET_NAME = "RetroLife-macos-arm64.zip"
 METADATA_NAME = "retrolife-update.json"
 MINIMUM_OS = "13.0"
 MAX_ARCHIVE = 1024 * 1024 * 1024
+MAX_DELTAS = 3
+DELTA_NAME = re.compile(r"RetroLife-macos-arm64-from-([0-9]+\.[0-9]+\.[0-9]+(?:[ab]|fc)[0-9]+)\.delta\Z")
 _VERSION = re.compile(r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc)\.([1-9][0-9]*))?\Z")
 
 
@@ -75,6 +77,23 @@ def validate_metadata(data: dict) -> dict:
     if not re.fullmatch(r"[0-9a-f]{64}", str(data.get("sha256", ""))):
         raise ValueError("Invalid update archive SHA-256")
     decode_key(data.get("edSignature", ""), 64)
+    deltas = data.get("deltas", [])
+    if not isinstance(deltas, list) or len(deltas) > MAX_DELTAS:
+        raise ValueError("Invalid delta update list")
+    for delta in deltas:
+        if not isinstance(delta, dict):
+            raise ValueError("Invalid delta update entry")
+        match = DELTA_NAME.fullmatch(str(delta.get("asset", "")))
+        if not match or delta.get("deltaFrom") != match.group(1):
+            raise ValueError("Invalid delta update asset")
+        if delta["deltaFrom"] == info["bundleVersion"]:
+            raise ValueError("A delta update must come from a different build")
+        delta_length = delta.get("length")
+        if type(delta_length) is not int or not 0 < delta_length <= MAX_ARCHIVE:
+            raise ValueError("Invalid delta update size")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(delta.get("sha256", ""))):
+            raise ValueError("Invalid delta update SHA-256")
+        decode_key(delta.get("edSignature", ""), 64)
     notes = data.get("notes", "")
     if not isinstance(notes, str) or len(notes) > 16000 or any(ord(c) < 32 and c not in "\n\t\r" for c in notes):
         raise ValueError("Invalid release notes")

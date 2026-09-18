@@ -38,6 +38,11 @@ PAYLOAD_FILES = (
 )
 ASSETS = (*PAYLOAD_FILES, "SHA256SUMS")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
+DELTA_ASSET = re.compile(r"RetroLife-macos-arm64-from-[0-9]+\.[0-9]+\.[0-9]+(?:[ab]|fc)[0-9]+\.delta\Z")
+
+
+def delta_assets(directory: Path) -> tuple[str, ...]:
+    return tuple(sorted(p.name for p in directory.iterdir() if DELTA_ASSET.fullmatch(p.name)))
 
 
 def next_version(base: str, tags: list[str]) -> str:
@@ -197,7 +202,8 @@ def write_manifest(directory: Path, version: str, commit: str, run_url: str) -> 
 
 
 def audit_assets(directory: Path, version: str, commit: str) -> dict:
-    expected = set(ASSETS)
+    deltas = delta_assets(directory)
+    expected = set(ASSETS) | set(deltas)
     if {p.name for p in directory.iterdir()} != expected:
         raise ValueError("Release directory must contain exactly the approved public assets")
     manifest = json.loads((directory / "release-build.json").read_text())
@@ -205,25 +211,32 @@ def audit_assets(directory: Path, version: str, commit: str) -> dict:
         raise ValueError("Release provenance does not match source/version")
     if set(manifest.get("files", {})) != set(PAYLOAD_FILES) - {"release-build.json"}:
         raise ValueError("Incomplete release manifest")
-    for name in ASSETS:
+    for name in (*ASSETS, *deltas):
         path = directory / name
         if not path.is_file() or path.is_symlink() or path.stat().st_size == 0:
             raise ValueError("Unsafe release asset: " + name)
         if name in manifest["files"] and manifest["files"][name] != {"bytes": path.stat().st_size, "sha256": sha256(path)}:
             raise ValueError("Release asset checksum changed: " + name)
-    expected_sums = "".join(f"{sha256(directory / name)}  {name}\n" for name in PAYLOAD_FILES)
+    expected_sums = "".join(f"{sha256(directory / name)}  {name}\n" for name in (*PAYLOAD_FILES, *deltas))
     if (directory / "SHA256SUMS").read_text() != expected_sums:
         raise ValueError("Release SHA256SUMS does not cover the complete payload")
     metadata = json.loads((directory / "retrolife-update.json").read_text())
     validate_metadata(metadata)
     if metadata["version"] != version or metadata["sha256"] != sha256(directory / metadata["asset"]) or metadata["length"] != (directory / metadata["asset"]).stat().st_size:
         raise ValueError("Update metadata does not match the audited payload")
+    if {entry["asset"] for entry in metadata.get("deltas", [])} != set(deltas):
+        raise ValueError("Delta update metadata does not match the audited payload")
+    for entry in metadata.get("deltas", []):
+        path = directory / entry["asset"]
+        if path.stat().st_size != entry["length"] or sha256(path) != entry["sha256"]:
+            raise ValueError("Delta update metadata does not match its file")
     return manifest
 
 
 def verify_remote(release: dict, directory: Path) -> None:
+    local = {p.name for p in directory.iterdir()}
     assets = release.get("assets", [])
-    if len(assets) != len(ASSETS) or {a["name"] for a in assets} != set(ASSETS):
+    if len(assets) != len(local) or {a["name"] for a in assets} != local:
         raise ValueError("GitHub has an incomplete or unexpected release asset set")
     for asset in assets:
         path = directory / asset["name"]

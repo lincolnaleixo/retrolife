@@ -139,6 +139,13 @@ jobs:
           artifact-ids: ${{ needs.build.outputs.artifact_id }}
           path: ${{ runner.temp }}/build-input
           merge-multiple: true
+      - name: Fetch the previous release ZIP for an optional delta
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch-previous-release.py \
+            "$RELEASE_VERSION" "$RUNNER_TEMP/previous-release" >> "$GITHUB_ENV"
       - name: Sign, notarize and verify the installed updater
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}

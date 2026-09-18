@@ -32,6 +32,19 @@ def release_item(release: dict, metadata: dict) -> dict:
     digest = asset.get("digest")
     if digest is not None and digest != "sha256:" + metadata["sha256"]:
         raise ValueError("GitHub asset digest does not match updater metadata")
+    for delta in metadata.get("deltas", []):
+        name = delta["asset"]
+        matches = [a for a in release.get("assets", []) if a.get("name") == name]
+        if len(matches) != 1:
+            raise ValueError("A delta update must have exactly one release asset")
+        entry = matches[0]
+        expected_delta = download_url(info["tag"], name)
+        if entry.get("browser_download_url") != expected_delta \
+            or entry.get("size") != delta["length"] or entry.get("state") != "uploaded":
+            raise ValueError("Delta asset URL, size or state does not match its metadata")
+        delta_digest = entry.get("digest")
+        if delta_digest is not None and delta_digest != "sha256:" + delta["sha256"]:
+            raise ValueError("Delta asset digest does not match its metadata")
     date = datetime.fromisoformat(release["published_at"].replace("Z", "+00:00"))
     if date.tzinfo is None:
         raise ValueError("Release date must include a timezone")
@@ -67,5 +80,14 @@ def render(items: list[dict]) -> bytes:
             "url": item["url"], "length": str(item["length"]), "type": "application/octet-stream",
             f"{{{SPARKLE}}}edSignature": item["edSignature"],
         })
+        if item.get("deltas"):
+            deltas_element = ET.SubElement(element, f"{{{SPARKLE}}}deltas")
+            for delta in item["deltas"]:
+                ET.SubElement(deltas_element, "enclosure", {
+                    "url": download_url(item["tag"], delta["asset"]),
+                    "length": str(delta["length"]), "type": "application/octet-stream",
+                    f"{{{SPARKLE}}}deltaFrom": delta["deltaFrom"],
+                    f"{{{SPARKLE}}}edSignature": delta["edSignature"],
+                })
     ET.indent(root)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True) + b"\n"
