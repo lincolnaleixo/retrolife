@@ -11,6 +11,8 @@ const COLLECTION_CACHE := "user://collection-labels"
 
 var _textures: Dictionary = {}
 var _order: Array[String] = []
+var _rear_textures: Dictionary = {}
+var _rear_order: Array[String] = []
 var _collection: Dictionary = {}
 var _collection_loaded := false
 
@@ -64,19 +66,19 @@ func texture_for(game_id: String, title := "") -> Texture2D:
 
 
 ## The verified rear print for the same resolved label, when one exists.
+## Rear entries keep their own bounded cache so the front budget is intact.
 func rear_texture_for(game_id: String, title: String) -> Texture2D:
     if title.is_empty():
         return null
-    var key := game_id + "#rear"
-    if _textures.has(key):
-        _order.erase(key)
-        _order.append(key)
-        return _textures[key] as Texture2D
+    if _rear_textures.has(game_id):
+        _rear_order.erase(game_id)
+        _rear_order.append(game_id)
+        return _rear_textures[game_id] as Texture2D
     var texture := _collection_texture(title, "rear")
-    _textures[key] = texture
-    _order.append(key)
-    while _order.size() > MAX_ENTRIES:
-        _textures.erase(_order.pop_front())
+    _rear_textures[game_id] = texture
+    _rear_order.append(game_id)
+    while _rear_order.size() > MAX_ENTRIES:
+        _rear_textures.erase(_rear_order.pop_front())
     return texture
 
 
@@ -113,6 +115,9 @@ func _verified_side_path(entry: Dictionary, side: String) -> String:
     var asset_id := str(entry.get("assetId", ""))
     if not asset_id.is_empty():
         candidates.append(collection_cache_path(asset_id, side))
+        if side == "front":
+            # Labels fetched before the two-sided cache used <asset_id>.png.
+            candidates.append(COLLECTION_CACHE.path_join(asset_id + ".png"))
     for candidate in candidates:
         if candidate.is_empty() or not FileAccess.file_exists(candidate):
             continue
@@ -274,11 +279,15 @@ func import_artwork(game_id: String, source: String) -> String:
 func invalidate(game_id: String) -> void:
     _textures.erase(game_id)
     _order.erase(game_id)
+    _rear_textures.erase(game_id)
+    _rear_order.erase(game_id)
 
 
 func invalidate_all() -> void:
     _textures.clear()
     _order.clear()
+    _rear_textures.clear()
+    _rear_order.clear()
 
 
 func entry_count() -> int:
