@@ -13,11 +13,12 @@ from pathlib import Path
 import sys
 import urllib.request
 
-from updates.common import ASSET_NAME, METADATA_NAME, REPOSITORY, version_info
+from updates.common import ASSET_NAME, METADATA_NAME, REPOSITORY, bundle_sort, version_info
 
 API = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=100"
 MAX_API_BYTES = 4 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+POLICY = Path(__file__).resolve().parent.parent / "assets/release-policy.json"
 
 
 def main() -> None:
@@ -48,6 +49,14 @@ def main() -> None:
         print("No older published release with an updater ZIP; publishing without a delta.", file=sys.stderr)
         return
     _, release, info = max(candidates, key=lambda entry: entry[0])
+    minimum = str(json.loads(POLICY.read_text()).get("minimumDeltaSource", ""))
+    if minimum and bundle_sort(info["bundleVersion"]) < bundle_sort(minimum):
+        print(
+            f"Previous build {info['bundleVersion']} is below the minimum delta source "
+            f"{minimum}; publishing without a delta.",
+            file=sys.stderr,
+        )
+        return
     asset = next(a for a in release["assets"] if a.get("name") == ASSET_NAME)
     url = str(asset.get("browser_download_url", ""))
     prefix = f"https://github.com/{REPOSITORY}/releases/download/{info['tag']}/"

@@ -17,6 +17,17 @@ MAX_ARCHIVE = 1024 * 1024 * 1024
 MAX_DELTAS = 3
 DELTA_NAME = re.compile(r"RetroLife-macos-arm64-from-([0-9]+\.[0-9]+\.[0-9]+(?:[ab]|fc)[0-9]+)\.delta\Z")
 _VERSION = re.compile(r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc)\.([1-9][0-9]*))?\Z")
+_BUNDLE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:(a|b|fc)(\d+))?\Z")
+
+
+def bundle_sort(value: str) -> tuple:
+    """Order CFBundleVersion values, including Apple's a/b/fc suffixes."""
+    match = _BUNDLE.fullmatch(value)
+    if not match:
+        raise ValueError("Invalid bundle version")
+    major, minor, patch = map(int, match.group(1, 2, 3))
+    stage, sequence = match.group(4, 5)
+    return (major, minor, patch, {"a": 0, "b": 1, "fc": 2, None: 3}[stage], int(sequence or 0))
 
 
 def version_info(value: str) -> dict:

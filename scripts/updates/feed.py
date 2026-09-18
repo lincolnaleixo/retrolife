@@ -6,7 +6,9 @@ from email.utils import format_datetime
 import html
 import json
 import xml.etree.ElementTree as ET
-from .common import ASSET_NAME, METADATA_NAME, REPOSITORY, validate_metadata
+from pathlib import Path
+
+from .common import ASSET_NAME, METADATA_NAME, REPOSITORY, bundle_sort, validate_metadata
 
 SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 ET.register_namespace("sparkle", SPARKLE)
@@ -14,6 +16,19 @@ ET.register_namespace("sparkle", SPARKLE)
 
 def download_url(tag: str, asset: str) -> str:
     return f"https://github.com/{REPOSITORY}/releases/download/{tag}/{asset}"
+
+
+def minimum_delta_source() -> str:
+    """Deltas from builds older than this are not advertised to clients.
+
+    Older clients reject delta items outright instead of falling back, so a
+    delta is only offered once the source build accepts its own allowlist.
+    """
+    policy = Path(__file__).resolve().parents[2] / "assets/release-policy.json"
+    try:
+        return str(json.loads(policy.read_text()).get("minimumDeltaSource", ""))
+    except (OSError, ValueError):
+        return ""
 
 
 def release_item(release: dict, metadata: dict) -> dict:
@@ -32,7 +47,10 @@ def release_item(release: dict, metadata: dict) -> dict:
     digest = asset.get("digest")
     if digest is not None and digest != "sha256:" + metadata["sha256"]:
         raise ValueError("GitHub asset digest does not match updater metadata")
-    for delta in metadata.get("deltas", []):
+    minimum = minimum_delta_source()
+    deltas = [delta for delta in metadata.get("deltas", [])
+              if not minimum or bundle_sort(delta["deltaFrom"]) >= bundle_sort(minimum)]
+    for delta in deltas:
         name = delta["asset"]
         matches = [a for a in release.get("assets", []) if a.get("name") == name]
         if len(matches) != 1:
@@ -48,7 +66,7 @@ def release_item(release: dict, metadata: dict) -> dict:
     date = datetime.fromisoformat(release["published_at"].replace("Z", "+00:00"))
     if date.tzinfo is None:
         raise ValueError("Release date must include a timezone")
-    return {**metadata, "date": format_datetime(date), "url": expected, "sort": info["sort"]}
+    return {**metadata, "deltas": deltas, "date": format_datetime(date), "url": expected, "sort": info["sort"]}
 
 
 def render(items: list[dict]) -> bytes:

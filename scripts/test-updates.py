@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
-from updates.common import ASSET_NAME, BUNDLE_ID, FEED_URL, MINIMUM_OS, decode_key, validate_metadata, version_info
+from updates.common import ASSET_NAME, BUNDLE_ID, FEED_URL, MINIMUM_OS, bundle_sort, decode_key, validate_metadata, version_info
 from updates.feed import SPARKLE, download_url, release_item, render
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,6 +59,22 @@ class Versions(unittest.TestCase):
                 version_info(value)
 
 
+class DeltaPolicy(unittest.TestCase):
+    def test_bundle_version_ordering(self):
+        ordered = ["0.1.0a1", "0.1.0b2", "0.1.0b10", "0.1.0b255", "0.1.0fc1", "0.1.0", "0.1.1b1"]
+        self.assertEqual(sorted(reversed(ordered), key=bundle_sort), ordered)
+        self.assertLess(bundle_sort("0.1.0b19"), bundle_sort("0.1.0b20"))
+        for value in ("", "0.1", "1.0.0x2", "0.1.0b0x"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                bundle_sort(value)
+
+    def test_minimum_delta_source_policy(self):
+        policy = json.loads((Path(__file__).resolve().parent.parent / "assets/release-policy.json").read_text())
+        minimum = bundle_sort(policy["minimumDeltaSource"])
+        self.assertLess(bundle_sort("0.1.0b19"), minimum)
+        self.assertGreaterEqual(bundle_sort("0.1.0b20"), minimum)
+
+
 class Contracts(unittest.TestCase):
     def test_signatures_are_strict_base64(self):
         decode_key(metadata()["edSignature"], 64)
@@ -91,10 +107,10 @@ class Contracts(unittest.TestCase):
 
     def test_delta_metadata_and_feed_enclosure(self):
         signature = base64.b64encode(bytes(range(64))).decode()
-        delta_name = "RetroLife-macos-arm64-from-0.1.0b9.delta"
-        delta = {"asset": delta_name, "deltaFrom": "0.1.0b9", "length": 4321,
+        delta_name = "RetroLife-macos-arm64-from-0.1.0b20.delta"
+        delta = {"asset": delta_name, "deltaFrom": "0.1.0b20", "length": 4321,
                  "sha256": "b" * 64, "edSignature": signature}
-        data = metadata()
+        data = metadata("0.1.0-beta.21")
         data["deltas"] = [delta]
         validate_metadata(data)
         good = release(data)
@@ -105,12 +121,21 @@ class Contracts(unittest.TestCase):
         tree = ET.fromstring(render([item]))
         enclosures = tree.findall(".//sparkle:deltas/enclosure", {"sparkle": SPARKLE})
         self.assertEqual(len(enclosures), 1)
-        self.assertEqual(enclosures[0].get(f"{{{SPARKLE}}}deltaFrom"), "0.1.0b9")
+        self.assertEqual(enclosures[0].get(f"{{{SPARKLE}}}deltaFrom"), "0.1.0b20")
         self.assertEqual(enclosures[0].get("length"), str(delta["length"]))
         self.assertEqual(enclosures[0].get("url"), download_url(data["tag"], delta_name))
         missing = release(data)
         with self.assertRaises(ValueError):
             release_item(missing, data)
+        below_policy = metadata("0.1.0-beta.19")
+        below_policy["deltas"] = [{**delta, "asset": "RetroLife-macos-arm64-from-0.1.0b18.delta",
+                                   "deltaFrom": "0.1.0b18"}]
+        older = release(below_policy)
+        older["assets"].append({**good["assets"][1], "name": below_policy["deltas"][0]["asset"],
+                                "browser_download_url": download_url(below_policy["tag"], below_policy["deltas"][0]["asset"])})
+        item_below = release_item(older, below_policy)
+        rendered = ET.fromstring(render([item_below]))
+        self.assertEqual(rendered.findall(".//sparkle:deltas/enclosure", {"sparkle": SPARKLE}), [])
 
     def test_delta_metadata_is_strict(self):
         signature = base64.b64encode(bytes(range(64))).decode()

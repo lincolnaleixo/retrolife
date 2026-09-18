@@ -60,6 +60,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Accept signed binary deltas in the updater's download allowlist (the previous check rejected every delta with a misleading error) and gate delta creation and feed advertising on `minimumDeltaSource`, so builds that predate the fix keep receiving the full archive instead of a rejected delta.
 - Soften the label and rear materials' specular response too, after isolating a bright line across the lower shell to the label mesh's lit edge: the same treatment already applied to the shell now covers every cartridge material, so the seam and the folded-top corner read as matte plastic instead of a glowing crack or a floating plate.
 - Apply label-proportioned artwork directly to the label surface at up to 2048 pixels with mipmapped anisotropic filtering instead of resampling it through the 1024 compositor, so the folded top stays crisp at grazing angles; shaped artwork and the neutral label keep the composed painter.
 - Soften the cartridge shell's specular response with runtime material copies so the sharp molded seam no longer draws a bright highlight line under the showcase lights; the released GLB stays untouched, and the smoke pins the softened response.

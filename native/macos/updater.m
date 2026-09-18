@@ -52,10 +52,15 @@ static BOOL RLAllowedDownload(NSURL *url) {
 #ifdef RETROLIFE_UPDATER_TESTING
     if ([url.scheme isEqualToString:@"http"] && [url.host isEqualToString:@"127.0.0.1"]) return YES;
 #endif
-    return [url.scheme isEqualToString:@"https"] && [url.host isEqualToString:@"github.com"] &&
-        !url.user && !url.password && !url.port && !url.query && !url.fragment &&
-        [url.path hasPrefix:@"/lincolnaleixo/retrolife/releases/download/v"] &&
-        [url.lastPathComponent isEqualToString:@"RetroLife-macos-arm64.zip"];
+    if (![url.scheme isEqualToString:@"https"] || ![url.host isEqualToString:@"github.com"] ||
+        url.user || url.password || url.port || url.query || url.fragment ||
+        ![url.path hasPrefix:@"/lincolnaleixo/retrolife/releases/download/v"]) return NO;
+    NSString *name = url.lastPathComponent;
+    if ([name isEqualToString:@"RetroLife-macos-arm64.zip"]) return YES;
+    // Sparkle selects a signed binary delta when one matches the installed
+    // build; both artifacts live in the same versioned release and carry the
+    // mandatory Ed25519 signature that Sparkle verifies.
+    return [name hasPrefix:@"RetroLife-macos-arm64-from-"] && [name hasSuffix:@".delta"];
 }
 
 @implementation RLUpdater
