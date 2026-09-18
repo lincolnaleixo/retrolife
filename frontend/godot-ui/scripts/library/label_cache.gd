@@ -5,6 +5,7 @@ const MAX_ENTRIES := 9
 const MAX_FILE_BYTES := 8 * 1024 * 1024
 const MAX_SOURCE_EDGE := 2048
 const TEXTURE_EDGE := 1024
+const COLLECTION_TEXTURE_EDGE := 2048
 const DIRECTORY := "user://artwork"
 const COLLECTION_INDEX := "res://scripts/library/collection_labels.json"
 const COLLECTION_CACHE := "user://collection-labels"
@@ -95,7 +96,7 @@ func _collection_texture(title: String, side: String) -> Texture2D:
         var image := Image.new()
         if image.load(full) != OK:
             return null
-        _fit_image(image)
+        _fit_image(image, COLLECTION_TEXTURE_EDGE)
         image.generate_mipmaps()
         return ImageTexture.create_from_image(image)
     return null
@@ -294,9 +295,9 @@ func entry_count() -> int:
     return _textures.size()
 
 
-static func _fit_image(image: Image) -> void:
+static func _fit_image(image: Image, longest_edge := TEXTURE_EDGE) -> void:
     var longest := maxi(image.get_width(), image.get_height())
-    if longest > TEXTURE_EDGE:
-        var factor := float(TEXTURE_EDGE) / float(longest)
+    if longest > longest_edge:
+        var factor := float(longest_edge) / float(longest)
         image.resize(maxi(1, roundi(image.get_width() * factor)), maxi(1, roundi(image.get_height() * factor)), Image.INTERPOLATE_LANCZOS)
     image.convert(Image.FORMAT_RGBA8)
