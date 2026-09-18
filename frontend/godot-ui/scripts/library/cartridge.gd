@@ -66,6 +66,7 @@ func _ready() -> void:
     _painter_material = StandardMaterial3D.new()
     _painter_material.albedo_texture = _label_viewport.get_texture()
     _painter_material.roughness = 0.82
+    _painter_material.metallic_specular = 0.1
     _painter_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
     _painter_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     # Runtime-only material override retains the released mesh, UVs and folded top.
@@ -129,6 +130,7 @@ static func _surface_material(texture: Texture2D) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_texture = texture
     material.roughness = 0.82
+    material.metallic_specular = 0.1
     material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     return material
