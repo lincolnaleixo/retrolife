@@ -1,5 +1,6 @@
 {
   "baseVersion": "0.1.0",
   "channel": "beta",
-  "branch": "main"
+  "branch": "main",
+  "minimumDeltaSource": "0.1.0b20"
 }
