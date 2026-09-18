@@ -14,6 +14,7 @@ var library_index := -1
 var _visual: Node3D
 var _label_surface: MeshInstance3D
 var _rear_surface: MeshInstance3D
+var _rear_default_material: Material
 var _label_viewport: SubViewport
 var _label_canvas: Node2D
 var _painter_material: StandardMaterial3D
@@ -43,6 +44,8 @@ func _ready() -> void:
             var surfaces := _find_label_surfaces(model)
             _label_surface = surfaces.get("front")
             _rear_surface = surfaces.get("rear")
+            if _rear_surface != null:
+                _rear_default_material = _rear_surface.material_override
             uses_fallback = false
     if uses_fallback:
         _build_fallback()
@@ -96,7 +99,9 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
         if rear_artwork != null:
             _rear_surface.material_override = _surface_material(rear_artwork)
         else:
-            _rear_surface.material_override = null
+            # Keep the softened unprinted material from model setup; a bare
+            # null would restore the original bright specular response.
+            _rear_surface.material_override = _rear_default_material
 
 
 static func _label_proportioned(texture: Texture2D) -> bool:
