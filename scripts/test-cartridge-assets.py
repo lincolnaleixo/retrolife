@@ -131,25 +131,24 @@ class CollectionLabelIndexTest(unittest.TestCase):
             (root / "frontend/godot-ui/scripts/library/collection_labels.json").read_text()
         )
         recorded = {
-            entry["title"]: (entry["front"].removeprefix("res://"), entry["sha256"])
-            for entry in index["labels"]
+            entry["title"]: entry for entry in index["labels"]
         }
         expected = {
-            entry["title"]: (
-                f"assets/cartridges/labels/{entry['assetId']}/{entry['front']['path'].rsplit('/', 1)[-1]}",
-                entry["front"]["sha256"],
-            )
-            for entry in lock.get("labels", [])
+            entry["title"]: entry for entry in lock.get("labels", [])
         }
-        self.assertEqual(recorded, expected)
+        self.assertEqual(set(recorded), set(expected))
         host = "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/"
-        for entry in index["labels"]:
-            source = next(item for item in lock["labels"] if item["title"] == entry["title"])
-            self.assertEqual(entry["bytes"], source["front"]["bytes"])
-            self.assertEqual(entry["url"], host + source["tag"] + "/" + source["front"]["path"])
-            self.assertNotIn("/main/", entry["url"])
-            self.assertRegex(entry["sha256"], r"^[a-f0-9]{64}$")
-            self.assertRegex(entry["front"], r"^res://assets/cartridges/labels/.+\.png$")
+        for title, entry in recorded.items():
+            source = expected[title]
+            for side in ("front", "rear"):
+                local = entry[side]
+                lock_side = source[side]
+                self.assertEqual(local["sha256"], lock_side["sha256"])
+                self.assertEqual(local["bytes"], lock_side["bytes"])
+                self.assertEqual(local["url"], host + source["tag"] + "/" + lock_side["path"])
+                self.assertNotIn("/main/", local["url"])
+                self.assertRegex(local["sha256"], r"^[a-f0-9]{64}$")
+                self.assertRegex(local["path"], rf"^res://assets/cartridges/labels/.+{side}\.png$")
 
 
 if __name__ == "__main__":

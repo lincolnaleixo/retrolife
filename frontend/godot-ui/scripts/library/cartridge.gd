@@ -13,6 +13,7 @@ var game_id := ""
 var library_index := -1
 var _visual: Node3D
 var _label_surface: MeshInstance3D
+var _rear_surface: MeshInstance3D
 var _label_viewport: SubViewport
 var _label_canvas: Node2D
 var _movement: Tween
@@ -37,7 +38,9 @@ func _ready() -> void:
             model.scale = Vector3.ONE * MODEL_SCALE
             model.position.y = -0.044 * MODEL_SCALE
             _visual.add_child(model)
-            _label_surface = _find_label(model)
+            var surfaces := _find_label_surfaces(model)
+            _label_surface = surfaces.get("front")
+            _rear_surface = surfaces.get("rear")
             uses_fallback = false
     if uses_fallback:
         _build_fallback()
@@ -72,13 +75,27 @@ func _ready() -> void:
     add_child(anchor)
 
 
-func bind_game(game: Dictionary, index: int, artwork: Texture2D) -> void:
+func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: Texture2D = null) -> void:
     game_id = str(game.get("id", ""))
     library_index = index
     var tone: Color = PALETTE[posmod(game_id.hash(), PALETTE.size())]
     _label_canvas.call("configure", game, index, tone, artwork)
     _label_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
     _artwork_present = artwork != null
+    if _rear_surface != null:
+        if rear_artwork != null:
+            _rear_surface.material_override = _surface_material(rear_artwork)
+        else:
+            _rear_surface.material_override = null
+
+
+static func _surface_material(texture: Texture2D) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_texture = texture
+    material.roughness = 0.82
+    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return material
 
 
 func place(target: Vector3, angles: Vector3, size_factor: float, selected: bool, animate: bool) -> void:
@@ -161,22 +178,29 @@ func _build_fallback() -> void:
     _box(Vector3(1.20, 0.10, 0.25), Vector3(0, -1.02, 0), Color("555660"))
 
 
-static func _find_label(node: Node) -> MeshInstance3D:
+static func _find_label_surfaces(node: Node) -> Dictionary:
     # The pinned neutral GLB and prepared per-game exports share the same
-    # continuous front-label mesh; identify it by the material family and
-    # prefer the mesh whose name marks the front, never the rear panel.
+    # continuous front-label and rear printed-information meshes; identify
+    # them by name first and the label material family second.
     var front: MeshInstance3D = null
+    var rear: MeshInstance3D = null
     var fallback: MeshInstance3D = null
     for candidate in _label_candidates(node):
         var candidate_name := str(candidate.name).to_lower()
         if "front" in candidate_name:
             if front == null:
                 front = candidate
+        elif "rear" in candidate_name:
+            if rear == null:
+                rear = candidate
         elif fallback == null:
             fallback = candidate
-    if front != null:
-        return front
-    return fallback
+    if front == null:
+        front = fallback
+        fallback = null
+    if rear == null and fallback != null:
+        rear = fallback
+    return {"front": front, "rear": rear}
 
 
 static func _label_candidates(node: Node) -> Array[MeshInstance3D]:
