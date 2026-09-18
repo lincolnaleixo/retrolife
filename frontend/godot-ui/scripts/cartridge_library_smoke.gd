@@ -135,7 +135,7 @@ func _run() -> void:
         imported.bind_game({"id": "rear-probe", "title": "Rear Probe", "systemId": "snes"}, 0, null, probe)
         _check((imported.get("_rear_surface") as MeshInstance3D).material_override != null, "Rear artwork must override the rear surface material", errors)
         imported.bind_game({"id": "rear-probe", "title": "Rear Probe", "systemId": "snes"}, 0, null, null)
-        _check((imported.get("_rear_surface") as MeshInstance3D).material_override == null, "Without rear artwork the unprinted rear surface must stay untouched", errors)
+        _check((imported.get("_rear_surface") as MeshInstance3D).material_override == imported.get("_rear_default_material"), "Without rear artwork the unprinted rear keeps its softened material", errors)
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
     await _exercise_inspection(shell, carousel, errors)
