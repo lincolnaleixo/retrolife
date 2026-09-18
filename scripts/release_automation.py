@@ -257,7 +257,9 @@ def publish(directory: Path, version: str) -> None:
                  "-f", "tag_name=" + info["tag"], "-f", "target_commitish=" + commit,
                  "-f", "name=RetroLife " + info["tag"], "-F", "draft=true", "-F", "prerelease=true",
                  "-f", "body=" + (directory / "release-notes.md").read_text())
-    result = subprocess.run(["gh", "release", "upload", info["tag"], *[str(directory / n) for n in ASSETS], "--repo", REPO], capture_output=True)
+    deltas = delta_assets(directory)
+    upload_names = (*ASSETS, *deltas)
+    result = subprocess.run(["gh", "release", "upload", info["tag"], *[str(directory / n) for n in upload_names], "--repo", REPO], capture_output=True)
     if result.returncode:
         raise RuntimeError("Asset upload failed. The release remains a draft; no update was advertised")
     # GitHub asset digests may become available shortly after upload.
