@@ -5,6 +5,16 @@
     <link>https://github.com/lincolnaleixo/retrolife/releases</link>
     <description>Signed RetroLife updates. Stable releases are the default; beta builds are optional.</description>
     <item>
+      <title>RetroLife 0.1.0-beta.20</title>
+      <pubDate>Fri, 18 Sep 2026 14:22:47 +0000</pubDate>
+      <sparkle:version>0.1.0b20</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-beta.20</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <description>&lt;p&gt;A signed RetroLife update. See GitHub Releases for the complete changelog.&lt;/p&gt;</description>
+      <enclosure url="https://github.com/lincolnaleixo/retrolife/releases/download/v0.1.0-beta.20/RetroLife-macos-arm64.zip" length="55492340" type="application/octet-stream" sparkle:edSignature="btPO65ReN8R8dkMofC/pRLVfGigGincC8gP/81/66QIhLw4SmDd3eIHTCExU6iWE48NQr1q5Y+Pz/1YKTmruBA==" />
+    </item>
+    <item>
       <title>RetroLife 0.1.0-beta.19</title>
       <pubDate>Fri, 18 Sep 2026 13:30:21 +0000</pubDate>
       <sparkle:version>0.1.0b19</sparkle:version>
