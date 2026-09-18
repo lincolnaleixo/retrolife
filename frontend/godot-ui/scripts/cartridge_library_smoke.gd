@@ -139,6 +139,7 @@ func _run() -> void:
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
     await _exercise_inspection(shell, carousel, errors)
+    _exercise_surface_and_hover(carousel, errors)
     await _exercise_compact_layout(shell, errors)
     _exercise_preferences(shell, errors)
     await _exercise_artwork(errors)
@@ -405,6 +406,48 @@ func _exercise_inspection(shell: Control, carousel: Control, errors: Array[Strin
     cleanup.pressed = false
     Input.parse_input_event(cleanup)
     await process_frame
+
+
+func _exercise_surface_and_hover(carousel: Control, errors: Array[String]) -> void:
+    carousel.set_presentation(true, false, false)
+    for pitch in [-PI / 3.0, 0.0, PI / 3.0]:
+        for yaw in [0.0, PI / 2.0, PI]:
+            carousel.set("_inspect_target_pitch", pitch)
+            carousel.set("_inspect_target_yaw", yaw)
+            carousel.set("_inspect_target_zoom", 1.6)
+            carousel._step_inspection(0.0)
+            carousel._update_contact_shadow()
+            var shadow: MeshInstance3D = carousel.get("_shadow")
+            for item in carousel.get("_pool"):
+                if not item.visible:
+                    continue
+                for mesh in item.find_children("*", "MeshInstance3D", true, false):
+                    var bounds: AABB = mesh.global_transform * mesh.get_aabb()
+                    _check(shadow.position.y < bounds.position.y, "Contact shadow must stay below all rendered surfaces at every inspection angle", errors)
+    carousel._reset_inspection()
+    carousel.set_presentation(false, false, false)
+    var hero: Node3D = carousel.get("_hero")
+    hero.call("set_pointer", Vector2.ONE)
+    carousel.mouse_exited.emit()
+    _check(hero.get("_pointer") == Vector2.ZERO, "Leaving the stage must clear hover tilt", errors)
+    carousel.set("_inspecting", true)
+    carousel.set("_dragging", true)
+    carousel.set("_pan_distance", 40.0)
+    carousel.set_active(false)
+    carousel.set_active(true)
+    _check(not bool(carousel.get("_inspecting")) and not bool(carousel.get("_dragging")), "Opening an overlay must cancel an unfinished pointer gesture", errors)
+    _check(is_zero_approx(float(carousel.get("_pan_distance"))), "A reopened stage must not inherit a partial pan gesture", errors)
+    var label: MeshInstance3D = hero.get("_label_surface")
+    _check(not (label.material_override as StandardMaterial3D).texture_repeat, "Composed labels must clamp their folded UV borders", errors)
+    var image := Image.create(32, 16, false, Image.FORMAT_RGBA8)
+    var material := Cartridge._surface_material(ImageTexture.create_from_image(image))
+    _check(not material.texture_repeat, "Direct artwork must clamp its folded UV borders", errors)
+    var preferences_shell := TestShell.new()
+    preferences_shell.set("_fetch_collection_labels", false)
+    root.add_child(preferences_shell)
+    var preferences_carousel: Control = preferences_shell.get("_carousel")
+    _check(not preferences_carousel.label_fetch_enabled, "The saved label-download preference must apply when building the library", errors)
+    preferences_shell.queue_free()
 
 
 func _exercise_preferences(shell: Control, errors: Array[String]) -> void:
