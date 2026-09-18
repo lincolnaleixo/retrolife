@@ -37,6 +37,7 @@ func _ready() -> void:
         if model != null:
             model.scale = Vector3.ONE * MODEL_SCALE
             model.position.y = -0.044 * MODEL_SCALE
+            _soften_shell_materials(model)
             _visual.add_child(model)
             var surfaces := _find_label_surfaces(model)
             _label_surface = surfaces.get("front")
@@ -87,6 +88,26 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
             _rear_surface.material_override = _surface_material(rear_artwork)
         else:
             _rear_surface.material_override = null
+
+
+static func _soften_shell_materials(node: Node) -> void:
+    # Molded edges in the pinned model are sharp; under the showcase lights a
+    # default specular response draws a bright line along them. Soften the
+    # response with runtime material copies; the released GLB stays untouched.
+    if node is MeshInstance3D:
+        var mesh := node as MeshInstance3D
+        var surfaces := mesh.get_surface_override_material_count()
+        for surface in range(surfaces):
+            var material := mesh.get_active_material(surface)
+            if material is StandardMaterial3D and (material as StandardMaterial3D).metallic_specular > 0.1:
+                var copy := (material as StandardMaterial3D).duplicate() as StandardMaterial3D
+                copy.metallic_specular = 0.1
+                if surfaces == 1:
+                    mesh.material_override = copy
+                else:
+                    mesh.set_surface_override_material(surface, copy)
+    for child in node.get_children():
+        _soften_shell_materials(child)
 
 
 static func _surface_material(texture: Texture2D) -> StandardMaterial3D:
