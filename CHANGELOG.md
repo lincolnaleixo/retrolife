@@ -60,6 +60,7 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 - Kept headless UI smoke runs free of Godot's retained audio playback handle while desktop and mobile builds retain live generator output.
 
 ### Fixed
+- Preserve full-detail front and rear label meshes in the cartridge pool: generated Godot LODs distorted UV interpolation at the folded top and bent printed letters. Runtime label meshes are shared, while shell LODs and the pinned GLB remain unchanged.
 - Keep the contact-shadow plane below the transformed cartridge bounds during idle, hover, rotation and zoom, eliminating the dark stripe across the lower shell. Clamp label textures at the folded UV border to prevent opposite-edge bleeding.
 - Clear pointer tilt when leaving the stage, cancel interrupted pointer gestures when an overlay opens or the window loses focus, and apply the saved label-download preference at library startup.
 - Extend cartridge regressions with extreme inspection bounds and hover interruption checks, and rendered evidence with folded-top, underside and rear views.

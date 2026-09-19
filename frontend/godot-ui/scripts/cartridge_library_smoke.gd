@@ -126,6 +126,7 @@ func _run() -> void:
             for child in visual.get_children():
                 shell_softened = shell_softened or _has_soft_material(child)
         _check(shell_softened, "Shell materials must render with the softened specular response", errors)
+        _exercise_label_geometry(imported, errors)
         var probe := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
         var wide := ImageTexture.create_from_image(Image.create(1024, 542, false, Image.FORMAT_RGBA8))
         imported.bind_game({"id": "wide-probe", "title": "Wide Probe", "systemId": "snes"}, 0, wide, null)
@@ -154,6 +155,34 @@ func _run() -> void:
         for error in errors:
             push_error(error)
         quit(1)
+
+
+func _exercise_label_geometry(imported: Node3D, errors: Array[String]) -> void:
+    var original := (load(Cartridge.MODEL_PATH) as PackedScene).instantiate()
+    var source_labels := Cartridge._find_label_surfaces(original)
+    for side in ["front", "rear"]:
+        var source: MeshInstance3D = source_labels[side]
+        var displayed: MeshInstance3D = imported.get("_label_surface" if side == "front" else "_rear_surface")
+        _check(displayed.mesh != source.mesh, "Label presentation must not mutate the imported mesh", errors)
+        _check(displayed.mesh.get_surface_count() == source.mesh.get_surface_count(), "Label surfaces must be retained", errors)
+        for surface in range(source.mesh.get_surface_count()):
+            var expected := source.mesh.surface_get_arrays(surface)
+            var actual := displayed.mesh.surface_get_arrays(surface)
+            for channel in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_INDEX]:
+                _check(actual[channel] == expected[channel], "Label positions, UVs and full-detail triangles must remain unchanged", errors)
+            var render_surface := RenderingServer.mesh_get_surface(displayed.mesh.get_rid(), surface)
+            _check(render_surface.get("lods", []).is_empty(), "Label rendering must never select UV-distorting generated LODs", errors)
+    var source_shell := original.find_child("FrontShell", true, false) as MeshInstance3D
+    var displayed_shell := imported.find_child("FrontShell", true, false) as MeshInstance3D
+    _check(source_shell != null and displayed_shell != null, "The staged model must expose its shell", errors)
+    if source_shell != null and displayed_shell != null:
+        _check(source_shell.mesh == displayed_shell.mesh, "Shell geometry and LODs must remain shared with the imported model", errors)
+    var second := Cartridge.new()
+    root.add_child(second)
+    _check((second.get("_label_surface") as MeshInstance3D).mesh == (imported.get("_label_surface") as MeshInstance3D).mesh, "Pooled cartridges must share the full-detail front mesh", errors)
+    _check((second.get("_rear_surface") as MeshInstance3D).mesh == (imported.get("_rear_surface") as MeshInstance3D).mesh, "Pooled cartridges must share the full-detail rear mesh", errors)
+    original.free()
+    second.queue_free()
 
 
 func _exercise_artwork(errors: Array[String]) -> void:

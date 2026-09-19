@@ -6,6 +6,7 @@ const MODEL_SCALE := 24.0
 const LabelPainter = preload("res://scripts/library/label_painter.gd")
 const PALETTE := [Color("8b7db7"), Color("659c9b"), Color("c29468"), Color("9a7995"), Color("6f91bb")]
 static var _shared_model: PackedScene
+static var _full_detail_labels: Dictionary = {}
 
 var force_fallback := false
 var uses_fallback := true
@@ -45,6 +46,9 @@ func _ready() -> void:
             var surfaces := _find_label_surfaces(model)
             _label_surface = surfaces.get("front")
             _rear_surface = surfaces.get("rear")
+            for label in [_label_surface, _rear_surface]:
+                if label != null:
+                    label.mesh = _label_mesh_without_lods(label.mesh)
             if _rear_surface != null:
                 _rear_default_material = _rear_surface.material_override
             uses_fallback = false
@@ -108,6 +112,25 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
             # Keep the softened unprinted material from model setup; a bare
             # null would restore the original bright specular response.
             _rear_surface.material_override = _rear_default_material
+
+
+static func _label_mesh_without_lods(source: Mesh) -> Mesh:
+    if _full_detail_labels.has(source):
+        return _full_detail_labels[source]
+    # Automatic simplification preserves the silhouette but interpolates UVs
+    # across the folded paper, bending printed letters. Keep original label
+    # triangles at every distance; the much larger shell retains its LODs.
+    # Share this runtime copy across the pool and leave the pinned GLB intact.
+    var mesh := ArrayMesh.new()
+    mesh.resource_name = source.resource_name + " Full Detail"
+    for surface in range(source.get_surface_count()):
+        mesh.add_surface_from_arrays(
+            source.surface_get_primitive_type(surface),
+            source.surface_get_arrays(surface)
+        )
+        mesh.surface_set_material(surface, source.surface_get_material(surface))
+    _full_detail_labels[source] = mesh
+    return mesh
 
 
 static func _label_proportioned(texture: Texture2D) -> bool:
