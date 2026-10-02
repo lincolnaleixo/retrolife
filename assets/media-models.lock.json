@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "mega-drive",
+      "version": "0.1.0",
+      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "manifestCommit": "861f12f804c01c4d06622fa9f1fc1da71794437e",
+      "archive": {
+        "name": "mega-drive-0.1.0.zip",
+        "bytes": 7720799,
+        "sha256": "b36195b2f275a247eeae686b291c4584caf6e3fd1911bba35487aced44b56a48",
+        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/mega-drive-v0.1.0/mega-drive-0.1.0.zip"
+      },
+      "files": {
+        "CREDITS.md": {
+          "bytes": 2195,
+          "sha256": "dd64dc83fa2490b54118cdec7f738d6cf17710483bdf73b0a58fed14982a5179"
+        },
+        "LICENSE": {
+          "bytes": 17452,
+          "sha256": "4f3c4a321eb0c73182eee7afa3fe0111e24dec193f2d6febcf4207f26af26839"
+        },
+        "NOTICE.md": {
+          "bytes": 1746,
+          "sha256": "1248394dcec7068d64bebe596fc1ed4d7cf757202d0c276a35200968c170afa0"
+        },
+        "mega-drive.glb": {
+          "bytes": 1425224,
+          "sha256": "7c4da56fd51b01ecf77b2dcc06268d253983eebcb640dfc2e509c863cc17a58c"
+        }
+      }
+    },
+    {
+      "id": "playstation-1",
+      "version": "0.1.0",
+      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "manifestCommit": "861f12f804c01c4d06622fa9f1fc1da71794437e",
+      "archive": {
+        "name": "playstation-1-0.1.0.zip",
+        "bytes": 7143966,
+        "sha256": "0a8249ff8a9ba00ada4e3bcdbcdbe24bcae0250b0f308f5dbb5325f9b7cceba5",
+        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/playstation-1-v0.1.0/playstation-1-0.1.0.zip"
+      },
+      "files": {
+        "CREDITS.md": {
+          "bytes": 2458,
+          "sha256": "8d1042d9640c6e5d279b297b8480acebd9e90c68d692a2a413a6056c744a8bc4"
+        },
+        "LICENSE": {
+          "bytes": 17452,
+          "sha256": "4f3c4a321eb0c73182eee7afa3fe0111e24dec193f2d6febcf4207f26af26839"
+        },
+        "NOTICE.md": {
+          "bytes": 1746,
+          "sha256": "1248394dcec7068d64bebe596fc1ed4d7cf757202d0c276a35200968c170afa0"
+        },
+        "playstation-1.glb": {
+          "bytes": 906064,
+          "sha256": "9a60e136e550fb269598728205f2c7375cb6ec4ce344d0b73f593fc1d911504e"
+        }
+      }
+    }
+  ]
+}

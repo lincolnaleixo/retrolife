@@ -112,6 +112,19 @@ class StagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Owner-only"):
             assets.verify_stage(lock, destination)
 
+    def test_platform_models_keep_separate_files_and_notices(self) -> None:
+        for model_id in ("mega-drive", "playstation-1"):
+            self.files = {model_id + ".glb": glb(), "LICENSE": model_id.encode(),
+                          "CREDITS.md": b"Independent source", "NOTICE.md": b"Neutral model"}
+            archive, lock = self.package()
+            lock["id"] = model_id
+            destination = self.root / "stage" / model_id
+            assets.stage(archive, lock, destination)
+            assets.verify_stage(lock, destination)
+        for model_id in ("mega-drive", "playstation-1"):
+            self.assertEqual((self.root / "stage" / model_id / "LICENSE").read_text(), model_id)
+            self.assertTrue((self.root / "stage" / model_id / (model_id + ".glb")).is_file())
+
 
 class CollectionLabelIndexTest(unittest.TestCase):
     """The committed app-side label metadata must match the pinned lock."""

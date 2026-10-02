@@ -369,7 +369,7 @@ func _layout(animate: bool, refresh := false) -> void:
         if rebound:
             item = free.pop_back()
         if rebound or refresh:
-            var title := str(game.get("title", ""))
+            var title: String = preload("res://scripts/library/media_profiles.gd").collection_title(game)
             var artwork := labels.texture_for(id, title)
             var rear_artwork := labels.rear_texture_for(id, title)
             if artwork == null or rear_artwork == null:
