@@ -34,15 +34,16 @@ func _start() -> void:
     environment.environment.background_mode = Environment.BG_COLOR
     environment.environment.background_color = Color("11121b")
     environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.environment.ambient_light_color = Color("bfc9e8")
+    environment.environment.ambient_light_color = Color.WHITE
     environment.environment.ambient_light_energy = 0.35
     # Broad studio reflections are needed for clear plastic and optical media.
+    # Neutral illumination keeps printed inks free from a warm/cool color cast.
     # Keep the backdrop plain while using the sky only as a reflection source.
     var studio_sky := ProceduralSkyMaterial.new()
-    studio_sky.sky_top_color = Color("26334c")
-    studio_sky.sky_horizon_color = Color("cbd3df")
-    studio_sky.ground_bottom_color = Color("181c27")
-    studio_sky.ground_horizon_color = Color("8b929f")
+    studio_sky.sky_top_color = Color("303030")
+    studio_sky.sky_horizon_color = Color("d3d3d3")
+    studio_sky.ground_bottom_color = Color("1c1c1c")
+    studio_sky.ground_horizon_color = Color("929292")
     studio_sky.sky_curve = 0.22
     studio_sky.ground_curve = 0.3
     var sky := Sky.new()
@@ -50,9 +51,9 @@ func _start() -> void:
     environment.environment.sky = sky
     environment.environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
     world.add_child(environment)
-    _light(world, Vector3(-35, -30, 0), Color("fff1df"), 1.0)
-    _light(world, Vector3(-15, 140, 0), Color("9ebcfa"), 0.55)
-    _light(world, Vector3(40, 15, 0), Color("dddfff"), 0.25)
+    _light(world, Vector3(-35, -30, 0), Color.WHITE, 1.0)
+    _light(world, Vector3(-15, 140, 0), Color.WHITE, 0.55)
+    _light(world, Vector3(40, 15, 0), Color.WHITE, 0.25)
     var camera := Camera3D.new()
     _camera = camera
     camera.projection = Camera3D.PROJECTION_ORTHOGONAL

@@ -152,6 +152,15 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
     if preserve_imported_artwork and artwork == null and not uses_fallback:
         # Owner-only preview GLBs can contain multiple mapped label surfaces.
         _label_surface.material_override = null
+        # Godot 4.7 ignores KHR_materials_specular (0.36 in these GLBs).
+        # Match the source print's 0.18 IOR level without changing its textures,
+        # other material properties, or resources shared with another item.
+        for surface in range(_label_surface.mesh.get_surface_count()):
+            var imported := _label_surface.get_active_material(surface) as StandardMaterial3D
+            if imported != null:
+                var printed := imported.duplicate() as StandardMaterial3D
+                printed.metallic_specular = 0.18
+                _label_surface.set_surface_override_material(surface, printed)
     elif artwork != null and _label_proportioned(artwork, float(_profile["front_ratio"])):
         # Label-shaped artwork is applied straight to the mesh: the source
         # resolution survives and mipmapped anisotropic sampling keeps the
