@@ -6,6 +6,8 @@ import importlib.util
 import json
 from pathlib import Path
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -124,6 +126,42 @@ class StagingTests(unittest.TestCase):
         for model_id in ("mega-drive", "playstation-1"):
             self.assertEqual((self.root / "stage" / model_id / "LICENSE").read_text(), model_id)
             self.assertTrue((self.root / "stage" / model_id / (model_id + ".glb")).is_file())
+
+
+class PreviewNoticeTests(unittest.TestCase):
+    def test_preview_preserves_notices_from_current_and_legacy_source_layouts(self) -> None:
+        script = Path(__file__).with_name("prepare-media-preview.py")
+        consoles = {"snes-ntsc-u": "snes", "mega-drive": "mega-drive", "playstation-1": "playstation-1"}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for layout in ("current", "legacy"):
+                with self.subTest(layout=layout):
+                    source = root / layout
+                    models = source / "dist/development"
+                    expected = {}
+                    for model_id, console in consoles.items():
+                        model = models / model_id / f"{model_id}.glb"
+                        model.parent.mkdir(parents=True)
+                        model.write_bytes(glb({"asset": {"version": "2.0"}, "meshes": [{"name": "FrontLabel"}]}))
+                        legacy = source / "assets" / model_id
+                        legacy.mkdir(parents=True)
+                        folder = source / "assets/templates" / console if layout == "current" else legacy
+                        folder.mkdir(parents=True, exist_ok=True)
+                        for name in ("LICENSE", "NOTICE.md", "CREDITS.md"):
+                            # Canonical notices must win if both layouts exist.
+                            (legacy / name).write_text("Legacy fixture notice\n")
+                            content = f"{layout} {model_id} {name}\n"
+                            (folder / name).write_text(content)
+                            expected[(model_id, name)] = content
+                    output = root / f"preview-{layout}"
+                    subprocess.run(
+                        [sys.executable, str(script), "--models-root", str(source),
+                         "--owner-examples", str(models), "--output", str(output)],
+                        check=True, capture_output=True, text=True,
+                    )
+                    notices = output / "assets/cartridges/source-notices"
+                    for (model_id, name), content in expected.items():
+                        self.assertEqual((notices / model_id / name).read_text(), content)
 
 
 class CollectionLabelIndexTest(unittest.TestCase):

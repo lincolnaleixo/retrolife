@@ -15,6 +15,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_IDS = ("snes-ntsc-u", "mega-drive", "playstation-1")
+MODEL_CONSOLES = {"snes-ntsc-u": "snes", "mega-drive": "mega-drive", "playstation-1": "playstation-1"}
 MARKER = ".retrolife-media-preview"
 
 
@@ -73,8 +74,11 @@ def main() -> None:
     for model_id in MODEL_IDS:
         model_notices = notices / model_id
         model_notices.mkdir(exist_ok=True)
+        source_notices = source / "assets/templates" / MODEL_CONSOLES[model_id]
+        if not source_notices.is_dir():
+            source_notices = source / "assets" / model_id
         for name in ("LICENSE", "NOTICE.md", "CREDITS.md"):
-            candidate = source / "assets" / model_id / name
+            candidate = source_notices / name
             if candidate.is_file():
                 shutil.copy2(candidate, model_notices / name)
     (destination / "development-models.json").write_text(json.dumps({"developmentOnly": True, "models": provenance}, indent=2) + "\n")
