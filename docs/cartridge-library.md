@@ -45,6 +45,18 @@ When a matching game has no verified artwork, the **Download approved labels** s
 
 Dragging the cartridge follows the pointer: dragging right turns the front to the right, dragging down tilts it down, and the smoke pins that direction.
 
+## Organized source library
+
+The model repository groups [neutral templates by console](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/templates) and [game reproductions by console and game](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/reproductions). These English-language indexes point to the canonical asset documentation and published releases. Model changes are published there before RetroLife consumes them.
+
+From a checkout of `retro-cartridge-models`, build the same folder layout with verified release files:
+
+```sh
+python3 tools/build_library.py --output dist/library
+```
+
+Open `dist/library/index.html` to browse the downloaded library. Each model folder includes its editable Blender source, self-contained GLB, previews, ZIP, release manifest and notices. RetroLife continues to stage the versions pinned by its asset locks through the commands below; downloading this source library does not change those locks.
+
 ## Reproducible model staging
 
 `assets/cartridges.lock.json` pins the neutral `snes-ntsc-u` package at version `0.1.0`, its archive size/hash and the hashes of the unmodified GLB, license, credits and notice. `assets/media-models.lock.json` pins Mega Drive and PlayStation 0.1.0 at model commit `861f12f804c01c4d06622fa9f1fc1da71794437e`, with archive and per-file hashes. Their public release downloads were verified before integration. `scripts/build.sh` prepares all three packages before building the bridge. Each new model keeps independent notices in its own asset directory.

@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Documented the English source-library layout in `retro-cartridge-models`: neutral templates by console and reproductions by console and game, with a verified download command. Runtime model staging and pinned asset versions remain unchanged.
+
 - Use neutral white lighting and reflection colors in the local media preview, avoiding warm and blue casts over imported game-label inks. Owner artwork retains every surface's maps and finish, with isolated material copies restoring the model repository's lower print specular response that Godot's glTF importer ignores. Godot 4.7.2 import/material, media-profile and routed preview-control checks passed with the regenerated local examples.
 - Replaced the PlayStation case with a standalone CD, including an annular fallback and hole-preserving front artwork. Removed case/lift controls from the preview and added CD face flipping.
 - Pinned the already-published Mega Drive and PlayStation 0.1.0 model packages with verified archive/file hashes and independent notices. Builds prepare all three neutral models from the model repository.
