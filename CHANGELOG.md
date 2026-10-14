@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Follow the model repository's physical `assets/templates/<console>` and `assets/reproductions/<console>/<game>` hierarchy in documentation and local preview notices, while retaining compatibility with older source checkouts. Release locks, package IDs and tag-pinned artwork URLs remain unchanged.
+
 - Documented the English source-library layout in `retro-cartridge-models`: neutral templates by console and reproductions by console and game, with a verified download command. Runtime model staging and pinned asset versions remain unchanged.
 
 - Use neutral white lighting and reflection colors in the local media preview, avoiding warm and blue casts over imported game-label inks. Owner artwork retains every surface's maps and finish, with isolated material copies restoring the model repository's lower print specular response that Godot's glTF importer ignores. Godot 4.7.2 import/material, media-profile and routed preview-control checks passed with the regenerated local examples.

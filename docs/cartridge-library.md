@@ -47,7 +47,7 @@ Dragging the cartridge follows the pointer: dragging right turns the front to th
 
 ## Organized source library
 
-The model repository groups [neutral templates by console](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/templates) and [game reproductions by console and game](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/reproductions). These English-language indexes point to the canonical asset documentation and published releases. Model changes are published there before RetroLife consumes them.
+The model repository stores [neutral templates by console](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/assets/templates) and [game reproductions by console and game](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/assets/reproductions). These folders contain each asset's documentation, previews and version manifests. Model changes are published there before RetroLife consumes them.
 
 From a checkout of `retro-cartridge-models`, build the same folder layout with verified release files:
 
@@ -56,6 +56,8 @@ python3 tools/build_library.py --output dist/library
 ```
 
 Open `dist/library/index.html` to browse the downloaded library. Each model folder includes its editable Blender source, self-contained GLB, previews, ZIP, release manifest and notices. RetroLife continues to stage the versions pinned by its asset locks through the commands below; downloading this source library does not change those locks.
+
+Organizing the source folders does not change package IDs, immutable release tags or archive checksums. Approved label URLs remain pinned to their original release tag and path. Local previews copy per-model notices from `assets/templates/<console>` and also accept the older `assets/<id>` layout.
 
 ## Reproducible model staging
 
