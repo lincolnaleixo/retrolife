@@ -21,6 +21,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = ROOT / "assets/cartridges.lock.json"
 DEST = ROOT / "frontend/godot-ui/assets/cartridges"
+MEDIA_LOCK = ROOT / "assets/media-models.lock.json"
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_EXPANDED_BYTES = 128 * 1024 * 1024
 
@@ -92,7 +93,7 @@ def stage(archive: Path, lock: dict, destination: Path) -> None:
                 with package.open(member) as source, (work / name).open("wb") as target:
                     shutil.copyfileobj(source, target, 1024 * 1024)
                 verify(work / name, expected)
-        summary = validate_glb(work / "snes-ntsc-u.glb")
+        summary = validate_glb(work / model_filename(lock))
         (work / "model-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         (work / "provenance.json").write_text(json.dumps(lock, indent=2) + "\n")
         # Validate everything before replacing any previous verified inputs.
@@ -111,7 +112,7 @@ def verify_stage(lock: dict, destination: Path) -> None:
         verify(destination / name, expected)
     if json.loads((destination / "provenance.json").read_text()) != lock:
         raise ValueError("Staged provenance does not match the asset lock")
-    validate_glb(destination / "snes-ntsc-u.glb")
+    validate_glb(destination / model_filename(lock))
     # Development-only collection labels are owner-staged artwork. A release
     # stage must stay free of commercial game artwork, so refuse to verify a
     # stage that still contains them; export presets also exclude the path.
@@ -123,26 +124,28 @@ def verify_stage(lock: dict, destination: Path) -> None:
         )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--archive", type=Path, help="Use this verified archive without network access")
-    parser.add_argument("--verify-only", action="store_true")
-    args = parser.parse_args()
-    lock = json.loads(LOCK.read_text())
-    if args.verify_only:
-        verify_stage(lock, DEST)
+def model_filename(lock: dict) -> str:
+    names = [name for name in lock["files"] if name.endswith(".glb")]
+    if len(names) != 1:
+        raise ValueError("Expected exactly one pinned model per package")
+    return names[0]
+
+
+def prepare(lock: dict, destination: Path, archive_override: Path | None, verify_only: bool) -> None:
+    if verify_only:
+        verify_stage(lock, destination)
         print("Pinned cartridge assets and notices verified")
         return
-    if args.archive is None:
+    if archive_override is None:
         try:
-            verify_stage(lock, DEST)
+            verify_stage(lock, destination)
             print("Pinned cartridge assets already verified")
             return
         except (ValueError, OSError, json.JSONDecodeError):
             pass
-    archive = args.archive or ROOT / ".cache/cartridges" / lock["archive"]["name"]
+    archive = archive_override or ROOT / ".cache/cartridges" / lock["archive"]["name"]
     if not archive.exists():
-        if args.archive:
+        if archive_override:
             raise ValueError("The supplied offline archive does not exist")
         archive.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(dir=archive.parent, suffix=".download")
@@ -160,7 +163,19 @@ def main() -> None:
             os.replace(temporary, archive)
         finally:
             Path(temporary).unlink(missing_ok=True)
-    stage(archive, lock, DEST)
+    stage(archive, lock, destination)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--archive", type=Path, help="Use an offline SNES archive")
+    parser.add_argument("--media-archives", type=Path, help="Directory containing the pinned Mega Drive and PlayStation ZIPs")
+    parser.add_argument("--verify-only", action="store_true")
+    args = parser.parse_args()
+    prepare(json.loads(LOCK.read_text()), DEST, args.archive, args.verify_only)
+    for lock in json.loads(MEDIA_LOCK.read_text())["models"]:
+        archive = args.media_archives / lock["archive"]["name"] if args.media_archives else None
+        prepare(lock, DEST / lock["id"], archive, args.verify_only)
 
 
 if __name__ == "__main__":
