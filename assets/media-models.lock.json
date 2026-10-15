@@ -63,31 +63,31 @@
     },
     {
       "id": "nintendo-64",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
-      "manifestCommit": "ec3119f325c0756fcca06585b1da77ea5f0deb48",
+      "manifestCommit": "db4b075d761bc10730c2ad62c1c0aab54617c478",
       "archive": {
-        "name": "nintendo-64-0.1.0.zip",
-        "bytes": 8926115,
-        "sha256": "b153713e8e7f3b67f15ce5b78793254a6ca8e847d674266674b4fa513b062138",
-        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/nintendo-64-v0.1.0/nintendo-64-0.1.0.zip"
+        "name": "nintendo-64-0.2.0.zip",
+        "bytes": 11778599,
+        "sha256": "c145daadfede9dfe45a9ea02d2ba9eb0d362d299f9746ce13150f56879a468d5",
+        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/nintendo-64-v0.2.0/nintendo-64-0.2.0.zip"
       },
       "files": {
         "CREDITS.md": {
-          "bytes": 3146,
-          "sha256": "82bea7a0c980bba7e6fa657ba7b7c8f1012148b80842c2b59d1da29119abe1d5"
+          "bytes": 5577,
+          "sha256": "517f217359c3ddb6529d3ae20b1e42cc2878e4cd54770d5c786b24ba516c4730"
         },
         "LICENSE": {
           "bytes": 17452,
           "sha256": "4f3c4a321eb0c73182eee7afa3fe0111e24dec193f2d6febcf4207f26af26839"
         },
         "NOTICE.md": {
-          "bytes": 3257,
-          "sha256": "eb244c2f26524e433bed6806fa3ac6576adffc808e8b496e8669cfd4927ab5f6"
+          "bytes": 4351,
+          "sha256": "04602588f5708dd1ca0b26f7194ce5ea5fcb2a12fb1ece283fbd9321ab814033"
         },
         "nintendo-64.glb": {
-          "bytes": 1298536,
-          "sha256": "1d02288607c3ba8a83f09129902f7aa1207d246afa728be7c0087ed52701191e"
+          "bytes": 2168696,
+          "sha256": "22068e827151d88faaff194b6658ec4d4d185677acc3c5584bdfdc8bac411b1b"
         }
       }
     },

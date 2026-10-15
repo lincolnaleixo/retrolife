@@ -63,7 +63,7 @@ Organizing the source folders does not change package IDs, immutable release tag
 
 `assets/cartridges.lock.json` pins the neutral `snes-ntsc-u` package at version `0.1.0`, its archive size/hash and the hashes of the unmodified GLB, license, credits and notice. `assets/media-models.lock.json` records the exact published versions, source commits, archive hashes and per-file hashes for Mega Drive, PlayStation, Nintendo 64 and NES. Public release downloads are verified before integration. `scripts/build.sh` prepares all five packages before building the bridge. Each additional model keeps independent notices in its own asset directory.
 
-Nintendo 64 and NES use their independently published `0.1.0` neutral packages. The locks select only each unchanged GLB, `LICENSE`, `CREDITS.md` and `NOTICE.md`; neither the Blender sources nor the Super Mario game reproductions enter the application release. Both export presets include every neutral model's license file.
+Nintendo 64 uses the independently published `0.2.0` neutral package; NES remains at `0.1.0`. The N64 refinement smooths the crown and shoulder transitions and adds recessed rear lettering, a continuous connector guide, exposed board substrate and refined Gamebit screws. Its physical envelope and front/rear artwork UV targets remain compatible with the existing profile. The locks select only each unchanged GLB, `LICENSE`, `CREDITS.md` and `NOTICE.md`; neither the Blender sources nor the Super Mario game reproductions enter the application release. Both export presets include every neutral model's license file.
 
 ```sh
 python3 scripts/prepare-cartridge-assets.py
