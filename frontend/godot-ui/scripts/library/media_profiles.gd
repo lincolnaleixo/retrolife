@@ -5,6 +5,8 @@ const PROFILES := {
     "snes": {"path": "res://assets/cartridges/snes-ntsc-u.glb", "name": "SNES", "canvas": Vector2i(1024, 512), "front_ratio": 2.0, "rear_ratio": 2.0},
     "mega-drive": {"path": "res://assets/cartridges/mega-drive/mega-drive.glb", "name": "MEGA DRIVE", "canvas": Vector2i(1024, 927), "front_ratio": 74.0 / 67.0, "rear_ratio": 77.75 / 21.75, "top_fold_ratio": 7.0 / 67.0},
     "playstation-1": {"path": "res://assets/cartridges/playstation-1/playstation-1.glb", "name": "PLAYSTATION", "canvas": Vector2i(1024, 1024), "front_ratio": 1.0, "rear_ratio": 1.0, "disc": true},
+    "nintendo-64": {"path": "res://assets/cartridges/nintendo-64/nintendo-64.glb", "name": "NINTENDO 64", "canvas": Vector2i(1024, 1174), "front_ratio": 54.5 / 62.5, "rear_ratio": 80.9 / 38.9},
+    "nes": {"path": "res://assets/cartridges/nes/nes.glb", "name": "NES", "canvas": Vector2i(1024, 1806), "front_ratio": 55.0 / 97.0, "rear_ratio": 78.5 / 31.0, "top_fold_ratio": 7.0 / 97.0},
     "generic": {"path": "", "name": "RETRO", "canvas": Vector2i(1024, 512), "front_ratio": 2.0, "rear_ratio": 2.0},
 }
 
@@ -20,6 +22,10 @@ static func id_for(game: Dictionary) -> String:
             return "mega-drive"
         "playstation-1", "playstation", "ps1", "psx":
             return "playstation-1"
+        "nintendo-64", "nintendo64", "n64":
+            return "nintendo-64"
+        "nes", "nintendo-entertainment-system":
+            return "nes"
     return "generic"
 
 

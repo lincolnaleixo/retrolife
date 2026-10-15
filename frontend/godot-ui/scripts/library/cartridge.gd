@@ -117,6 +117,8 @@ func _ensure_model(game: Dictionary) -> void:
         _label_surface = MeshInstance3D.new()
         var plane := QuadMesh.new()
         plane.size = Vector2(1.96, 0.87) if media_profile == "snes" else Vector2(1.96, 1.96 / float(_profile["front_ratio"]))
+        if media_profile != "snes":
+            plane.size *= minf(1.0, 1.6 / plane.size.y)
         _label_surface.mesh = plane
         _label_surface.position = Vector3(0.0, 0.57 if media_profile == "snes" else 0.0, 0.28)
         _visual.add_child(_label_surface)

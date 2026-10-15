@@ -169,7 +169,7 @@ def prepare(lock: dict, destination: Path, archive_override: Path | None, verify
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive", type=Path, help="Use an offline SNES archive")
-    parser.add_argument("--media-archives", type=Path, help="Directory containing the pinned Mega Drive and PlayStation ZIPs")
+    parser.add_argument("--media-archives", type=Path, help="Directory containing the pinned media-model ZIPs")
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args()
     prepare(json.loads(LOCK.read_text()), DEST, args.archive, args.verify_only)

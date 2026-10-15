@@ -115,7 +115,7 @@ class StagingTests(unittest.TestCase):
             assets.verify_stage(lock, destination)
 
     def test_platform_models_keep_separate_files_and_notices(self) -> None:
-        for model_id in ("mega-drive", "playstation-1"):
+        for model_id in ("mega-drive", "playstation-1", "nintendo-64", "nes"):
             self.files = {model_id + ".glb": glb(), "LICENSE": model_id.encode(),
                           "CREDITS.md": b"Independent source", "NOTICE.md": b"Neutral model"}
             archive, lock = self.package()
@@ -123,7 +123,7 @@ class StagingTests(unittest.TestCase):
             destination = self.root / "stage" / model_id
             assets.stage(archive, lock, destination)
             assets.verify_stage(lock, destination)
-        for model_id in ("mega-drive", "playstation-1"):
+        for model_id in ("mega-drive", "playstation-1", "nintendo-64", "nes"):
             self.assertEqual((self.root / "stage" / model_id / "LICENSE").read_text(), model_id)
             self.assertTrue((self.root / "stage" / model_id / (model_id + ".glb")).is_file())
 
@@ -131,7 +131,7 @@ class StagingTests(unittest.TestCase):
 class PreviewNoticeTests(unittest.TestCase):
     def test_preview_preserves_notices_from_current_and_legacy_source_layouts(self) -> None:
         script = Path(__file__).with_name("prepare-media-preview.py")
-        consoles = {"snes-ntsc-u": "snes", "mega-drive": "mega-drive", "playstation-1": "playstation-1"}
+        consoles = {"snes-ntsc-u": "snes", "mega-drive": "mega-drive", "playstation-1": "playstation-1", "nintendo-64": "nintendo-64", "nes": "nes"}
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for layout in ("current", "legacy"):
@@ -162,6 +162,28 @@ class PreviewNoticeTests(unittest.TestCase):
                     notices = output / "assets/cartridges/source-notices"
                     for (model_id, name), content in expected.items():
                         self.assertEqual((notices / model_id / name).read_text(), content)
+                    marker = json.loads((output / "owner-artwork-preview.json").read_text())
+                    self.assertEqual(set(marker["ownerExampleIds"]), set(consoles) - {"snes-ntsc-u"})
+
+    def test_missing_owner_example_does_not_bypass_neutral_checksum(self) -> None:
+        script = Path(__file__).with_name("prepare-media-preview.py")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            models = root / "source/dist/development"
+            examples = root / "examples"
+            examples.mkdir()
+            for model_id in ("snes-ntsc-u", "mega-drive"):
+                model = models / model_id / f"{model_id}.glb"
+                model.parent.mkdir(parents=True)
+                model.write_bytes(glb({"asset": {"version": "2.0"}, "meshes": [{"name": "FrontLabel"}]}))
+            result = subprocess.run(
+                [sys.executable, str(script), "--models-root", str(root / "source"),
+                 "--owner-examples", str(examples), "--output", str(root / "preview")],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Size mismatch: mega-drive.glb", result.stderr)
+            self.assertFalse((root / "preview").exists())
 
 
 class CollectionLabelIndexTest(unittest.TestCase):
@@ -174,6 +196,15 @@ class CollectionLabelIndexTest(unittest.TestCase):
         self.assertEqual(len(include_lines), 2)
         for line in include_lines:
             self.assertIn("scripts/library/collection_labels.json", line)
+
+    def test_each_neutral_model_license_is_included_in_exports(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        models = json.loads((root / "assets/media-models.lock.json").read_text())["models"]
+        include_lines = [line for line in (root / "frontend/godot-ui/export_presets.cfg").read_text().splitlines() if line.startswith("include_filter=")]
+        for line in include_lines:
+            self.assertIn("assets/cartridges/LICENSE", line)
+            for model in models:
+                self.assertIn(f"assets/cartridges/{model['id']}/LICENSE", line)
 
     def test_index_matches_lock(self) -> None:
         root = Path(__file__).resolve().parent.parent

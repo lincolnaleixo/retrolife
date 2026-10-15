@@ -15,7 +15,7 @@ func _run() -> void:
     var peer := Cartridge.new()
     root.add_child(slot)
     root.add_child(peer)
-    var cases := {"snes": "snes", "genesis": "mega-drive", "mega_drive": "mega-drive", "ps1": "playstation-1", "psx": "playstation-1", "not-a-system": "generic"}
+    var cases := {"snes": "snes", "genesis": "mega-drive", "mega_drive": "mega-drive", "ps1": "playstation-1", "psx": "playstation-1", "n64": "nintendo-64", "nintendo64": "nintendo-64", "nintendo_64": "nintendo-64", "nes": "nes", "nintendo-entertainment-system": "nes", "not-a-system": "generic"}
     for system in cases:
         var game := {"id": "same-pooled-game", "title": "Original Test Artwork", "systemId": system}
         slot.bind_game(game, 3, null)
@@ -63,21 +63,24 @@ func _run() -> void:
             _check(false, "Required model is unstaged: " + path)
         else:
             _check(slot.uses_fallback, "Missing and unknown models must use a fallback: " + system)
-    for index in range(90):
-        var system: String = ["snes", "mega-drive", "playstation-1"][index % 3]
+            if cases[system] in ["nintendo-64", "nes"]:
+                _check(front.get_aabb().size.y <= 1.601, "Tall artwork must fit the fallback sleeve: " + system)
+    for index in range(100):
+        var system: String = ["snes", "mega-drive", "playstation-1", "nintendo-64", "nes"][index % 5]
         slot.bind_game({"id": "cycling", "title": "Cycling", "systemId": system}, index, null)
         _check((slot.get("_visual") as Node).get_child_count() <= 16, "Changing systems must not accumulate model trees")
     slot.force_fallback = true
     slot.bind_game({"systemId": "ps1"}, 0, null)
     _check(slot.uses_fallback, "An explicit fallback must replace an already loaded model")
     _check_disc_hole(slot.get("_label_surface"))
-    _check(Profiles.collection_title({"systemId": "ps1", "title": "Super Mario World"}).is_empty(), "SNES collection artwork must never match another platform")
+    for system in ["ps1", "mega-drive", "nintendo-64", "nes"]:
+        _check(Profiles.collection_title({"systemId": system, "title": "Super Mario World"}).is_empty(), "SNES collection artwork must never match another platform: " + system)
     _check(Profiles.collection_title({"systemId": "snes", "title": "Super Mario World"}) == "Super Mario World", "SNES collection labels must remain available")
     slot.free()
     peer.free()
     await process_frame
     if errors.is_empty():
-        print("Media model smoke passed: aliases, pooled system switching, model sharing, physical artwork ratios, rear reset, bounded visuals and safe fallbacks")
+        print("Media model smoke passed: five systems, aliases, pooled system switching, model sharing, physical artwork ratios, rear reset, bounded visuals and safe fallbacks")
         quit(0)
     else:
         for error in errors:

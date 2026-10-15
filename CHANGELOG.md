@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add neutral Nintendo 64 and NES presentation profiles with physical front/rear artwork proportions, folded NES top-label handling and safe fallback framing. Expand the isolated preview to five media types with numbered selection, per-model rotation, focus and front/rear captures; optional game examples stay local and missing examples retain verified neutral inputs. SNES-only ROM import and emulation support are unchanged.
+- Pin Nintendo 64 and NES 0.1.0 packages from the model repository with exact archive/GLB hashes and independent credits, license and notices; both export presets include the new license files. The five-model neutral and local reproduction previews passed Godot 4.7.2 surface, UV, pooled-switching and routed-control checks.
+
 - Follow the model repository's physical `assets/templates/<console>` and `assets/reproductions/<console>/<game>` hierarchy in documentation and local preview notices, while retaining compatibility with older source checkouts. Release locks, package IDs and tag-pinned artwork URLs remain unchanged.
 
 - Documented the English source-library layout in `retro-cartridge-models`: neutral templates by console and reproductions by console and game, with a verified download command. Runtime model staging and pinned asset versions remain unchanged.
