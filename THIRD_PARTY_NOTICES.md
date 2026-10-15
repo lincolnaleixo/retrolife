@@ -18,13 +18,13 @@ The MPL-covered Rust binding sources are additionally distributed under AGPL-3.0
 
 ## Retro Cartridge Models
 
-The neutral `snes-ntsc-u` cartridge, version `0.1.0`, is an independently versioned reconstruction by **Lincoln Aleixo** from https://github.com/lincolnaleixo/retro-cartridge-models.
+The neutral `snes-ntsc-u`, `mega-drive`, `playstation-1`, `nintendo-64` and `nes` models are independently versioned reconstructions by **Lincoln Aleixo** from https://github.com/lincolnaleixo/retro-cartridge-models.
 
 Original model contributions retain **CC BY-NC-ND 4.0**, not the application's AGPL license. Attribution, noncommercial scope and restrictions on redistribution of adaptations remain in the upstream license. This integration makes no additional rights grant. Existing hardware designs, third-party artwork, marks and other material excluded in the upstream notice remain outside that license grant.
 
-`assets/cartridges.lock.json` records the exact archive and selected-file hashes. The build stages the unchanged GLB with its `LICENSE`, `CREDITS.md`, `NOTICE.md` and machine-readable provenance. Exported application resources include these notices; macOS release preparation additionally places them in `Contents/Resources/licenses/retro-cartridge-models`. Release source includes the asset lock and staging tool so the same model inputs can be verified without placing creative binaries into the software Git history.
+`assets/cartridges.lock.json` and `assets/media-models.lock.json` record the exact versions, archive hashes and selected-file hashes. The build stages each unchanged GLB with its `LICENSE`, `CREDITS.md`, `NOTICE.md` and machine-readable provenance. Exported application resources include every model's notices in its asset directory; macOS release preparation additionally places the SNES notices in `Contents/Resources/licenses/retro-cartridge-models`. Release source includes both asset locks and the staging tool so the same model inputs can be verified without placing creative binaries into the software Git history.
 
-The neutral metadata label and procedural missing-model fallback are original application presentation code. User-selected PNG labels are local display overlays, not edits to or redistributed replacements of the pinned GLB. The textured Super Mario World example is not bundled. Approved label exports from the collection can be downloaded on request into the user's local cache and are verified against the collection's published checksums; they are not part of application source, releases or public evidence.
+The neutral metadata label and procedural missing-model fallback are original application presentation code. User-selected PNG labels are local display overlays, not edits to or redistributed replacements of the pinned GLB. Textured game reproductions are not bundled. Approved label exports from the collection can be downloaded on request into the user's local cache and are verified against the collection's published checksums; they are not part of application source, releases or public evidence.
 
 ## Game content
 

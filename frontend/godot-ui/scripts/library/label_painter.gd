@@ -64,7 +64,7 @@ func _draw() -> void:
 
 func _draw_cover() -> void:
     # Keep lettering upright and undistorted on square media artwork and
-    # the taller Mega Drive label. Artwork is letterboxed above using this
+    # the taller cartridge labels. Artwork is letterboxed above using this
     # same physical aspect ratio.
     var height := canvas_size.y
     var band := height * top_fold_ratio if top_fold_ratio > 0.0 else 72.0
@@ -74,7 +74,7 @@ func _draw_cover() -> void:
     var font := ThemeDB.fallback_font
     var band_title := title.to_upper() if top_fold_ratio > 0.0 else system
     draw_string(font, Vector2(48, band * 0.5 + 12), band_title, HORIZONTAL_ALIGNMENT_LEFT, 900, 34, Color("171822"))
-    draw_string(font, Vector2(60, 146), "RETROLIFE  /  COLLECTION", HORIZONTAL_ALIGNMENT_LEFT, 900, 30, Color("e0ddee"))
+    draw_string(font, Vector2(60, maxf(146.0, band + 60.0)), "RETROLIFE  /  COLLECTION", HORIZONTAL_ALIGNMENT_LEFT, 900, 30, Color("e0ddee"))
     var lines := _lines(title, font)
     var first_baseline := height * 0.55 - (lines.size() - 1) * 41.0
     for index in range(lines.size()):
