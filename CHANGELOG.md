@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Update the pinned Nintendo 64 neutral model to 0.2.0 with a smoother crown, recessed rear wordmark, connector guide and board substrate, and refined Gamebit screws. Preserve its physical scale and front/rear artwork mapping. The neutral and local Super Mario 64 preview imports passed Godot 4.7.2 label-UV, five-media switching, bounds and routed-control checks; front, rear and top views were inspected.
+
 - Add neutral Nintendo 64 and NES presentation profiles with physical front/rear artwork proportions, folded NES top-label handling and safe fallback framing. Expand the isolated preview to five media types with numbered selection, per-model rotation, focus and front/rear captures; optional game examples stay local and missing examples retain verified neutral inputs. SNES-only ROM import and emulation support are unchanged.
 - Pin Nintendo 64 and NES 0.1.0 packages from the model repository with exact archive/GLB hashes and independent credits, license and notices; both export presets include the new license files. The five-model neutral and local reproduction previews passed Godot 4.7.2 surface, UV, pooled-switching and routed-control checks.
 
