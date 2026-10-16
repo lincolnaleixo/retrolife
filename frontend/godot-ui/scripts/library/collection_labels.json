@@ -5,15 +5,15 @@
       "assetId": "snes-super-mario-world",
       "front": {
         "path": "res://assets/cartridges/labels/snes-super-mario-world/front.png",
-        "sha256": "5a7e9d1fb80fbab4d688f50c0ebba55049a2feb5cbff8938eb051cd07f11dee3",
-        "bytes": 2655936,
-        "url": "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/snes-super-mario-world-v0.1.1/assets/snes-super-mario-world/labels/front.png"
+        "sha256": "6b1af2a635a582a91afd7cc96e065f5b2ed6ecabec1124cc62373f4357f7aa47",
+        "bytes": 2358283,
+        "url": "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/snes-super-mario-world-v0.2.0/assets/reproductions/snes/super-mario-world/labels/front.png"
       },
       "rear": {
         "path": "res://assets/cartridges/labels/snes-super-mario-world/rear.png",
         "sha256": "316ee3c12998d5ee182698ead900070b35adf61341f54ff44a54c46c18abe428",
         "bytes": 1054447,
-        "url": "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/snes-super-mario-world-v0.1.1/assets/snes-super-mario-world/labels/rear.png"
+        "url": "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/snes-super-mario-world-v0.2.0/assets/reproductions/snes/super-mario-world/labels/rear.png"
       }
     }
   ]

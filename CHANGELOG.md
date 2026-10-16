@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Pin the approved Super Mario World labels to collection release 0.2.0: the front print has localized scan wear removed, while its artwork and folded layout are preserved. Use the canonical reproduction paths and verified checksums; the rear print and all neutral model dependencies remain unchanged.
+
 - Update the pinned Nintendo 64 neutral model to 0.2.0 with a smoother crown, recessed rear wordmark, connector guide and board substrate, and refined Gamebit screws. Preserve its physical scale and front/rear artwork mapping. The neutral and local Super Mario 64 preview imports passed Godot 4.7.2 label-UV, five-media switching, bounds and routed-control checks; front, rear and top views were inspected.
 
 - Add neutral Nintendo 64 and NES presentation profiles with physical front/rear artwork proportions, folded NES top-label handling and safe fallback framing. Expand the isolated preview to five media types with numbered selection, per-model rotation, focus and front/rear captures; optional game examples stay local and missing examples retain verified neutral inputs. SNES-only ROM import and emulation support are unchanged.
