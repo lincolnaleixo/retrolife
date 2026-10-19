@@ -219,7 +219,7 @@ class CollectionLabelIndexTest(unittest.TestCase):
             entry["title"]: entry for entry in lock.get("labels", [])
         }
         self.assertEqual(set(recorded), set(expected))
-        host = "https://raw.githubusercontent.com/lincolnaleixo/retro-cartridge-models/"
+        host = "https://raw.githubusercontent.com/lincolnaleixo/retro-3d-library/"
         for title, entry in recorded.items():
             source = expected[title]
             for side in ("front", "rear"):

@@ -21,7 +21,7 @@ MARKER = ".retrolife-media-preview"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--models-root", required=True, type=Path, help="Local retro-cartridge-models checkout")
+    parser.add_argument("--models-root", required=True, type=Path, help="Local retro-3d-library checkout")
     parser.add_argument("--output", type=Path, default=ROOT / ".cache/media-preview")
     parser.add_argument("--owner-examples", type=Path, help="Optional directory of locally generated game GLBs by model ID; missing examples use neutral models and no artwork is staged into the release app")
     args = parser.parse_args()

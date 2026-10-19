@@ -4,13 +4,13 @@
     {
       "id": "mega-drive",
       "version": "0.1.0",
-      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "source": "https://github.com/lincolnaleixo/retro-3d-library",
       "manifestCommit": "861f12f804c01c4d06622fa9f1fc1da71794437e",
       "archive": {
         "name": "mega-drive-0.1.0.zip",
         "bytes": 7720799,
         "sha256": "b36195b2f275a247eeae686b291c4584caf6e3fd1911bba35487aced44b56a48",
-        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/mega-drive-v0.1.0/mega-drive-0.1.0.zip"
+        "url": "https://github.com/lincolnaleixo/retro-3d-library/releases/download/mega-drive-v0.1.0/mega-drive-0.1.0.zip"
       },
       "files": {
         "CREDITS.md": {
@@ -34,13 +34,13 @@
     {
       "id": "playstation-1",
       "version": "0.1.0",
-      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "source": "https://github.com/lincolnaleixo/retro-3d-library",
       "manifestCommit": "861f12f804c01c4d06622fa9f1fc1da71794437e",
       "archive": {
         "name": "playstation-1-0.1.0.zip",
         "bytes": 7143966,
         "sha256": "0a8249ff8a9ba00ada4e3bcdbcdbe24bcae0250b0f308f5dbb5325f9b7cceba5",
-        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/playstation-1-v0.1.0/playstation-1-0.1.0.zip"
+        "url": "https://github.com/lincolnaleixo/retro-3d-library/releases/download/playstation-1-v0.1.0/playstation-1-0.1.0.zip"
       },
       "files": {
         "CREDITS.md": {
@@ -64,13 +64,13 @@
     {
       "id": "nintendo-64",
       "version": "0.2.0",
-      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "source": "https://github.com/lincolnaleixo/retro-3d-library",
       "manifestCommit": "db4b075d761bc10730c2ad62c1c0aab54617c478",
       "archive": {
         "name": "nintendo-64-0.2.0.zip",
         "bytes": 11778599,
         "sha256": "c145daadfede9dfe45a9ea02d2ba9eb0d362d299f9746ce13150f56879a468d5",
-        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/nintendo-64-v0.2.0/nintendo-64-0.2.0.zip"
+        "url": "https://github.com/lincolnaleixo/retro-3d-library/releases/download/nintendo-64-v0.2.0/nintendo-64-0.2.0.zip"
       },
       "files": {
         "CREDITS.md": {
@@ -94,13 +94,13 @@
     {
       "id": "nes",
       "version": "0.1.0",
-      "source": "https://github.com/lincolnaleixo/retro-cartridge-models",
+      "source": "https://github.com/lincolnaleixo/retro-3d-library",
       "manifestCommit": "ec3119f325c0756fcca06585b1da77ea5f0deb48",
       "archive": {
         "name": "nes-0.1.0.zip",
         "bytes": 9320899,
         "sha256": "3a0b7940e0169c9d35a91a068d1131cb8448312b59d937451e684cab6f2cd5ab",
-        "url": "https://github.com/lincolnaleixo/retro-cartridge-models/releases/download/nes-v0.1.0/nes-0.1.0.zip"
+        "url": "https://github.com/lincolnaleixo/retro-3d-library/releases/download/nes-v0.1.0/nes-0.1.0.zip"
       },
       "files": {
         "CREDITS.md": {

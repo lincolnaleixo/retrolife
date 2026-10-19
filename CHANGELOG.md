@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Follow the renamed Retro 3D Library repository in canonical model-download and tag-pinned label URLs, current documentation and preview help. Preserve every model version, release tag, manifest commit, file checksum and the existing bundled notice-directory path.
+
 - Pin the approved Super Mario World labels to collection release 0.2.0: the front print has localized scan wear removed, while its artwork and folded layout are preserved. Use the canonical reproduction paths and verified checksums; the rear print and all neutral model dependencies remain unchanged.
 
 - Update the pinned Nintendo 64 neutral model to 0.2.0 with a smoother crown, recessed rear wordmark, connector guide and board substrate, and refined Gamebit screws. Preserve its physical scale and front/rear artwork mapping. The neutral and local Super Mario 64 preview imports passed Godot 4.7.2 label-UV, five-media switching, bounds and routed-control checks; front, rear and top views were inspected.
