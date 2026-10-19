@@ -8,7 +8,7 @@ The library is a full-window dark showcase rather than a grid of cards. A restra
 
 At the 2K-class default window (or the nearest size the usable display allows), the header contains the small RetroLife wordmark and Search, Import ROM and View buttons. Compact system chips sit beneath it. Most vertical space belongs to the cartridge stage. The selected game's title, short system/playability line, index and controller hints sit below it. Bridge status and source identifiers are only available through optional diagnostics in View.
 
-Release-pinned neutral models include the SNES NTSC-U shell, western Mega Drive cartridge, standalone PlayStation CD, Nintendo 64 cartridge and NES cartridge. New models are published first in retro-cartridge-models and consumed unchanged here. The bridge still imports and plays SNES only; a 3D model does not grant emulation, ROM import, or catalog support. Missing SNES assets use the existing procedural cartridge; missing PlayStation models use an annular CD fallback; other missing or unknown systems use a neutral sleeve. Tall cartridge labels fit inside that sleeve without changing their aspect ratio. A fallback is not the acceptance target when verified GLB assets are staged.
+Release-pinned neutral models include the SNES NTSC-U shell, western Mega Drive cartridge, standalone PlayStation CD, Nintendo 64 cartridge and NES cartridge. New models are published first in retro-3d-library and consumed unchanged here. The bridge still imports and plays SNES only; a 3D model does not grant emulation, ROM import, or catalog support. Missing SNES assets use the existing procedural cartridge; missing PlayStation models use an annular CD fallback; other missing or unknown systems use a neutral sleeve. Tall cartridge labels fit inside that sleeve without changing their aspect ratio. A fallback is not the acceptance target when verified GLB assets are staged.
 
 Transitions last 220 ms with cubic easing. A new input interrupts the previous transition and targets the new selection immediately. Pointer movement adds at most a few degrees of parallax tilt, and the selected cartridge rests in a gentle idle sway and float so the showcase never looks frozen. Reduce motion removes transitions, idle motion and pointer tilt, while manual inspection stays available with direct, undamped response. Low-power rendering reduces the neighborhood to three models, lowers the internal resolution and disables multisample antialiasing. The text view disables 3D rendering entirely and shows at most seven rows, adapting to available height.
 
@@ -47,9 +47,9 @@ Dragging the cartridge follows the pointer: dragging right turns the front to th
 
 ## Organized source library
 
-The model repository stores [neutral templates by console](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/assets/templates) and [game reproductions by console and game](https://github.com/lincolnaleixo/retro-cartridge-models/tree/main/assets/reproductions). These folders contain each asset's documentation, previews and version manifests. Model changes are published there before RetroLife consumes them.
+The model repository stores [neutral templates by console](https://github.com/lincolnaleixo/retro-3d-library/tree/main/assets/templates) and [game reproductions by console and game](https://github.com/lincolnaleixo/retro-3d-library/tree/main/assets/reproductions). These folders contain each asset's documentation, previews and version manifests. Model changes are published there before RetroLife consumes them.
 
-From a checkout of `retro-cartridge-models`, build the same folder layout with verified release files:
+From a checkout of `retro-3d-library`, build the same folder layout with verified release files:
 
 ```sh
 python3 tools/build_library.py --output dist/library
@@ -82,10 +82,10 @@ The model's original contributions retain CC BY-NC-ND 4.0. This does not become 
 
 Replacing game artwork preserves the imported paper's normal and roughness maps. The media smoke also checks the actual Godot-imported label UV0 range, guarding against an importer promoting a tiled material UV channel into the artwork channel.
 
-Development models are deliberately separate from the immutable SNES release lock. Build them in a local `retro-cartridge-models` checkout, then stage an isolated preview:
+Development models are deliberately separate from the immutable SNES release lock. Build them in a local `retro-3d-library` checkout, then stage an isolated preview:
 
 ```sh
-python3 scripts/prepare-media-preview.py --models-root /path/to/retro-cartridge-models
+python3 scripts/prepare-media-preview.py --models-root /path/to/retro-3d-library
 godot --headless --path .cache/media-preview --editor --import
 RETROLIFE_REQUIRE_MEDIA_MODELS=1 godot --headless --path .cache/media-preview --script res://scripts/media_model_smoke.gd
 godot --path .cache/media-preview
@@ -95,7 +95,7 @@ RETROLIFE_PREVIEW_INPUT_SMOKE=1 RETROLIFE_CAPTURE_PATH=/path/to/media.png godot 
 
 The default preview contains original synthetic titles and neutral artwork in a two-row, five-model collection. Keys 1–5 select SNES, Mega Drive, PlayStation, Nintendo 64 and NES respectively; F focuses the selection, dragging rotates it, and the wheel zooms. V flips the standalone CD between printed and dark reading faces. R restores all five models. There is no jewel case, lid or disc-removal action. Captures include both collection views, Mega Drive detail, Nintendo 64 and NES front/rear details, and both CD faces.
 
-For locally generated Sonic the Hedgehog, Crash Bandicoot, Super Mario 64 or Super Mario Bros. examples, pass `--owner-examples /path/to/retro-cartridge-models/dist/owner-examples`. Each supplied example uses `<model-id>/<model-id>.glb`; models without an example use their verified neutral files. Staging copies the supplied self-contained GLBs into the disposable preview, preserves their embedded artwork and records which items have owner artwork in a local-only marker. It does not stage proprietary artwork into release inputs or add game import/emulation support. Generate these examples in the model repository using its `tools/apply_media_artwork.py` workflow.
+For locally generated Sonic the Hedgehog, Crash Bandicoot, Super Mario 64 or Super Mario Bros. examples, pass `--owner-examples /path/to/retro-3d-library/dist/owner-examples`. Each supplied example uses `<model-id>/<model-id>.glb`; models without an example use their verified neutral files. Staging copies the supplied self-contained GLBs into the disposable preview, preserves their embedded artwork and records which items have owner artwork in a local-only marker. It does not stage proprietary artwork into release inputs or add game import/emulation support. Generate these examples in the model repository using its `tools/apply_media_artwork.py` workflow.
 
 
 The preview has its own user-data directory and never loads the native bridge, reads the user's library, or requests collection artwork. The generated `project.godot` is directly openable in Godot. Delete `.cache/media-preview` to undo staging. Staging validates embedded GLB resources, copies available independent notices, and records model checksums; it does not change `assets/cartridges.lock.json`, stage into release assets, or invent a remote release URL. A pre-existing output directory without the preview marker is rejected.

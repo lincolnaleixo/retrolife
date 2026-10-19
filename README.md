@@ -25,7 +25,7 @@ scripts/check.sh
 
 Set `GODOT` when the executable has another name. Dependencies are pinned in Cargo.lock and the core build script. The model package and per-file checksums are pinned in `assets/cartridges.lock.json`; large creative files are staged outside Git history. Consult [architecture](docs/architecture.md), [contribution guidance](CONTRIBUTING.md), and [release instructions](docs/releases.md).
 
-Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PARTY_NOTICES.md). The separate [3D cartridge collection](https://github.com/lincolnaleixo/retro-cartridge-models) retains its independent CC BY-NC-ND 4.0 license and version history. No game artwork is relicensed as application code.
+Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PARTY_NOTICES.md). The separate [Retro 3D Library](https://github.com/lincolnaleixo/retro-3d-library) retains its independent CC BY-NC-ND 4.0 license and version history. No game artwork is relicensed as application code.
 
 ## Application updates
 
