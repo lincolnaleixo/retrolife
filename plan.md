@@ -498,3 +498,8 @@ Technical references checked for this planning revision: [Godot GLTFDocument](ht
 
 
 Workspace verification (2026-10-22): `scripts/check.sh` passed (formatting, Clippy, Rust tests, publication/dependency audits, asset/update/release contracts and all Godot smokes). `scripts/test-core.sh` passed with the pinned native SNES core. Additional regressions exercise verified/retryable library copy, legacy layouts, offline-volume rejection, remap persistence/cancellation/timeout, live InputMap routing, paused progress, reward correction/idempotency and reload. The native Super Mario World session was rendered with the external library and private local models; its existing battery save was unchanged after clean stop. Generated UI captures were inspected for the library, controller target, storage and gameplay journey. Physical-gamepad and audible-output acceptance remain pending: no gamepad is connected and interactive macOS inspection was blocked by the lock screen. The local development preview is separate from the installed application and is not a signed distributable release.
+
+
+Public CI follow-up: the `cartridge-ui` job for PR #43 stops in `prepare-cartridge-assets.py` with HTTP 404 when fetching the pinned packages from the now-private 3D repository. Local checks used the unchanged checksum-verified offline packages. Do not publish private models, grant a public PR access to private credentials, or disable asset verification to make this job pass.
+
+- [ ] Resolve the public build's model dependency and distribution policy before merging PR #43 or publishing a new signed release. The app source and private local collection integration are available on the feature branch; the public PR remains draft.

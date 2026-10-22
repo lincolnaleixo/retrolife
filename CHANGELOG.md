@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Record the verified local workspace build and the public CI blocker: the pinned 3D packages now require private repository access. Keep the feature PR in draft and preserve the private-asset boundary.
+
 - Add a library workspace with direct Play, console and game presentation, an explicit ROM storage location and a private local 3D collection link. ROM copying verifies identities and keeps originals; new imports use console folders while existing layouts remain readable. Offline volumes never fall back to internal storage.
 - Add visual SNES controller mapping with a highlighted 3D target, keyboard/gamepad capture, persistent bindings, duplicate rejection and cancellation/timeout rollback. Gameplay now uses the configured InputMap consistently.
 - Add a persistent personal Journey beside gameplay: emulator-time quests, self-reported game challenges, XP, levels and eight collectible rewards per game. Rewards are idempotent, can be corrected, and survive reload; pauses add no time.
