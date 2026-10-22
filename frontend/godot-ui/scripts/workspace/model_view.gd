@@ -37,13 +37,13 @@ func _ready() -> void:
     environment.background_mode = Environment.BG_CLEAR_COLOR
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color.WHITE
-    environment.ambient_light_energy = 0.65
+    environment.ambient_light_energy = 0.3
     world.environment = environment
     stage.add_child(world)
-    for rotation in [Vector3(-25, -30, 0), Vector3(15, 140, 0)]:
+    for lighting in [[Vector3(-35, -30, 0), 0.9], [Vector3(15, 140, 0), 0.25]]:
         var light := DirectionalLight3D.new()
-        light.rotation_degrees = rotation
-        light.light_energy = 0.8
+        light.rotation_degrees = lighting[0]
+        light.light_energy = lighting[1]
         stage.add_child(light)
     camera = Camera3D.new()
     camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -94,7 +94,7 @@ func load_model(path: String) -> bool:
             return false
     var document := GLTFDocument.new()
     var state := GLTFState.new()
-    if document.append_from_file(path, state) != OK:
+    if document.append_from_buffer(_explicit_texture_coordinates(file, document_data, json_length), "", state) != OK:
         message = "The local GLB could not be loaded."
         return false
     # Imported transmissive glass otherwise appears as an opaque white lens.
@@ -123,7 +123,7 @@ func load_model(path: String) -> bool:
         camera.position = Vector3(0, 0, distance)
         camera.near = maxf(distance - longest * 1.25, 0.01)
         camera.far = distance + maxf(longest * 1.25, 0.1)
-        _configure_surface_sampling(model)
+    _configure_surface_sampling(model)
     reset_view()
     return true
 
@@ -179,19 +179,61 @@ func _mesh_bounds(node: Node3D) -> AABB:
         stack.append_array(child.get_children())
     return result
 
-func _configure_surface_sampling(node: Node) -> void:
+func _configure_surface_sampling(node: Node, texture_cache := {}) -> void:
     if node is MeshInstance3D and node.mesh != null:
         for surface in range(node.mesh.get_surface_count()):
             var material := node.get_active_material(surface) as BaseMaterial3D
             if material != null:
                 material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-                var texture := material.albedo_texture
-                if texture != null:
-                    var pixels := texture.get_image()
-                    if pixels != null and not pixels.has_mipmaps():
-                        if pixels.is_compressed():
-                            pixels.decompress()
-                        pixels.generate_mipmaps()
-                        material.albedo_texture = ImageTexture.create_from_image(pixels)
+                # Runtime GLB textures do not go through the editor's mipmap
+                # importer. Filter data maps too, especially repeating grain.
+                for slot in [BaseMaterial3D.TEXTURE_ALBEDO, BaseMaterial3D.TEXTURE_NORMAL, BaseMaterial3D.TEXTURE_ROUGHNESS, BaseMaterial3D.TEXTURE_METALLIC, BaseMaterial3D.TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D.TEXTURE_EMISSION]:
+                    var texture := material.get_texture(slot)
+                    if texture == null:
+                        continue
+                    var key := str(texture.get_instance_id()) + ":" + str(slot == BaseMaterial3D.TEXTURE_NORMAL)
+                    if not texture_cache.has(key):
+                        var pixels := texture.get_image()
+                        if pixels != null and not pixels.has_mipmaps():
+                            if pixels.is_compressed():
+                                pixels.decompress()
+                            pixels.generate_mipmaps(slot == BaseMaterial3D.TEXTURE_NORMAL)
+                            texture_cache[key] = ImageTexture.create_from_image(pixels)
+                        else:
+                            texture_cache[key] = texture
+                    material.set_texture(slot, texture_cache[key])
     for child in node.get_children():
-        _configure_surface_sampling(child)
+        _configure_surface_sampling(child, texture_cache)
+
+# Godot's UV remapper only records metallic/roughness and normal coordinates
+# when texCoord is explicit. With default UV0 omitted and AO on UV1, it can
+# incorrectly promote the AO atlas to primary UVs and stretch the fine grain.
+# Make glTF defaults explicit in memory; retain the source file byte-for-byte.
+static func _explicit_texture_coordinates(file: FileAccess, data: Dictionary, json_length: int) -> PackedByteArray:
+    for material in data.get("materials", []):
+        var textures: Array = []
+        for key in ["normalTexture", "occlusionTexture", "emissiveTexture"]:
+            if material.has(key):
+                textures.append(material[key])
+        var pbr: Dictionary = material.get("pbrMetallicRoughness", {})
+        for key in ["baseColorTexture", "metallicRoughnessTexture"]:
+            if pbr.has(key):
+                textures.append(pbr[key])
+        for texture in textures:
+            if not texture.has("texCoord"):
+                texture["texCoord"] = 0
+    var json_bytes := JSON.stringify(data).to_utf8_buffer()
+    while json_bytes.size() % 4 != 0:
+        json_bytes.append(0x20)
+    file.seek(20 + json_length)
+    var tail := file.get_buffer(file.get_length() - file.get_position())
+    var result := PackedByteArray()
+    result.resize(20)
+    result.encode_u32(0, 0x46546c67)
+    result.encode_u32(4, 2)
+    result.encode_u32(8, 20 + json_bytes.size() + tail.size())
+    result.encode_u32(12, json_bytes.size())
+    result.encode_u32(16, 0x4e4f534a)
+    result.append_array(json_bytes)
+    result.append_array(tail)
+    return result

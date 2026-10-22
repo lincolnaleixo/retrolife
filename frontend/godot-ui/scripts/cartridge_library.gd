@@ -669,13 +669,15 @@ func _unhandled_input(event: InputEvent) -> void:
             _box_panel.hide()
             get_viewport().set_input_as_handled()
         return
-    if _at_console_home:
-        return
     if (_controller_panel != null and _controller_panel.visible) or (_storage_panel != null and _storage_panel.visible):
         return
     if _updates_panel != null and _updates_panel.visible:
         return
     if _game_is_active():
+        return
+    if _at_console_home:
+        if not _settings_panel.visible and not _file_dialog.visible:
+            _console_home.handle_navigation(event)
         return
     if _details_overlay.visible:
         super._unhandled_input(event)

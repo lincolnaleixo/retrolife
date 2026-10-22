@@ -510,10 +510,21 @@ Public CI follow-up: the `cartridge-ui` job for PR #43 stops in `prepare-cartrid
 - [x] Add console selection, return navigation, empty collections and local 3D box inspection; exercise navigation and the native gameplay round trip.
 - [x] Install the new app icon and per-game Journey presentation in the separate local Preview.
 - [x] Run presentation regressions and publication audit; keep all game artwork external.
-- [ ] Complete interactive desktop/compact acceptance of the installed Preview. The Mac lock screen prevented final click testing. Desktop and compact console captures, the 3D box and standalone Journey quest/gift panels were inspected; integrated compact gameplay still needs hands-on visual acceptance.
+- [x] Exercise installed desktop console-to-games navigation and open the actual local 3D box after unlocking macOS.
+- [ ] Complete compact gameplay, physical-gamepad and audible-output acceptance. Compact console captures and standalone Journey quest/gift panels were inspected; these do not establish gameplay acceptance.
 
 Console-first verification (2026-10-22): all seven Godot presentation/native smoke suites passed, including 10,000-entry navigation, empty consoles, per-console return selection, seven game profiles, sequel fallback, live input mappings and native play/stop focus restoration. The original battery save remained byte-identical. The packaged local app starts headlessly and passes ad-hoc signature verification. The public CI/private-model blocker above is unchanged.
 
 - [x] Replace still console images with interactive local GLB previews for all seven systems. Keep rotation separate from opening a collection, retain models on return and suspend offscreen rendering.
 
 Console 3D follow-up (2026-10-22): all seven private local models loaded in the real renderer. Desktop, lower-row and compact captures were inspected. Programmatic drag/reset, collection navigation, preview reuse and hidden rendering checks passed, together with native play/stop and workspace regressions. Transmissive handheld lenses use an alpha approximation so the underlying LCD stays visible. Final physical click acceptance remains pending while macOS is locked.
+
+
+### Populated console carousel and runtime surface correction
+
+- [x] Present one 3D console at a time, omit zero-game systems, wrap side navigation and retain the selected console on refresh. Hide side controls for a single populated system and disable stale actions for an empty collection.
+- [x] Correct Godot runtime glTF remapping when normal/roughness textures omit the default `texCoord=0` and occlusion explicitly uses `texCoord=1`. Normalize omitted defaults in memory before import, preserve source bytes, filter repeating data maps with mipmaps and reduce harsh fill lighting.
+
+Verification (2026-10-22): the original two-UV fixture verifies repeating primary coordinates, independent AO atlas coordinates, mipmapped normal/roughness textures and unchanged GLB bytes. Desktop clicks opened the SNES collection and its local Super Mario World box. The real library contains one populated console; multi-console wrap, selection preservation and empty-library behavior are exercised with test fixtures rather than invented user games. The public build dependency blocker remains unchanged.
+
+Final runtime verification: the two-UV fixture, 10,000-entry library navigation, workspace mappings and native play/save/return smokes passed. All seven real local console exports rendered with the corrected importer; SNES desktop and compact captures were inspected. The Preview resource pack was updated and its ad-hoc signature verified. macOS locked again before a final installed-app click check; reopening the running Preview is still needed to load the corrected pack.

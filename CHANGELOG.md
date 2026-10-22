@@ -4,6 +4,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Fix runtime GLB texture-coordinate remapping: preserve repeating normal/roughness UVs separately from baked occlusion atlases, preventing swollen-looking plastic on console previews. Generate mipmaps for data textures and rebalance the preview lights. Keep private source models unchanged and add an original two-UV regression fixture.
+
+- Present consoles one at a time in a 3D carousel and exclude systems without library games. Support side buttons and left/right navigation, preserve selection on refresh and handle empty collections without stale actions.
+
 - Replace console-gallery images with interactive local 3D models for all seven systems. Drag rotates each console, double-click resets it, and a separate button opens its games. Preserve loaded previews across navigation and suspend rendering outside the visible gallery.
 
 - Start in a console gallery, then open that console's games. Add a rotatable, zoomable local 3D box inspector and a dedicated RetroLife app icon.

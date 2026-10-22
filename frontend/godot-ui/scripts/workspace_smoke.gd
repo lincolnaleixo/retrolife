@@ -6,6 +6,7 @@ func _init() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    _test_model_texture_coordinates()
     var main := preload("res://scripts/main.gd").new()
     main._ensure_input_actions()
     var defaults := Bindings.snapshot()
@@ -54,3 +55,72 @@ func _run() -> void:
     assert(profiles.for_game("Unlisted Game").is_empty())
     print("Workspace mapping smoke passed: live remap routing, duplicate rejection, save/reload, guided cancellation and timeout rollback.")
     quit()
+
+func _test_model_texture_coordinates() -> void:
+    # Original tiny fixture: UV0 repeats across the object; UV1 is an AO atlas.
+    # Omitting texCoord=0 is legal glTF and must not promote AO to primary UVs.
+    var positions := PackedVector3Array([Vector3.ZERO, Vector3.RIGHT, Vector3.UP])
+    var normals := PackedVector3Array([Vector3.FORWARD, Vector3.FORWARD, Vector3.FORWARD])
+    var grain_uv := PackedVector2Array([Vector2(-8, -8), Vector2(8, -8), Vector2(-8, 8)])
+    var atlas_uv := PackedVector2Array([Vector2(0.1, 0.1), Vector2(0.9, 0.1), Vector2(0.1, 0.9)])
+    var pixels := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+    pixels.fill(Color(0.5, 0.5, 1.0))
+    var payloads := [positions.to_byte_array(), normals.to_byte_array(), grain_uv.to_byte_array(), atlas_uv.to_byte_array(), pixels.save_png_to_buffer()]
+    var binary := PackedByteArray()
+    var buffer_views: Array = []
+    for payload in payloads:
+        buffer_views.append({"buffer": 0, "byteOffset": binary.size(), "byteLength": payload.size()})
+        binary.append_array(payload)
+        while binary.size() % 4 != 0:
+            binary.append(0)
+    var data := {
+        "asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0}],
+        "buffers": [{"byteLength": binary.size()}], "bufferViews": buffer_views,
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [0,0,0], "max": [1,1,0]},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": 3, "componentType": 5126, "count": 3, "type": "VEC2"}],
+        "images": [{"bufferView": 4, "mimeType": "image/png"}], "textures": [{"source": 0}],
+        "materials": [{"normalTexture": {"index": 0}, "occlusionTexture": {"index": 0, "texCoord": 1},
+            "pbrMetallicRoughness": {"metallicRoughnessTexture": {"index": 0}}}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2, "TEXCOORD_1": 3}, "material": 0}]}]
+    }
+    var json_bytes := JSON.stringify(data).to_utf8_buffer()
+    while json_bytes.size() % 4 != 0:
+        json_bytes.append(0x20)
+    var original := PackedByteArray()
+    original.resize(20)
+    original.encode_u32(0, 0x46546c67)
+    original.encode_u32(4, 2)
+    original.encode_u32(8, 28 + json_bytes.size() + binary.size())
+    original.encode_u32(12, json_bytes.size())
+    original.encode_u32(16, 0x4e4f534a)
+    original.append_array(json_bytes)
+    var bin_header := PackedByteArray()
+    bin_header.resize(8)
+    bin_header.encode_u32(0, binary.size())
+    bin_header.encode_u32(4, 0x004e4942)
+    original.append_array(bin_header)
+    original.append_array(binary)
+    var path := "user://workspace-model-smoke-%d.glb" % OS.get_process_id()
+    var file := FileAccess.open(path, FileAccess.WRITE)
+    file.store_buffer(original)
+    file.close()
+    var view := preload("res://scripts/workspace/model_view.gd").new()
+    root.add_child(view)
+    assert(view.load_model(path))
+    var meshes := view.model.find_children("*", "MeshInstance3D", true, false)
+    assert(meshes.size() == 1)
+    var arrays: Array = meshes[0].mesh.surface_get_arrays(0)
+    for index in range(3):
+        assert(arrays[Mesh.ARRAY_TEX_UV][index].distance_to(grain_uv[index]) < 0.002)
+        assert(arrays[Mesh.ARRAY_TEX_UV2][index].distance_to(atlas_uv[index]) < 0.002)
+    var material: BaseMaterial3D = meshes[0].get_active_material(0)
+    assert(material.normal_enabled and material.ao_enabled and material.ao_on_uv2)
+    assert(material.normal_texture.get_image().has_mipmaps())
+    assert(material.roughness_texture.get_image().has_mipmaps())
+    assert(FileAccess.get_file_as_bytes(path) == original)
+    view.free()
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+    print("Runtime GLB UV smoke passed: repeating normal/roughness UV0, independent AO UV1, mipmaps and unchanged source bytes.")

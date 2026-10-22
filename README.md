@@ -46,9 +46,9 @@ Verification for this workspace is tracked in `plan.md`. A physical gamepad and 
 
 ### Console gallery and game journals
 
-The library opens on the console gallery. Choose a system to browse its games and use **Consoles** (or Escape outside a search) to return. Empty consoles do not imply emulator support; local ROM import and play remain SNES-only.
+The library opens on a carousel showing one 3D console at a time. Only systems with games in the library appear. Use the side buttons or Left/Right to change consoles, then **Open collection** to browse games. With only one console, the side arrows are hidden. Use **Consoles** (or Escape outside a search) to return. Local ROM import and play remain SNES-only.
 
-Console cards display interactive models from `consoles/<console>/<console>-console.glb` in the linked local collection. Drag to rotate and double-click to reset; the wheel scrolls the gallery. Choose **Open collection** to enter the games. Missing models show a clear hint; private console assets remain external.
+The carousel loads the selected model from `consoles/<console>/<console>-console.glb` in the linked local collection. Drag to rotate, scroll to zoom and double-click to reset. Missing models show a clear hint; private console assets remain external.
 
 **Inspect box in 3D** opens a matching local reproduction GLB with drag rotation, wheel zoom and Front/Back/Spine views. Models are read from the linked collection at `reproductions/<console>/<game>/box/<console>-<game>-box.glb`. Missing models disable inspection rather than substituting another game.
 
