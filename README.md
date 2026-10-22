@@ -48,6 +48,8 @@ Verification for this workspace is tracked in `plan.md`. A physical gamepad and 
 
 The library opens on the console gallery. Choose a system to browse its games and use **Consoles** (or Escape outside a search) to return. Empty consoles do not imply emulator support; local ROM import and play remain SNES-only.
 
+Console cards display interactive models from `consoles/<console>/<console>-console.glb` in the linked local collection. Drag to rotate and double-click to reset; the wheel scrolls the gallery. Choose **Open collection** to enter the games. Missing models show a clear hint; private console assets remain external.
+
 **Inspect box in 3D** opens a matching local reproduction GLB with drag rotation, wheel zoom and Front/Back/Spine views. Models are read from the linked collection at `reproductions/<console>/<game>/box/<console>-<game>-box.glb`. Missing models disable inspection rather than substituting another game.
 
 Journey presentation profiles cover the seven current collection games. They customize chapter copy, four personal goals, eight reward names, colors and collectible stamps. Progress still uses stable milestone IDs, so changing presentation preserves existing XP and rewards. Game-specific headers are read from `reproductions/<console>/<game>/journey/cover.png`, falling back to the local box render. Unknown games receive a neutral journal. No game artwork is bundled or committed. Story goals remain self-reported, not emulator achievement detection.

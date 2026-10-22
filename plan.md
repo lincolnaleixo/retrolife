@@ -513,3 +513,7 @@ Public CI follow-up: the `cartridge-ui` job for PR #43 stops in `prepare-cartrid
 - [ ] Complete interactive desktop/compact acceptance of the installed Preview. The Mac lock screen prevented final click testing. Desktop and compact console captures, the 3D box and standalone Journey quest/gift panels were inspected; integrated compact gameplay still needs hands-on visual acceptance.
 
 Console-first verification (2026-10-22): all seven Godot presentation/native smoke suites passed, including 10,000-entry navigation, empty consoles, per-console return selection, seven game profiles, sequel fallback, live input mappings and native play/stop focus restoration. The original battery save remained byte-identical. The packaged local app starts headlessly and passes ad-hoc signature verification. The public CI/private-model blocker above is unchanged.
+
+- [x] Replace still console images with interactive local GLB previews for all seven systems. Keep rotation separate from opening a collection, retain models on return and suspend offscreen rendering.
+
+Console 3D follow-up (2026-10-22): all seven private local models loaded in the real renderer. Desktop, lower-row and compact captures were inspected. Programmatic drag/reset, collection navigation, preview reuse and hidden rendering checks passed, together with native play/stop and workspace regressions. Transmissive handheld lenses use an alpha approximation so the underlying LCD stays visible. Final physical click acceptance remains pending while macOS is locked.

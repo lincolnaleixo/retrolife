@@ -1,6 +1,10 @@
 extends SubViewportContainer
 
 var auto_frame := false
+var minimum_view_size := Vector2(360, 260)
+var default_view := Vector2(-0.38, -0.14)
+var allow_wheel_zoom := true
+var frame_scale := 1.0
 var _center := Vector3(0, 0.031, 0)
 var _fit_size := 0.14
 
@@ -16,7 +20,7 @@ var _angle := Vector2.ZERO
 
 func _ready() -> void:
     stretch = true
-    custom_minimum_size = Vector2(360, 260)
+    custom_minimum_size = minimum_view_size
     mouse_default_cursor_shape = Control.CURSOR_DRAG
     viewport_3d = SubViewport.new()
     viewport_3d.own_world_3d = true
@@ -93,6 +97,16 @@ func load_model(path: String) -> bool:
     if document.append_from_file(path, state) != OK:
         message = "The local GLB could not be loaded."
         return false
+    # Imported transmissive glass otherwise appears as an opaque white lens.
+    # Use a light alpha approximation in this isolated real-time preview.
+    var imported_materials = state.get_materials()
+    var source_materials: Array = document_data.get("materials", [])
+    for index in range(mini(imported_materials.size(), source_materials.size())):
+        var transmission := float(source_materials[index].get("extensions", {}).get("KHR_materials_transmission", {}).get("transmissionFactor", 0.0))
+        var material := imported_materials[index] as BaseMaterial3D
+        if transmission > 0.0 and material != null:
+            material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+            material.albedo_color.a *= maxf(0.04, 1.0 - transmission)
     model = document.generate_scene(state)
     pivot.add_child(model)
     message = "Drag to rotate · Scroll to zoom"
@@ -102,7 +116,7 @@ func load_model(path: String) -> bool:
         model.position -= center
         _center = Vector3.ZERO
         var longest := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
-        _fit_size = maxf(longest * 1.35, 0.05)
+        _fit_size = maxf(longest * 1.35 * frame_scale, 0.05)
         # Keep depth precision around this small physical object. Printed layers
         # can sit only micrometers above the board beneath them.
         var distance := maxf(longest * 3.0, 0.15)
@@ -118,7 +132,7 @@ func reset_view() -> void:
     pivot.transform = Transform3D.IDENTITY
     camera.size = _fit_size
     if auto_frame:
-        set_view(-0.14, -0.38)
+        set_view(default_view.y, default_view.x)
 
 func set_view(pitch: float, yaw: float) -> void:
     _angle = Vector2(yaw, pitch)
@@ -134,8 +148,13 @@ func highlight(action: String) -> void:
 
 func _input_view(event: InputEvent) -> void:
     if event is InputEventMouseButton:
+        if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and not allow_wheel_zoom:
+            return
         if event.button_index == MOUSE_BUTTON_LEFT:
             _dragging = event.pressed
+            if event.double_click:
+                reset_view()
+                _dragging = false
         if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
             camera.size = clampf(camera.size * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), _fit_size * 0.4, _fit_size * 2.5)
         accept_event()

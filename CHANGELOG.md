@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Replace console-gallery images with interactive local 3D models for all seven systems. Drag rotates each console, double-click resets it, and a separate button opens its games. Preserve loaded previews across navigation and suspend rendering outside the visible gallery.
+
 - Start in a console gallery, then open that console's games. Add a rotatable, zoomable local 3D box inspector and a dedicated RetroLife app icon.
 - Fit box-camera depth precision to the physical model and use anisotropic texture sampling. Pin the reviewed original icon bytes in the publication audit without admitting other binary assets.
 - Give seven known games distinct Journey chapters, challenge descriptions, reward collections, accent colors and local artwork. Unknown games keep a neutral journal, and challenge completion remains explicitly self-reported.

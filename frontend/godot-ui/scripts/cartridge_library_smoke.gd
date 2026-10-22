@@ -55,9 +55,13 @@ func _run() -> void:
     await process_frame
     _check(shell._at_console_home and shell._console_home.visible, "Startup must show console selection", errors)
     _check(not shell._carousel.is_visible_in_tree(), "Games stay hidden until a console is chosen", errors)
-    shell._open_console("snes")
+    _check(shell._console_home._views.size() == 7, "Every console has a real 3D viewport", errors)
+    var console_preview_id: int = shell._console_home._views[1].get_instance_id()
+    shell._console_home._buttons[1].pressed.emit()
     await _settle(shell)
     _check(not shell._at_console_home and shell._carousel.is_visible_in_tree(), "Choosing a console opens its games", errors)
+    for view in shell._console_home._views:
+        _check(view.viewport_3d.render_target_update_mode == SubViewport.UPDATE_DISABLED, "Hidden consoles must stop rendering", errors)
     shell._open_console("game-boy")
     await _settle(shell)
     _check(shell._current_games.is_empty() and shell._workspace_play.disabled, "An empty console must not expose another console's game", errors)
@@ -97,6 +101,7 @@ func _run() -> void:
     shell._show_console_home()
     await _settle(shell)
     _check(shell._console_home.visible, "Back returns to consoles", errors)
+    _check(shell._console_home._views[1].get_instance_id() == console_preview_id, "Console previews survive collection round trips", errors)
     shell._open_console("")
     await _settle(shell)
     _check(carousel.selected_id() == "fixture-05000", "Restore selection per system view", errors)
