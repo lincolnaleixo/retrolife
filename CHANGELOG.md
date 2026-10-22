@@ -4,6 +4,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add optional per-game Journey art packs with a landscape hero, illustrated chapter cards and a two-column keepsake collection. Keep artwork external, cache it per selection, scope matching by console, clear stale textures and show neutral text when custom art is missing. Preserve existing milestone IDs, XP, paused time, confirmation rollback and reversible rewards.
+
+- Integrate the library into a borderless game-style window with a compact contextual header, static studio background, window dragging, fullscreen, minimize and safe quit. Remove bottom command and storage bars. Click console art to enter its collection and playable cartridge art to start; preserve drag/zoom inspection, keyboard/gamepad access and a missing-model fallback. Keep Search available after empty results and test vertical drag rejection.
+
 - Fix runtime GLB texture-coordinate remapping: preserve repeating normal/roughness UVs separately from baked occlusion atlases, preventing swollen-looking plastic on console previews. Generate mipmaps for data textures and rebalance the preview lights. Keep private source models unchanged and add an original two-UV regression fixture.
 
 - Present consoles one at a time in a 3D carousel and exclude systems without library games. Support side buttons and left/right navigation, preserve selection on refresh and handle empty collections without stale actions.

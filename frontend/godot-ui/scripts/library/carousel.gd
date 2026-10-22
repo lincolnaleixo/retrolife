@@ -347,7 +347,7 @@ func _layout(animate: bool, refresh := false) -> void:
             var game: Dictionary = games[index]
             button.text = (">  " if index == selected_index else "    ") + str(game.get("title", "Untitled"))
             button.set_meta("index", index)
-            button.tooltip_text = "Open details for " + str(game.get("title", "Untitled"))
+            button.tooltip_text = "Play " + str(game.get("title", "Untitled"))
         return
     var wanted: Dictionary = {}
     for index in range(first, last):
@@ -419,12 +419,12 @@ func _gui_input(event: InputEvent) -> void:
             accept_event()
     elif event is InputEventMouseMotion:
         if _inspecting:
-            _drag_distance += absf(event.relative.x) + absf(event.relative.y)
+            _drag_distance += event.relative.length() + absf(event.relative.y)
             _inspect_target_yaw = wrapf(_inspect_target_yaw + event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
             _inspect_target_pitch = clampf(_inspect_target_pitch + event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
             accept_event()
         elif _dragging:
-            _drag_distance += absf(event.relative.x)
+            _drag_distance += event.relative.length()
             var distance: float = event.position.x - _drag_origin.x
             if absf(distance) >= 65:
                 navigate(-1 if distance > 0 else 1)

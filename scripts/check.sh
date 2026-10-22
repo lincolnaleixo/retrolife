@@ -20,4 +20,5 @@ python3 scripts/make-test-rom.py .cache/test.sfc
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/media_model_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/updater_smoke.gd
 
-"$GODOT" --headless --path frontend/godot-ui --script res://scripts/workspace_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/workspace_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/journey_art_smoke.gd

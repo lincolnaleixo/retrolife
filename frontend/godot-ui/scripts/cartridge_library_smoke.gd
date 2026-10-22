@@ -4,6 +4,7 @@ extends SceneTree
 const Carousel = preload("res://scripts/library/carousel.gd")
 const Cartridge = preload("res://scripts/library/cartridge.gd")
 const LabelCache = preload("res://scripts/library/label_cache.gd")
+const ModelView = preload("res://scripts/workspace/model_view.gd")
 
 class FakeCatalog extends RefCounted:
     var entries: Array = []
@@ -31,6 +32,18 @@ class FakeCatalog extends RefCounted:
         var entry := {"id": "imported-fixture", "title": "A Newly Imported Game", "systemId": "snes", "systemName": "Super Nintendo", "playable": false}
         entries.push_front(entry)
         return {"ok": true, "data": entry}
+
+
+class FakeGameplay extends Node:
+    var started_ids: Array[String] = []
+    var active_id := ""
+
+    func start_game(id: String, _title: String) -> Dictionary:
+        started_ids.append(id)
+        return {"ok": true}
+
+    func active_session_id() -> String:
+        return active_id
 
 
 class TestShell extends "res://scripts/cartridge_library.gd":
@@ -67,16 +80,16 @@ func _run() -> void:
     home.navigate(1)
     _check(home.selected_id() == "snes", "Side navigation wraps around", errors)
     home.configure([])
-    _check(home.selected_id().is_empty() and home._open.disabled, "An empty library cannot open a stale console", errors)
+    _check(home.selected_id().is_empty() and not home._view.visible, "An empty library cannot open a stale console", errors)
     home.configure(shell._systems)
-    home._open.pressed.emit()
+    home._view.activated.emit()
     await _settle(shell)
     _check(not shell._at_console_home and shell._carousel.is_visible_in_tree(), "Choosing a console opens its games", errors)
     _check(home._view.viewport_3d.render_target_update_mode == SubViewport.UPDATE_DISABLED, "Hidden console must stop rendering", errors)
     shell._open_console("game-boy")
     await _settle(shell)
-    _check(shell._current_games.is_empty() and shell._workspace_play.disabled, "An empty console must not expose another console's game", errors)
-    _check(shell._box_button.disabled, "No game means no box inspection", errors)
+    _check(shell._current_games.is_empty() and not shell._header._details.visible, "An empty console must not expose another console's game", errors)
+    _check(not shell._header._box.visible, "No game means no box inspection", errors)
     shell._open_console("")
     await _settle(shell)
     var carousel: Control = shell.get("_carousel")
@@ -101,8 +114,9 @@ func _run() -> void:
     timings.sort()
     print("Cartridge navigation CPU p95 (microseconds): ", timings[int(timings.size() * 0.95)])
     _check(timings[int(timings.size() * 0.95)] < 250000, "Navigation CPU p95 exceeded 250 ms on the test host", errors)
-    shell._open_details(carousel.selected_id())
-    _check((shell.get("_details_overlay") as Control).visible, "Details must open", errors)
+    _check(shell._header._details.visible, "Game details remain available in the integrated header", errors)
+    shell._header._details.pressed.emit()
+    _check((shell.get("_details_overlay") as Control).visible, "The header Details action must open the selected game", errors)
     shell._close_details()
     await process_frame
     _check(carousel.selected_id() == "fixture-05000", "Details round trip must preserve selection", errors)
@@ -127,6 +141,16 @@ func _run() -> void:
     await create_timer(0.18).timeout
     await _settle(shell)
     _check(carousel.games.size() == 100, "Debounced search must filter the collection", errors)
+    shell._on_search_changed("No matching fixture title")
+    await create_timer(0.18).timeout
+    await _settle(shell)
+    _check(carousel.games.is_empty(), "An unmatched search must clear the game stage", errors)
+    _check(not shell._header._search.disabled, "Search must remain available after zero results", errors)
+    shell._header._search.pressed.emit()
+    await process_frame
+    _check(shell._search_panel.visible, "The header must reopen search after zero results", errors)
+    shell._search_panel.hide()
+    await process_frame
     await shell._on_files_selected(PackedStringArray(["synthetic-import.sfc"]))
     await _settle(shell)
     _check(carousel.selected_id() == "imported-fixture", "A new import must be revealed even from an active search", errors)
@@ -170,6 +194,9 @@ func _run() -> void:
     imported.queue_free()
     await _exercise_input_events(shell, carousel, errors)
     await _exercise_inspection(shell, carousel, errors)
+    await _exercise_background_drag(shell, carousel, errors)
+    await _exercise_direct_activation(shell, carousel, errors)
+    await _exercise_console_art_gestures(errors)
     _exercise_surface_and_hover(carousel, errors)
     await _exercise_compact_layout(shell, errors)
     _exercise_preferences(shell, errors)
@@ -333,7 +360,7 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
     action.pressed = true
     Input.parse_input_event(action)
     await process_frame
-    _check((shell.get("_details_overlay") as Control).visible, "Routed accept must open details", errors)
+    _check((shell.get("_details_overlay") as Control).visible, "Routed accept on an unavailable game must open its details", errors)
     action = InputEventAction.new()
     action.action = "ui_accept"
     action.pressed = false
@@ -543,12 +570,136 @@ func _exercise_compact_layout(shell: Control, errors: Array[String]) -> void:
     warning.show()
     for _frame in range(10):
         await process_frame
-    var hints: Control = shell.find_child("InputHints", true, false)
-    _check(hints != null and hints.get_global_rect().end.y <= root.size.y, "Long titles and errors must not push control hints outside the compact window", errors)
+    _check(shell.find_child("InputHints", true, false) == null, "The showcase must not reintroduce a bottom instructions row", errors)
+    _check(title.get_global_rect().end.y <= root.size.y, "Long titles and errors must keep the game title within the compact window", errors)
+    _check(shell._header.get_global_rect().end.x <= root.size.x, "Integrated header actions must fit within the compact window", errors)
     var carousel: Control = shell.get("_carousel")
     _check(carousel.size.y >= 180, "Compact error layout must retain the cartridge stage", errors)
     title.text = previous_title
     warning.text = previous_warning
     warning.visible = warning_visible
     root.size = original_size
+    await process_frame
+
+
+func _exercise_direct_activation(shell: Control, carousel: Control, errors: Array[String]) -> void:
+    var original_gameplay: Node = shell.get("_gameplay")
+    var gameplay := FakeGameplay.new()
+    root.add_child(gameplay)
+    shell.set("_gameplay", gameplay)
+    var selected: Dictionary = carousel.games[carousel.selected_index]
+    var id := str(selected["id"])
+    selected["playable"] = true
+    carousel.game_activated.emit(id)
+    _check(gameplay.started_ids == [id], "Activating playable game artwork must launch directly", errors)
+    _check(not shell._details_overlay.visible, "Direct launch must not require the details overlay", errors)
+    carousel.game_activated.emit("")
+    carousel.game_activated.emit("missing-game")
+    _check(gameplay.started_ids.size() == 1, "Empty or stale artwork IDs must never start a game", errors)
+    gameplay.active_id = "active-fixture"
+    carousel.game_activated.emit(id)
+    _check(gameplay.started_ids.size() == 1, "An active session must reject a duplicate art activation", errors)
+    gameplay.active_id = ""
+    selected["playable"] = false
+    carousel.game_activated.emit(id)
+    _check(gameplay.started_ids.size() == 1 and shell._details_overlay.visible, "Unavailable games must show details without launching", errors)
+    shell._close_details()
+    shell._show_console_home()
+    carousel.game_activated.emit(id)
+    _check(gameplay.started_ids.size() == 1, "Hidden game art must not launch from console selection", errors)
+    shell._open_console("")
+    await _settle(shell)
+    shell.set("_gameplay", original_gameplay)
+    gameplay.queue_free()
+
+
+func _exercise_console_art_gestures(errors: Array[String]) -> void:
+    var view := ModelView.new()
+    view.activation_enabled = true
+    view.size = Vector2(800, 600)
+    root.add_child(view)
+    await process_frame
+    await process_frame
+    view.model = MeshInstance3D.new()
+    var box := BoxMesh.new()
+    box.size = Vector3(0.08, 0.06, 0.02)
+    view.model.mesh = box
+    view.pivot.add_child(view.model)
+    view._interaction_bounds = view._mesh_bounds(view.model)
+    var activations := [0]
+    view.activated.connect(func(): activations[0] += 1)
+    var center: Vector2 = view.camera.unproject_position(Vector3.ZERO)
+    _model_pointer(view, center, true)
+    _model_pointer(view, center, false)
+    _check(activations[0] == 1, "Releasing a click over console art must activate it once", errors)
+    _model_pointer(view, center, true)
+    var drag := InputEventMouseMotion.new()
+    drag.relative = Vector2(20, 4)
+    drag.position = center + drag.relative
+    view._input_view(drag)
+    _model_pointer(view, drag.position, false)
+    _check(activations[0] == 1, "Rotating console art must not activate it", errors)
+    view.reset_view()
+    _model_pointer(view, center, true)
+    _model_pointer(view, center, true, MOUSE_BUTTON_WHEEL_UP)
+    _model_pointer(view, center, false)
+    _check(activations[0] == 1, "Zooming console art must not activate it", errors)
+    _model_pointer(view, Vector2.ONE, true)
+    _model_pointer(view, Vector2.ONE, false)
+    _check(activations[0] == 1, "The empty backdrop is not a console activation target", errors)
+    view.grab_focus()
+    var accept := InputEventAction.new()
+    accept.action = "ui_accept"
+    accept.pressed = true
+    view._input_view(accept)
+    _check(activations[0] == 2, "Focused console art must accept keyboard and controller activation", errors)
+    view.queue_free()
+    await process_frame
+
+
+func _model_pointer(view: Control, point: Vector2, pressed: bool, button := MOUSE_BUTTON_LEFT) -> void:
+    var event := InputEventMouseButton.new()
+    event.position = point
+    event.button_index = button
+    event.pressed = pressed
+    view._input_view(event)
+
+
+func _exercise_background_drag(shell: Control, carousel: Control, errors: Array[String]) -> void:
+    carousel.set_presentation(true, false, false)
+    carousel._reset_inspection()
+    await process_frame
+    var hero: Node3D = carousel.get("_hero")
+    var camera: Camera3D = carousel.get("_camera")
+    var viewport: SubViewport = carousel.get("_viewport")
+    var center := camera.unproject_position(hero.global_position) * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
+    var backdrop := Vector2(center.x, 2)
+    _check(carousel._cartridge_index_at(backdrop) != carousel.selected_index, "Vertical drag regression must begin outside the selected art", errors)
+    var activations := [0]
+    var record_activation := func(_id: String): activations[0] += 1
+    carousel.game_activated.connect(record_activation)
+    var press := InputEventMouseButton.new()
+    press.button_index = MOUSE_BUTTON_LEFT
+    press.pressed = true
+    press.position = backdrop
+    carousel._gui_input(press)
+    var motion := InputEventMouseMotion.new()
+    motion.relative = center - backdrop
+    motion.position = center
+    carousel._gui_input(motion)
+    var release := InputEventMouseButton.new()
+    release.button_index = MOUSE_BUTTON_LEFT
+    release.position = center
+    carousel._gui_input(release)
+    _check(activations[0] == 0, "A vertical drag from backdrop onto art must never launch a game", errors)
+    if shell._details_overlay.visible:
+        shell._close_details()
+    await process_frame
+    press.position = center
+    carousel._gui_input(press)
+    carousel._gui_input(release)
+    _check(activations[0] == 1, "A stationary press and release on game art must still activate", errors)
+    carousel.game_activated.disconnect(record_activation)
+    if shell._details_overlay.visible:
+        shell._close_details()
     await process_frame

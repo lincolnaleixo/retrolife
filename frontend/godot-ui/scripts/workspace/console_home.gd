@@ -11,11 +11,10 @@ var _index := 0
 var _view: SubViewportContainer
 var _title: Label
 var _detail: Label
-var _hint: Label
 var _position: Label
 var _previous: Button
 var _next: Button
-var _open: Button
+var _placeholder: Button
 var _path := ""
 var _attempted := false
 
@@ -24,35 +23,45 @@ func _ready() -> void:
     add_theme_constant_override("separation", 10)
     var eyebrow := _label("YOUR CONSOLES", 12, Color("78dbba"))
     add_child(eyebrow)
+    var hero := HBoxContainer.new()
+    hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    hero.add_theme_constant_override("separation", 12)
+    add_child(hero)
+    _previous = _button("‹", func(): navigate(-1))
+    _previous.tooltip_text = "Previous console · Left arrow"
+    hero.add_child(_previous)
     _view = ModelView.new()
     _view.auto_frame = true
+    _view.activation_enabled = true
     _view.minimum_view_size = Vector2(300, 220)
+    _view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     _view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    add_child(_view)
+    _view.tooltip_text = "Click to open collection · Drag to rotate · Scroll to zoom"
+    _view.activated.connect(_open_selected)
+    _view.gui_input.connect(handle_navigation)
+    hero.add_child(_view)
     _view.viewport_3d.render_target_update_mode = SubViewport.UPDATE_DISABLED
+    # A missing optional model must never make the game collection inaccessible.
+    _placeholder = Button.new()
+    _placeholder.text = "Open collection"
+    _placeholder.tooltip_text = "Add local 3D artwork in Settings"
+    _placeholder.pressed.connect(_open_selected)
+    _placeholder.gui_input.connect(handle_navigation)
+    _view.add_child(_placeholder)
+    _placeholder.set_anchors_preset(Control.PRESET_CENTER)
+    _placeholder.offset_left = -110
+    _placeholder.offset_right = 110
+    _placeholder.offset_top = -24
+    _placeholder.offset_bottom = 24
+    _next = _button("›", func(): navigate(1))
+    _next.tooltip_text = "Next console · Right arrow"
+    hero.add_child(_next)
     _title = _label("Your collection starts here", 32)
     add_child(_title)
     _detail = _label("Import a ROM to add its console to your collection.", 14, Color("9aa8b8"))
     add_child(_detail)
-    var navigation := HBoxContainer.new()
-    navigation.alignment = BoxContainer.ALIGNMENT_CENTER
-    navigation.add_theme_constant_override("separation", 16)
-    add_child(navigation)
-    _previous = _button("←", func(): navigate(-1))
-    _previous.tooltip_text = "Previous console · Left arrow"
-    _previous.custom_minimum_size.x = 56
-    navigation.add_child(_previous)
-    _open = _button("Open collection", _open_selected)
-    _open.custom_minimum_size.x = 240
-    navigation.add_child(_open)
-    _next = _button("→", func(): navigate(1))
-    _next.tooltip_text = "Next console · Right arrow"
-    _next.custom_minimum_size.x = 56
-    navigation.add_child(_next)
     _position = _label("", 12, Color("78dbba"))
     add_child(_position)
-    _hint = _label("", 12, Color("939eaf"))
-    add_child(_hint)
 
 func configure(systems: Array) -> void:
     var previous_id := selected_id()
@@ -94,8 +103,6 @@ func _update_selection() -> void:
     var id := selected_id()
     var empty := id.is_empty()
     _view.visible = not empty
-    _open.visible = not empty
-    _open.disabled = empty
     _previous.visible = _available.size() > 1
     _next.visible = _available.size() > 1
     _position.visible = _available.size() > 1
@@ -109,19 +116,18 @@ func _update_selection() -> void:
         _attempted = false
     _view.default_view = Vector2(-0.35, 0.12) if id in ["game-boy", "game-boy-advance"] else Vector2(-0.55, 0.55)
     _view.frame_scale = 1.0
-    _hint.text = "" if empty else ("Drag to rotate · Scroll to zoom · Double-click to reset" if not path.is_empty() else "Link a local 3D model in Storage & assets.")
+    _placeholder.visible = not empty and (path.is_empty() or (_attempted and _view.model == null))
 
 func _process(_delta: float) -> void:
     var active := is_visible_in_tree() and not _available.is_empty()
     _view.viewport_3d.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if active else SubViewport.UPDATE_DISABLED
     if active and not _attempted and not _path.is_empty():
         _attempted = true
-        if not _view.load_model(_path):
-            _hint.text = "3D model unavailable. Check Storage & assets."
+        _placeholder.visible = not _view.load_model(_path)
 
 func focus_first() -> void:
-    if not _open.disabled:
-        _open.grab_focus()
+    if not _available.is_empty():
+        _view.grab_focus()
 
 func _label(content: String, font_size: int, color := Color("eaf2f6")) -> Label:
     var label := Label.new()
@@ -135,7 +141,11 @@ func _label(content: String, font_size: int, color := Color("eaf2f6")) -> Label:
 func _button(caption: String, action: Callable) -> Button:
     var button := Button.new()
     button.text = caption
-    button.custom_minimum_size.y = 44
+    button.flat = true
+    button.custom_minimum_size = Vector2(52, 68)
+    button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    button.add_theme_font_size_override("font_size", 44)
+    button.add_theme_color_override("font_color", Color("7f91a7"))
     button.pressed.connect(action)
     button.gui_input.connect(handle_navigation)
     return button

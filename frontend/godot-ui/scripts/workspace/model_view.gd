@@ -1,6 +1,9 @@
 extends SubViewportContainer
 
+signal activated
+
 var auto_frame := false
+var activation_enabled := false
 var minimum_view_size := Vector2(360, 260)
 var default_view := Vector2(-0.38, -0.14)
 var allow_wheel_zoom := true
@@ -16,12 +19,18 @@ var marker: MeshInstance3D
 var model: Node3D
 var message := ""
 var _dragging := false
+var _drag_started := false
+var _pointer_travel := 0.0
+var _press_position := Vector2.ZERO
+var _click_candidate := false
+var _interaction_bounds := AABB()
 var _angle := Vector2.ZERO
 
 func _ready() -> void:
     stretch = true
     custom_minimum_size = minimum_view_size
-    mouse_default_cursor_shape = Control.CURSOR_DRAG
+    focus_mode = Control.FOCUS_ALL if activation_enabled else Control.FOCUS_NONE
+    mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if activation_enabled else Control.CURSOR_DRAG
     viewport_3d = SubViewport.new()
     viewport_3d.own_world_3d = true
     viewport_3d.transparent_bg = true
@@ -66,8 +75,12 @@ func _ready() -> void:
     marker.hide()
     pivot.add_child(marker)
     gui_input.connect(_input_view)
+    mouse_exited.connect(func(): _click_candidate = false)
+    visibility_changed.connect(_cancel_pointer)
+    focus_exited.connect(_cancel_pointer)
 
 func load_model(path: String) -> bool:
+    _cancel_pointer()
     if model != null:
         model.free()
         model = null
@@ -124,6 +137,7 @@ func load_model(path: String) -> bool:
         camera.near = maxf(distance - longest * 1.25, 0.01)
         camera.far = distance + maxf(longest * 1.25, 0.1)
     _configure_surface_sampling(model)
+    _interaction_bounds = _mesh_bounds(model)
     reset_view()
     return true
 
@@ -147,23 +161,62 @@ func highlight(action: String) -> void:
         marker.position = Vector3(point.x * 0.001, point.y * 0.001 + 0.031, 0.019)
 
 func _input_view(event: InputEvent) -> void:
+    if activation_enabled and has_focus() and event.is_action_pressed("ui_accept") and not event.is_echo():
+        activated.emit()
+        accept_event()
+        return
     if event is InputEventMouseButton:
         if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and not allow_wheel_zoom:
             return
         if event.button_index == MOUSE_BUTTON_LEFT:
-            _dragging = event.pressed
-            if event.double_click:
-                reset_view()
-                _dragging = false
+            if event.pressed:
+                if activation_enabled:
+                    grab_focus()
+                _dragging = true
+                _drag_started = false
+                _pointer_travel = 0.0
+                _press_position = event.position
+                _click_candidate = activation_enabled and _hits_model(event.position)
+                if event.double_click:
+                    reset_view()
+                    _cancel_pointer()
+            else:
+                var activate := _dragging and _click_candidate and not _drag_started and _hits_model(event.position)
+                _cancel_pointer()
+                if activate:
+                    activated.emit()
         if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+            _click_candidate = false
             camera.size = clampf(camera.size * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), _fit_size * 0.4, _fit_size * 2.5)
         accept_event()
     elif event is InputEventMouseMotion and _dragging:
-        _angle += event.relative * 0.006
+        _pointer_travel += event.relative.length()
+        if not _drag_started and _pointer_travel < 6.0:
+            return
+        var movement: Vector2 = event.relative if _drag_started else event.position - _press_position
+        _drag_started = true
+        _click_candidate = false
+        _angle += movement * 0.006
         var center := _center
         var basis_value := Basis.from_euler(Vector3(clampf(_angle.y, -1.2, 1.2), _angle.x, 0))
         pivot.transform = Transform3D(basis_value, center - basis_value * center)
         accept_event()
+
+func _cancel_pointer() -> void:
+    _dragging = false
+    _drag_started = false
+    _click_candidate = false
+    _pointer_travel = 0.0
+
+func _hits_model(point: Vector2) -> bool:
+    if model == null or not Rect2(Vector2.ZERO, size).has_point(point):
+        return false
+    # Use the model's rotated bounds, rather than making the whole transparent
+    # viewport a launch target. Dragging the surrounding space still rotates it.
+    var local := pivot.global_transform.affine_inverse()
+    var origin := local * camera.project_ray_origin(point)
+    var direction := (local.basis * camera.project_ray_normal(point)).normalized()
+    return _interaction_bounds.intersects_ray(origin, direction) != null
 
 func _mesh_bounds(node: Node3D) -> AABB:
     var result := AABB()

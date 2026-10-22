@@ -4,9 +4,9 @@ This document specifies the implemented presentation and how to verify it. `plan
 
 ## Visual specification
 
-The library is a full-window dark showcase rather than a grid of cards. A restrained radial glow and dotted background frame the selected physical game medium. The selected object is full size with a slight three-quarter angle. Neighbors recede horizontally and in depth; edges do not wrap or duplicate entries. The camera is controlled by the interface, never a free-orbit viewer.
+The library is a full-window dark showcase rather than a grid of cards. Static studio lighting and a soft ground glow frame the selected physical game medium. The selected object is full size with a slight three-quarter angle. Neighbors recede horizontally and in depth; edges do not wrap or duplicate entries. The camera is controlled by the interface, never a free-orbit viewer.
 
-At the 2K-class default window (or the nearest size the usable display allows), the header contains the small RetroLife wordmark and Search, Import ROM and View buttons. Compact system chips sit beneath it. Most vertical space belongs to the cartridge stage. The selected game's title, short system/playability line, index and controller hints sit below it. Bridge status and source identifiers are only available through optional diagnostics in View.
+The integrated header contains the RetroLife wordmark, contextual Back/Box/Details actions, Search and Menu. Menu holds import, controllers, storage, display settings and window actions. Most vertical space belongs to the 3D stage; only the selected title and system remain below it. The console page shows one populated console at a time. Click its artwork to enter the collection. The window has no native titlebar; drag the wordmark area to move it and use F11 or Menu for fullscreen.
 
 Release-pinned neutral models include the SNES NTSC-U shell, western Mega Drive cartridge, standalone PlayStation CD, Nintendo 64 cartridge and NES cartridge. New models are published first in retro-3d-library and consumed unchanged here. The bridge still imports and plays SNES only; a 3D model does not grant emulation, ROM import, or catalog support. Missing SNES assets use the existing procedural cartridge; missing PlayStation models use an annular CD fallback; other missing or unknown systems use a neutral sleeve. Tall cartridge labels fit inside that sleeve without changing their aspect ratio. A fallback is not the acceptance target when verified GLB assets are staged.
 
@@ -14,7 +14,7 @@ Transitions last 220 ms with cubic easing. A new input interrupts the previous t
 
 ## Controls and everyday use
 
-Import your own `.sfc` or `.smc` files with Import ROM. Successful imports clear an active search and select the newly imported game, while failed imports remain visible as errors. Files continue to use the existing managed local library and battery-save implementation.
+Import your own `.sfc` or `.smc` files with **Menu → Import ROM**. Successful imports clear an active search and select the newly imported game, while failed imports remain visible as errors. Files continue to use the existing managed local library and battery-save implementation.
 
 The selected cartridge can be inspected directly: drag it to rotate through the full 360° yaw with bounded pitch, zoom with the wheel or a pinch, and reset the framed view with `R`. Dragging the hero never launches or deselects a game.
 
@@ -24,12 +24,13 @@ The selected cartridge can be inspected directly: drag it to rotate through the 
 | Inspect the selected cartridge | Shift + arrows | Right stick | Drag the selected cartridge |
 | Zoom inspection | `+` / `-` | Left / right trigger | Wheel or pinch |
 | Reset inspection | `R` | Right stick click | — |
-| Details | Enter | A | Click the selected cartridge |
+| Play selected game | Enter | A | Click the selected cartridge |
+| Details | Tab to Details | Focus Details | Top Details action |
 | Select a visible neighbor | Arrows | D-pad | Click that cartridge |
-| Switch system | Focus a system chip with Tab | LB / RB | Click a chip |
+| Switch system | Back, then Left/Right | LB / RB | Back, then console side arrows |
 | Search | `/` | Y | Search button |
-| Back / clear search | Escape | B | Close the overlay |
-| Change presentation | Tab to View | Focus View | View button |
+| Back / clear search | Escape | B | Top back arrow / edit Search |
+| Change presentation | Tab to Menu | Focus Menu | Menu → Display settings |
 
 The selection is remembered separately for the most recent 32 combinations of system and search. Closing details or returning from gameplay restores the game identity rather than guessing a numeric list position. The last selected game and system, reduced motion, rendering quality and text-view preference are saved locally. The current search itself is not persisted across launches.
 

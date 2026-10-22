@@ -23,7 +23,7 @@ func _execute() -> String:
     shell.queue_free()
     await process_frame
     if failure.is_empty():
-        print("RetroLife native cartridge round trip passed: real managed import, details, core start, render suspension, saved stop and selection restoration")
+        print("RetroLife native cartridge round trip passed: real managed import, header details, direct artwork launch, core start, render suspension, saved stop and selection restoration")
     return failure
 
 
@@ -40,12 +40,30 @@ func _exercise_native_library(shell: Control) -> String:
         return "the real managed import did not populate the cartridge library"
     if not bool((carousel.games[0] as Dictionary).get("playable", false)):
         return "the real cartridge library marked the generated ROM unplayable"
-    shell._open_details(game_id)
+    shell._header._details.pressed.emit()
     if not (shell.get("_details_overlay") as Control).visible:
-        return "real game details did not open from the cartridge browser"
+        return "real game details did not open from the integrated header"
     if (shell.get("_details_play_button") as Button).disabled:
         return "the real imported cartridge has no enabled Play action"
-    shell._play_selected_game()
+    shell._close_details()
+    await process_frame
+    await process_frame
+    carousel.game_activated.emit("missing-game")
+    if not _gameplay.active_session_id().is_empty():
+        return "an unknown artwork identity started native gameplay"
+    var hero: Node3D = carousel.get("_hero")
+    var camera: Camera3D = carousel.get("_camera")
+    var viewport: SubViewport = carousel.get("_viewport")
+    var local_point := camera.unproject_position(hero.global_position) * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
+    var press := InputEventMouseButton.new()
+    press.button_index = MOUSE_BUTTON_LEFT
+    press.pressed = true
+    press.position = local_point
+    carousel._gui_input(press)
+    var release := InputEventMouseButton.new()
+    release.button_index = MOUSE_BUTTON_LEFT
+    release.position = local_point
+    carousel._gui_input(release)
     var start_failure: String = await _wait_for_status("running")
     if not start_failure.is_empty():
         _backend.call("stop_emulation_json")

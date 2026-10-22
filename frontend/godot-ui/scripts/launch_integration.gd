@@ -112,8 +112,10 @@ func start_game(game_id: String, title := "") -> Dictionary:
     _audio_method_missing = false
     _advance_error_shown = false
     _last_input_state.clear()
-    _game_title.text = title if not title.is_empty() else game_id
-    _journey.configure(_backend, game_id, title)
+    var profile := preload("res://scripts/workspace/collection_profiles.gd").for_game(title, "snes")
+    _game_title.text = str(profile.get("title", title)) if not title.is_empty() else game_id
+    # This launch bridge supports the SNES core only. Keep artwork platform-scoped.
+    _journey.configure(_backend, game_id, title, "snes")
     _session_status.text = "Playing  •  %s × %s" % [_video_width, _video_height]
     _pause_overlay.visible = false
     _resume_button.disabled = false

@@ -528,3 +528,12 @@ Console 3D follow-up (2026-10-22): all seven private local models loaded in the 
 Verification (2026-10-22): the original two-UV fixture verifies repeating primary coordinates, independent AO atlas coordinates, mipmapped normal/roughness textures and unchanged GLB bytes. Desktop clicks opened the SNES collection and its local Super Mario World box. The real library contains one populated console; multi-console wrap, selection preservation and empty-library behavior are exercised with test fixtures rather than invented user games. The public build dependency blocker remains unchanged.
 
 Final runtime verification: the two-UV fixture, 10,000-entry library navigation, workspace mappings and native play/save/return smokes passed. All seven real local console exports rendered with the corrected importer; SNES desktop and compact captures were inspected. The Preview resource pack was updated and its ad-hoc signature verified. macOS locked again before a final installed-app click check; reopening the running Preview is still needed to load the corrected pack.
+
+
+### Immersive library and illustrated Journey
+
+- [x] Remove bottom command/storage bars, integrate window chrome, and navigate directly from 3D art with click/drag separation. Keep box/details and administrative actions in a compact header.
+- [x] Replace the primary Applications installation with the current local development build; preserve the previous signed app separately. Future local installs use the same primary app path. This is not a new notarized distribution release.
+- [x] Load optional per-game hero/chapter/keepsake packs from the private collection; no box-art substitute or inherited image for unknown games. Keep progress IDs and persistence unchanged.
+
+Verification (2026-10-22): the 10,000-entry library, native cartridge-click/play/save/return, workspace and window-layout smokes passed. Native desktop interaction exercised the installed borderless app, console-art click, return navigation, integrated menu, pause and clean stop. Desktop/compact library and real box captures were inspected. The isolated Journey smoke covers PNG/SVG loading, title+console scoping, partial/malformed/missing art, stale image clearing, cached polling and reversible reward state. The bespoke Super Mario World artwork was published to the private source library before local consumption; proprietary images remain outside this application repository. The public CI/private-model dependency blocker remains unchanged.

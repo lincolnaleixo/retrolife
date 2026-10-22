@@ -5,7 +5,6 @@ const CollectionProfiles = preload("res://scripts/workspace/collection_profiles.
 var _console_home: VBoxContainer
 var _game_sections: Array[Control] = []
 var _at_console_home := true
-var _box_button: Button
 var _box_panel: PopupPanel
 var _box_view: SubViewportContainer
 var _box_title: Label
@@ -16,18 +15,11 @@ const UpdatePanel = preload("res://scripts/updates/update_panel.gd")
 const WorkspacePreferences = preload("res://scripts/workspace/preferences.gd")
 var _controller_panel: PopupPanel
 var _storage_panel: PopupPanel
-var _storage_summary: Button
-var _console_preview: TextureRect
-var _box_preview: TextureRect
-var _workspace_play: Button
-var _workspace_side: VBoxContainer
+var _header: HBoxContainer
+var _previous_game: Button
+var _next_game: Button
 var _workspace_column: VBoxContainer
 var _workspace_filters: ScrollContainer
-var _workspace_navigation: HBoxContainer
-var _workspace_hints: Label
-var _controllers_button: Button
-var _storage_button: Button
-var _settings_button: Button
 var _updates_panel: PopupPanel
 var settings_path := "user://library-ui.cfg"
 
@@ -35,10 +27,8 @@ var persist_preferences := true
 var _carousel: Control
 var _hero_title: Label
 var _hero_meta: Label
-var _hero_count: Label
 var _search_panel: PopupPanel
 var _settings_panel: PopupPanel
-var _search_button: Button
 var _art_dialog: FileDialog
 var _artwork_game_id := ""
 var _view_selections: Dictionary = {}
@@ -95,29 +85,10 @@ func _build_shell() -> void:
     _workspace_column = column
     column.add_theme_constant_override("separation", 6)
     margin.add_child(column)
-    var header := HBoxContainer.new()
-    header.add_theme_constant_override("separation", 10)
-    column.add_child(header)
-    var brand_icon := TextureRect.new()
-    brand_icon.texture = preload("res://assets/brand/retrolife-icon.png")
-    brand_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    brand_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    brand_icon.custom_minimum_size = Vector2(38, 38)
-    header.add_child(brand_icon)
-    var brand := _label("RetroLife", 24, TEXT_COLOR)
-    brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    header.add_child(brand)
-    _search_button = _button("Search  /", _show_search)
-    header.add_child(_search_button)
-    _import_button = _button("+  Import ROM", _open_import_dialog)
-    _import_button.name = "ImportButton"
-    header.add_child(_import_button)
-    _controllers_button = _button("Controllers", _show_controllers)
-    _storage_button = _button("Storage & assets", _show_storage)
-    _settings_button = _button("Settings", _show_settings)
-    header.add_child(_controllers_button)
-    header.add_child(_storage_button)
-    header.add_child(_settings_button)
+    _header = preload("res://scripts/workspace/immersive_header.gd").new()
+    _header.action_requested.connect(_on_header_action)
+    _header.drag_requested.connect(_drag_window)
+    column.add_child(_header)
     _warning_label = _label("", 13, DANGER_COLOR)
     _warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _warning_label.max_lines_visible = 2
@@ -143,24 +114,25 @@ func _build_shell() -> void:
     _carousel = Carousel.new()
     _carousel.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _carousel.selection_changed.connect(_on_cartridge_selected)
-    _carousel.game_activated.connect(_open_details)
+    _carousel.game_activated.connect(_activate_game_art)
     var showcase := HBoxContainer.new()
     showcase.size_flags_vertical = Control.SIZE_EXPAND_FILL
     showcase.add_theme_constant_override("separation", 20)
     column.add_child(showcase)
-    _workspace_side = VBoxContainer.new()
-    _workspace_side.custom_minimum_size.x = 230
-    _workspace_side.alignment = BoxContainer.ALIGNMENT_CENTER
-    _workspace_side.add_theme_constant_override("separation", 10)
-    showcase.add_child(_workspace_side)
-    _workspace_side.add_child(_label("THE SYSTEM", 12, MUTED_COLOR))
-    _console_preview = _render_preview(_workspace_side, 150)
-    _workspace_side.add_child(_label("Super Nintendo", 19, TEXT_COLOR))
-    _workspace_side.add_child(_label("SNES · Ready for local play", 12, MUTED_COLOR))
-    _box_preview = _render_preview(_workspace_side, 160)
-    _workspace_side.add_child(_label("Your local 3D collection", 12, MUTED_COLOR))
     _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     showcase.add_child(_carousel)
+    _previous_game = _button("‹", _navigate.bind(-1))
+    _next_game = _button("›", _navigate.bind(1))
+    for arrow in [_previous_game, _next_game]:
+        arrow.custom_minimum_size = Vector2(44, 64)
+        arrow.add_theme_font_size_override("font_size", 32)
+        _carousel.add_child(arrow)
+    _previous_game.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+    _previous_game.position.y -= 32
+    _next_game.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+    _next_game.position += Vector2(-44, -32)
+    _previous_game.tooltip_text = "Previous game"
+    _next_game.tooltip_text = "Next game"
     _carousel.set_presentation(_reduce_motion, _low_quality, _textual_view)
     _carousel.set_label_fetching(_fetch_collection_labels)
     _empty_label = _label("Import an .sfc or .smc file to start your collection.", 16, MUTED_COLOR)
@@ -176,41 +148,6 @@ func _build_shell() -> void:
     _hero_meta = _label("A collection worth coming back to", 14, MUTED_COLOR)
     _hero_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     column.add_child(_hero_meta)
-    var quick_actions := HBoxContainer.new()
-    quick_actions.alignment = BoxContainer.ALIGNMENT_CENTER
-    quick_actions.add_theme_constant_override("separation", 12)
-    column.add_child(quick_actions)
-    quick_actions.add_child(_button("← Consoles", _show_console_home))
-    _box_button = _button("Inspect box in 3D", _show_box)
-    quick_actions.add_child(_box_button)
-    _workspace_play = _button("Play game", _play_from_workspace)
-    _workspace_play.custom_minimum_size = Vector2(220, 46)
-    var play_style := StyleBoxFlat.new()
-    play_style.bg_color = Color("287966")
-    play_style.set_corner_radius_all(10)
-    _workspace_play.add_theme_stylebox_override("normal", play_style)
-    quick_actions.add_child(_workspace_play)
-    quick_actions.add_child(_button("Game details", func():
-        if not _last_game_id.is_empty():
-            _open_details(_last_game_id)
-    ))
-    var bottom := HBoxContainer.new()
-    _workspace_navigation = bottom
-    bottom.add_theme_constant_override("separation", 12)
-    column.add_child(bottom)
-    bottom.add_child(_button("<", _navigate.bind(-1)))
-    _hero_count = _label("", 13, MUTED_COLOR)
-    _hero_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    _hero_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    _hero_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-    bottom.add_child(_hero_count)
-    bottom.add_child(_button(">", _navigate.bind(1)))
-    var hints := _label("Arrows / D-pad Browse  Drag Inspect  A / Enter Details  LB / RB System  Y / / Search  B / Esc Back", 12, MUTED_COLOR)
-    hints.name = "InputHints"
-    _workspace_hints = hints
-    hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    hints.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    column.add_child(hints)
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -237,12 +174,8 @@ func _build_shell() -> void:
     _storage_panel.owner_ui = self
     _storage_panel.changed.connect(_refresh_workspace_assets)
     add_child(_storage_panel)
-    _storage_summary = _button("", _show_storage)
-    _storage_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-    _storage_summary.add_theme_font_size_override("font_size", 12)
-    column.add_child(_storage_summary)
     _build_box_inspector()
-    _game_sections = [filter_scroll, _count_label, showcase, _empty_label, _hero_title, _hero_meta, quick_actions, bottom, hints]
+    _game_sections = [filter_scroll, _count_label, showcase, _empty_label, _hero_title, _hero_meta]
     _refresh_workspace_assets()
     _apply_library_page()
     resized.connect(_update_layout_density)
@@ -252,25 +185,12 @@ func _build_shell() -> void:
 func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
-    _workspace_side.hide()
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
     _hero_title.add_theme_font_size_override("font_size", 24 if size.x < 900 else 30)
     var compact := size.y < 660
-    _workspace_column.add_theme_constant_override("separation", 3 if compact else 6)
-    _workspace_filters.visible = not compact
-    _workspace_navigation.visible = not compact
-    _count_label.visible = not compact
-    _hero_meta.visible = not compact
+    _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
     _hero_title.max_lines_visible = 1 if compact else 2
     _warning_label.max_lines_visible = 1 if compact else 2
-    _workspace_play.custom_minimum_size.y = 36 if compact else 46
-    _workspace_hints.text = "← → Browse · Drag Rotate · Enter Details · Esc Back" if compact else "Arrows / D-pad Browse  Drag Inspect  A / Enter Details  LB / RB System  Y / / Search  B / Esc Back"
-    for button in [_search_button, _import_button, _controllers_button, _storage_button, _settings_button]:
-        button.add_theme_font_size_override("font_size", 12 if size.x < 1000 else 14)
-    _storage_button.text = "Storage" if size.x < 1000 else "Storage & assets"
-    _import_button.text = "+ Import" if size.x < 1000 else "+ Import ROM"
-
-
     _apply_library_page()
 
 
@@ -473,7 +393,7 @@ func _refresh_library(preferred_game_id := "", preserve_control_focus := false) 
     _count_label.text = "%d GAME%s  /  YOUR COLLECTION" % [int(data.get("filteredGames", entries.size())), "" if entries.size() == 1 else "S"]
     if not query.is_empty():
         _count_label.text = "%d RESULT%s FOR \"%s\"" % [entries.size(), "" if entries.size() == 1 else "S", query]
-    _search_button.text = "Search  /" if query.is_empty() else "Search: " + query.left(18)
+    _header.set_search_query(query)
     _rebuild_filters()
     _console_home.configure(_systems)
     _carousel.set_games(_current_games, desired)
@@ -511,17 +431,15 @@ func _restore_carousel_focus() -> void:
 
 func _on_cartridge_selected(game: Dictionary, index: int) -> void:
     _last_game_id = str(game.get("id", ""))
-    _hero_title.text = str(game.get("title", "Your next adventure starts here"))
-    _hero_meta.text = "A collection worth coming back to" if game.is_empty() else "%s  /  %s" % ["Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", "")), "Ready to play" if bool(game.get("playable", false)) else "Not playable"]
-    _hero_count.text = "%d / %d" % [index + 1, _current_games.size()] if index >= 0 else ""
-    if _workspace_play != null:
-        _workspace_play.disabled = game.is_empty() or not bool(game.get("playable", false))
-    if _box_preview != null:
-        _box_preview.visible = str(game.get("title", "")).to_lower().contains("super mario world") and _box_preview.texture != null
     var profile := CollectionProfiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
+    _hero_title.text = str(profile.get("title", game.get("title", "Your next adventure starts here")))
+    _hero_meta.text = "" if game.is_empty() else ("Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", "")))
     _box_path = CollectionProfiles.box_path(profile) if persist_preferences else ""
-    _box_button.disabled = _box_path.is_empty()
-    _box_button.tooltip_text = "Link the matching local box model in Storage & assets." if _box_path.is_empty() else "Rotate, zoom and inspect the printed box."
+    _previous_game.visible = _current_games.size() > 1
+    _next_game.visible = _current_games.size() > 1
+    _previous_game.disabled = index <= 0
+    _next_game.disabled = index >= _current_games.size() - 1
+    _header.configure_page(_at_console_home, not game.is_empty(), not _box_path.is_empty())
     _remember_selection()
     if _settings_timer != null:
         _settings_timer.start()
@@ -570,7 +488,7 @@ func _on_files_selected(paths: PackedStringArray) -> void:
     if _catalog == null or _importing:
         return
     _importing = true
-    _import_button.disabled = true
+    _header.set_busy(true)
     var failures: Array[String] = []
     var imported_id := ""
     for path in paths:
@@ -581,7 +499,7 @@ func _on_files_selected(paths: PackedStringArray) -> void:
             failures.append(str(response.get("error", "Import failed.")))
         await get_tree().process_frame
     _importing = false
-    _import_button.disabled = false
+    _header.set_busy(false)
     _warning_label.text = "\n".join(failures)
     _warning_label.tooltip_text = _warning_label.text
     _warning_label.visible = not failures.is_empty()
@@ -660,10 +578,16 @@ func _game_is_active() -> bool:
 
 func _process(_delta: float) -> void:
     if _carousel != null:
-        _carousel.set_active(not _at_console_home and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible)
+        _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
+        _on_header_action("fullscreen")
+        get_viewport().set_input_as_handled()
+        return
+    if _header.is_menu_open():
+        return
     if _box_panel != null and _box_panel.visible:
         if event.is_action_pressed("ui_cancel"):
             _box_panel.hide()
@@ -675,9 +599,10 @@ func _unhandled_input(event: InputEvent) -> void:
         return
     if _game_is_active():
         return
+    if _settings_panel.visible or _file_dialog.visible or _art_dialog.visible or _search_panel.visible:
+        return
     if _at_console_home:
-        if not _settings_panel.visible and not _file_dialog.visible:
-            _console_home.handle_navigation(event)
+        _console_home.handle_navigation(event)
         return
     if _details_overlay.visible:
         super._unhandled_input(event)
@@ -755,26 +680,8 @@ func _update_command(command: String) -> Dictionary:
     return parsed
 
 
-func _render_preview(parent: Node, height: int) -> TextureRect:
-    var image := TextureRect.new()
-    image.custom_minimum_size = Vector2(230, height)
-    image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-    parent.add_child(image)
-    return image
-
 func _refresh_workspace_assets() -> void:
-    if not persist_preferences:
-        _storage_summary.text = "Test library · Isolated fixtures"
-        return
-    _console_preview.texture = WorkspacePreferences.image("consoles/snes/hero.png")
-    _box_preview.texture = WorkspacePreferences.image("reproductions/snes/super-mario-world/box/hero.png")
-    _console_preview.visible = _console_preview.texture != null
-    _box_preview.visible = _box_preview.texture != null and _hero_title.text.to_lower().contains("super mario world")
-    var path := WorkspacePreferences.library_root()
-    _storage_summary.text = ("ROM storage · " if DirAccess.dir_exists_absolute(path) else "Storage offline · ") + path
-    _storage_summary.tooltip_text = "New ROMs are stored here in console folders. Click to change or reconnect."
-    if _catalog != null:
+    if persist_preferences and _catalog != null:
         _refresh_library()
 
 func _show_controllers() -> void:
@@ -794,9 +701,43 @@ func _show_storage() -> void:
     if _storage_panel.visible:
         _storage_panel.popup_centered(target)
 
-func _play_from_workspace() -> void:
-    _return_game_id = _carousel.selected_id()
+func _activate_game_art(game_id: String) -> void:
+    if _importing or _at_console_home or _game_is_active() or game_id.is_empty():
+        return
+    var selected: Dictionary = {}
+    for game in _current_games:
+        if str(game.get("id", "")) == game_id:
+            selected = game
+            break
+    if selected.is_empty():
+        return
+    if not bool(selected.get("playable", false)):
+        _open_details(game_id)
+        return
+    _return_game_id = game_id
     _play_selected_game()
+
+func _on_header_action(action: String) -> void:
+    match action:
+        "back": _show_console_home()
+        "box": _show_box()
+        "details":
+            if not _last_game_id.is_empty(): _open_details(_last_game_id)
+        "search": _show_search()
+        "import":
+            if not _importing: _open_import_dialog()
+        "controllers": _show_controllers()
+        "storage": _show_storage()
+        "settings": _show_settings()
+        "fullscreen":
+            var full := get_window().mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]
+            get_window().mode = Window.MODE_WINDOWED if full else Window.MODE_FULLSCREEN
+        "minimize": get_window().mode = Window.MODE_MINIMIZED
+        "quit": _close_safely()
+
+func _drag_window() -> void:
+    if DisplayServer.has_feature(DisplayServer.FEATURE_WINDOW_DRAG):
+        DisplayServer.window_start_drag()
 
 
 func _open_console(system_id: String) -> void:
@@ -827,11 +768,10 @@ func _apply_library_page() -> void:
     if not _at_console_home:
         _empty_label.visible = _current_games.is_empty()
         _hero_title.visible = not _current_games.is_empty()
-        _workspace_navigation.visible = _current_games.size() > 1
         _workspace_filters.hide()
         _hero_meta.visible = size.y >= 660
         _count_label.visible = size.y >= 660
-    _search_button.disabled = _at_console_home
+    _header.configure_page(_at_console_home, not _current_games.is_empty(), not _box_path.is_empty())
 
 func _build_box_inspector() -> void:
     _box_panel = PopupPanel.new()
