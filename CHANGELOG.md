@@ -4,6 +4,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Start in a console gallery, then open that console's games. Add a rotatable, zoomable local 3D box inspector and a dedicated RetroLife app icon.
+- Fit box-camera depth precision to the physical model and use anisotropic texture sampling. Pin the reviewed original icon bytes in the publication audit without admitting other binary assets.
+- Give seven known games distinct Journey chapters, challenge descriptions, reward collections, accent colors and local artwork. Unknown games keep a neutral journal, and challenge completion remains explicitly self-reported.
+
 - Record the verified local workspace build and the public CI blocker: the pinned 3D packages now require private repository access. Keep the feature PR in draft and preserve the private-asset boundary.
 
 - Add a library workspace with direct Play, console and game presentation, an explicit ROM storage location and a private local 3D collection link. ROM copying verifies identities and keeps originals; new imports use console folders while existing layouts remain readable. Offline volumes never fall back to internal storage.

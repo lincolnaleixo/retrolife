@@ -28,6 +28,7 @@ func _execute() -> String:
 
 
 func _exercise_native_library(shell: Control) -> String:
+    shell._open_console("snes")
     await shell._on_files_selected(PackedStringArray([_source_rom]))
     for _frame in range(60):
         if not bool(shell.get("_refreshing")):

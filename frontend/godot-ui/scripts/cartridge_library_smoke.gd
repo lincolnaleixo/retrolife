@@ -17,7 +17,7 @@ class FakeCatalog extends RefCounted:
         page_calls += 1
         var filtered: Array = []
         for entry in entries:
-            if query.is_empty() or query.to_lower() in str(entry["title"]).to_lower():
+            if (_system.is_empty() or entry["systemId"] == _system) and (query.is_empty() or query.to_lower() in str(entry["title"]).to_lower()):
                 filtered.append(entry)
         return {"ok": true, "data": {"revision": entries.size(), "games": filtered.slice(offset, offset + limit), "totalGames": entries.size(), "filteredGames": filtered.size(), "hasMore": offset + limit < filtered.size(), "systems": [{"id": "snes", "name": "Super Nintendo", "gameCount": entries.size()}]}}
 
@@ -53,6 +53,17 @@ func _run() -> void:
     root.add_child(shell)
     await shell._refresh_library()
     await process_frame
+    _check(shell._at_console_home and shell._console_home.visible, "Startup must show console selection", errors)
+    _check(not shell._carousel.is_visible_in_tree(), "Games stay hidden until a console is chosen", errors)
+    shell._open_console("snes")
+    await _settle(shell)
+    _check(not shell._at_console_home and shell._carousel.is_visible_in_tree(), "Choosing a console opens its games", errors)
+    shell._open_console("game-boy")
+    await _settle(shell)
+    _check(shell._current_games.is_empty() and shell._workspace_play.disabled, "An empty console must not expose another console's game", errors)
+    _check(shell._box_button.disabled, "No game means no box inspection", errors)
+    shell._open_console("")
+    await _settle(shell)
     var carousel: Control = shell.get("_carousel")
     _check(carousel.games.size() == 10000, "All pages, not only the first 500 games, must be visible", errors)
     _check(carousel.pool_size() == 7, "The scene pool must have seven entries", errors)
@@ -83,7 +94,10 @@ func _run() -> void:
     shell._on_filter_pressed("snes")
     await _settle(shell)
     carousel.select_id("fixture-02000")
-    shell._on_filter_pressed("")
+    shell._show_console_home()
+    await _settle(shell)
+    _check(shell._console_home.visible, "Back returns to consoles", errors)
+    shell._open_console("")
     await _settle(shell)
     _check(carousel.selected_id() == "fixture-05000", "Restore selection per system view", errors)
     carousel.select_index(-200)

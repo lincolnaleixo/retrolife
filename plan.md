@@ -503,3 +503,13 @@ Workspace verification (2026-10-22): `scripts/check.sh` passed (formatting, Clip
 Public CI follow-up: the `cartridge-ui` job for PR #43 stops in `prepare-cartridge-assets.py` with HTTP 404 when fetching the pinned packages from the now-private 3D repository. Local checks used the unchanged checksum-verified offline packages. Do not publish private models, grant a public PR access to private credentials, or disable asset verification to make this job pass.
 
 - [ ] Resolve the public build's model dependency and distribution policy before merging PR #43 or publishing a new signed release. The app source and private local collection integration are available on the feature branch; the public PR remains draft.
+
+
+## Console-first library and game journals
+
+- [x] Add console selection, return navigation, empty collections and local 3D box inspection; exercise navigation and the native gameplay round trip.
+- [x] Install the new app icon and per-game Journey presentation in the separate local Preview.
+- [x] Run presentation regressions and publication audit; keep all game artwork external.
+- [ ] Complete interactive desktop/compact acceptance of the installed Preview. The Mac lock screen prevented final click testing. Desktop and compact console captures, the 3D box and standalone Journey quest/gift panels were inspected; integrated compact gameplay still needs hands-on visual acceptance.
+
+Console-first verification (2026-10-22): all seven Godot presentation/native smoke suites passed, including 10,000-entry navigation, empty consoles, per-console return selection, seven game profiles, sequel fallback, live input mappings and native play/stop focus restoration. The original battery save remained byte-identical. The packaged local app starts headlessly and passes ad-hoc signature verification. The public CI/private-model blocker above is unchanged.

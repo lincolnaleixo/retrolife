@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Inspect the exact index that will be committed; report paths, never matched values."""
 from pathlib import Path
+import hashlib
 import re
 import subprocess
 import sys
@@ -8,6 +9,12 @@ import sys
 root = Path(__file__).resolve().parent.parent
 names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0')
 failures = []
+# Original RetroLife branding, visually reviewed with provenance beside the PNG.
+# Pin the exact bytes; this is not a general artwork or binary exemption.
+reviewed_binaries = {
+    'frontend/godot-ui/assets/brand/retrolife-icon.png':
+        'a0335861de77449e38a324728ea625e76e72a0a5033233735d8da59aa75d8688',
+}
 if not any(names):
     print('Refusing to audit an empty index', file=sys.stderr)
     sys.exit(1)
@@ -22,6 +29,10 @@ for name in filter(None, names):
     if path.name.startswith('.env') or path.suffix.lower() in {'.key', '.pem'}:
         failures.append((name, 'credential-shaped file'))
     data = subprocess.check_output(['git', 'show', ':' + name], cwd=root)
+    if name in reviewed_binaries:
+        if hashlib.sha256(data).hexdigest() != reviewed_binaries[name]:
+            failures.append((name, 'reviewed binary changed; review its replacement'))
+        continue
     if modes.get(name) == '120000':
         # Validate the indexed link, never a different unstaged working copy.
         target = data.decode('utf-8', errors='strict')

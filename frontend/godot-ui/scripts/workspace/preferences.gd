@@ -34,4 +34,7 @@ static func image(relative: String) -> Texture2D:
     if path.is_empty():
         return null
     var loaded := Image.load_from_file(path)
-    return null if loaded == null else ImageTexture.create_from_image(loaded)
+    if loaded == null:
+        return null
+    loaded.generate_mipmaps()
+    return ImageTexture.create_from_image(loaded)

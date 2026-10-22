@@ -42,3 +42,12 @@ Updater-enabled signed macOS builds provide **Settings > Software updates...** a
 - Progress is stored locally in `journey.json`, checkpointed during play and flushed on clean stop. Closing the window waits for the emulator to finish saving. Keep backups of application data along with your ROM library.
 
 Verification for this workspace is tracked in `plan.md`. A physical gamepad and audible output still need hands-on acceptance when those devices are available.
+
+
+### Console gallery and game journals
+
+The library opens on the console gallery. Choose a system to browse its games and use **Consoles** (or Escape outside a search) to return. Empty consoles do not imply emulator support; local ROM import and play remain SNES-only.
+
+**Inspect box in 3D** opens a matching local reproduction GLB with drag rotation, wheel zoom and Front/Back/Spine views. Models are read from the linked collection at `reproductions/<console>/<game>/box/<console>-<game>-box.glb`. Missing models disable inspection rather than substituting another game.
+
+Journey presentation profiles cover the seven current collection games. They customize chapter copy, four personal goals, eight reward names, colors and collectible stamps. Progress still uses stable milestone IDs, so changing presentation preserves existing XP and rewards. Game-specific headers are read from `reproductions/<console>/<game>/journey/cover.png`, falling back to the local box render. Unknown games receive a neutral journal. No game artwork is bundled or committed. Story goals remain self-reported, not emulator achievement detection.

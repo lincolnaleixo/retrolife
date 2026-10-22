@@ -6,6 +6,7 @@ config_version=5
 [application]
 
 config/name="RetroLife"
+config/icon="res://assets/brand/retrolife-icon.png"
 config/version="0.1.0"
 run/main_scene="res://scenes/Main.tscn"
 config/use_custom_user_dir=true

@@ -18,60 +18,98 @@ var _personal_buttons: Array[CheckBox] = []
 var _timer := 0.0
 var _collection_key := ""
 var _error: Label
-var _smw := false
+var _gift_tab: Button
+var _profile: Dictionary = {}
+var _chapter: Label
+var _description: Label
+var _art: TextureRect
+var _accent := Color("6ae4c4")
+var _gift_names: Array = GIFTS
+var _quest_notes: Array[Label] = []
 
 func _ready() -> void:
-    custom_minimum_size.x = 290
+    custom_minimum_size.x = 340
     var style := StyleBoxFlat.new()
     style.bg_color = Color("101b25")
     style.border_color = Color("293e49")
     style.set_border_width_all(1)
     style.set_corner_radius_all(18)
-    for side in [SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM]:
-        style.set_content_margin(side, 18)
+    style.set_content_margin_all(16)
     add_theme_stylebox_override("panel", style)
     var scroll := ScrollContainer.new()
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     add_child(scroll)
     var column := VBoxContainer.new()
     column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    column.add_theme_constant_override("separation", 12)
+    column.add_theme_constant_override("separation", 9)
     scroll.add_child(column)
-    _text(column, "YOUR JOURNEY", 12, Color("6ae4c4"))
-    _level = _text(column, "Level 1 · New explorer", 23)
+    _text(column, "YOUR GAME JOURNAL", 12, Color("6ae4c4"))
+    _art = TextureRect.new()
+    _art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    _art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    _art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    _art.custom_minimum_size.y = 100
+    column.add_child(_art)
+    _chapter = _text(column, "Your next adventure", 22)
+    _description = _text(column, "A personal journal for this game.", 12, Color("aebdcb"))
+    _level = _text(column, "Level 1 · New explorer", 18)
     _xp = ProgressBar.new()
     _xp.max_value = 200
     _xp.show_percentage = false
     _style_progress(_xp)
     _xp.custom_minimum_size.y = 7
     column.add_child(_xp)
-    _summary = _text(column, "0 / 200 XP to next level", 13)
-    _time = _text(column, "0 minutes played", 13)
-    column.add_child(HSeparator.new())
-    _text(column, "NEXT SESSION QUEST", 12, Color("6ae4c4"))
-    _quest = _text(column, "First adventure · 50 XP", 17)
-    _quest_progress = ProgressBar.new()
-    _quest_progress.show_percentage = false
-    _style_progress(_quest_progress)
-    _quest_progress.custom_minimum_size.y = 8
-    column.add_child(_quest_progress)
-    _text(column, "Session quests track emulated time. Pauses do not count.", 12, Color("99aebb"))
-    column.add_child(HSeparator.new())
-    _text(column, "PERSONAL CHALLENGES · 100 XP EACH", 12, Color("6ae4c4"))
-    _text(column, "Confirm these yourself after completing them in the game. You can undo a check.", 12, Color("99aebb"))
+    _summary = _text(column, "0 / 200 XP to next level", 12)
+    var tabs := HBoxContainer.new()
+    column.add_child(tabs)
+    var quests_tab := Button.new()
+    quests_tab.text = "Quests"
+    quests_tab.focus_mode = Control.FOCUS_NONE
+    quests_tab.toggle_mode = true
+    quests_tab.button_pressed = true
+    quests_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    tabs.add_child(quests_tab)
+    _gift_tab = Button.new()
+    _gift_tab.text = "Gifts · 0 / 8"
+    _gift_tab.focus_mode = Control.FOCUS_NONE
+    _gift_tab.toggle_mode = true
+    _gift_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    tabs.add_child(_gift_tab)
+    var group := ButtonGroup.new()
+    quests_tab.button_group = group
+    _gift_tab.button_group = group
+    var quests := VBoxContainer.new()
+    quests.add_theme_constant_override("separation", 8)
+    column.add_child(quests)
+    _text(quests, "STORY CHAPTERS · 100 XP EACH", 12, Color("6ae4c4"))
+    _text(quests, "Complete in the game, then check here. You can undo a check.", 12, Color("99aebb"))
     for index in range(PERSONAL_IDS.size()):
         var button := CheckBox.new()
         button.text = PERSONAL_NAMES[index]
         button.focus_mode = Control.FOCUS_NONE
-        button.add_theme_font_size_override("font_size", 14)
+        button.clip_text = true
+        button.add_theme_font_size_override("font_size", 13)
         button.toggled.connect(_confirm.bind(PERSONAL_IDS[index]))
         _personal_buttons.append(button)
-        column.add_child(button)
-    column.add_child(HSeparator.new())
-    _text(column, "REWARD COLLECTION", 12, Color("6ae4c4"))
+        quests.add_child(button)
+        var note := _text(quests, "", 11, Color("99aebb"))
+        _quest_notes.append(note)
+    quests.add_child(HSeparator.new())
+    _text(quests, "NEXT SESSION KEEPSAKE", 12, Color("6ae4c4"))
+    _quest = _text(quests, "First adventure · 50 XP", 14)
+    _quest_progress = ProgressBar.new()
+    _quest_progress.show_percentage = false
+    _style_progress(_quest_progress)
+    _quest_progress.custom_minimum_size.y = 7
+    quests.add_child(_quest_progress)
+    _time = _text(quests, "0 minutes played", 12)
+    _text(quests, "Emulated time only. Pauses do not count.", 11, Color("99aebb"))
     _collection = VBoxContainer.new()
-    _collection.add_theme_constant_override("separation", 7)
+    _collection.add_theme_constant_override("separation", 8)
     column.add_child(_collection)
+    _collection.hide()
+    quests_tab.pressed.connect(func(): quests.show(); _collection.hide())
+    _gift_tab.pressed.connect(func(): quests.hide(); _collection.show())
     _error = _text(column, "", 12, Color("ffa494"))
     _error.hide()
 
@@ -79,10 +117,25 @@ func configure(node: Node, id: String, title: String) -> void:
     backend = node
     game_id = id
     _collection_key = ""
-    _smw = title.to_lower().contains("super mario world")
-    var captions := ["Clear a Yoshi's Island stage", "Find a secret exit", "Beat a Koopaling", "Rescue Princess Peach"] if _smw else PERSONAL_NAMES
+    _profile = preload("res://scripts/workspace/collection_profiles.gd").for_game(title)
+    _accent = Color(_profile.get("color", "6ae4c4"))
+    _chapter.text = str(_profile.get("chapter", title))
+    _chapter.add_theme_color_override("font_color", _accent)
+    _description.text = str(_profile.get("subtitle", "A personal journey through " + title + ". Keep the moments that matter."))
+    _gift_names = _profile.get("gifts", GIFTS)
+    var base: String = preload("res://scripts/workspace/collection_profiles.gd").asset_base(_profile)
+    _art.texture = preload("res://scripts/workspace/preferences.gd").image(base + "/journey/cover.png") if not base.is_empty() else null
+    if _art.texture == null and not base.is_empty():
+        _art.texture = preload("res://scripts/workspace/preferences.gd").image(base + "/box/hero.png")
+    _art.visible = _art.texture != null
+    _style_progress(_xp)
+    _style_progress(_quest_progress)
+    var captions: Array = _profile.get("quests", PERSONAL_NAMES)
+    var notes: Array = _profile.get("notes", ["Complete this in the game, then mark it here.", "Explore an optional path or hidden reward.", "Overcome a memorable challenge.", "Reach the end of this adventure."])
     for index in range(captions.size()):
-        _personal_buttons[index].text = captions[index]
+        _personal_buttons[index].text = "%02d  %s" % [index + 1, captions[index]]
+        _personal_buttons[index].tooltip_text = str(notes[index])
+        _quest_notes[index].text = str(notes[index])
     refresh()
 
 func _process(delta: float) -> void:
@@ -117,14 +170,15 @@ func _render_response(response: Variant) -> void:
     _error.hide()
     var data: Dictionary = response.get("data", {})
     var level := int(data.get("level", 1))
-    _level.text = "Level %d · %s" % [level, "New explorer" if level == 1 else "Adventure collector"]
+    _level.text = "Level %d · %s" % [level, "New explorer" if level == 1 else "World explorer"]
     _xp.value = int(data.get("levelProgress", 0))
-    _summary.text = "%d / 200 XP · %d total XP\n%d / 8 rewards in this game" % [int(_xp.value), int(data.get("totalXp", 0)), int(data.get("collected", 0))]
+    _summary.text = "%d / 200 XP · %d total XP" % [int(_xp.value), int(data.get("totalXp", 0))]
+    _gift_tab.text = "Gifts · %d / 8" % int(data.get("collected", 0))
     var seconds := int(data.get("seconds", 0))
     _time.text = "%dh %02dm played · This game" % [seconds / 3600, (seconds / 60) % 60]
     var earned := int(data.get("earnedTime", 0))
     if earned < TARGETS.size():
-        _quest.text = "%s · 50 XP\n%02d:%02d / %02d:00" % [TIME_NAMES[earned], seconds / 60, seconds % 60, TARGETS[earned] / 60]
+        _quest.text = "%s · 50 XP\n%02d:%02d / %02d:00" % [_gift_names[earned], seconds / 60, seconds % 60, TARGETS[earned] / 60]
         _quest_progress.max_value = TARGETS[earned]
         _quest_progress.value = seconds
     else:
@@ -143,7 +197,26 @@ func _render_response(response: Variant) -> void:
     _text(_collection, "%d / 8 collected · %d still to discover" % [int(data.get("collected", 0)), 8 - int(data.get("collected", 0))], 13)
     for index in range(GIFTS.size()):
         var unlocked: bool = index < earned if index < 4 else personal.has(PERSONAL_IDS[index - 4])
-        _text(_collection, ("◆  " if unlocked else "◇  ") + GIFTS[index], 13, Color("6ae4c4") if unlocked else Color("6b7b8c"))
+        var card := PanelContainer.new()
+        var style := StyleBoxFlat.new()
+        style.bg_color = Color("20382f") if unlocked else Color("18222e")
+        style.border_color = _accent if unlocked else Color("344152")
+        style.set_border_width_all(1)
+        style.set_corner_radius_all(9)
+        style.set_content_margin_all(10)
+        card.add_theme_stylebox_override("panel", style)
+        _collection.add_child(card)
+        var row := HBoxContainer.new()
+        row.add_theme_constant_override("separation", 10)
+        card.add_child(row)
+        var stamp := preload("res://scripts/workspace/reward_stamp.gd").new()
+        stamp.accent = _accent
+        stamp.earned = unlocked
+        stamp.symbol = index
+        row.add_child(stamp)
+        var caption := _text(row, str(_gift_names[index]) + ("\nCollected" if unlocked else "\nStill to discover"), 13, _accent if unlocked else Color("9caabc"))
+        caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        caption.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 func _text(parent: Node, content: String, font_size: int, color := Color("eaf2f6")) -> Label:
     var label := Label.new()
@@ -161,6 +234,6 @@ func _style_progress(bar: ProgressBar) -> void:
     background.set_corner_radius_all(4)
     bar.add_theme_stylebox_override("background", background)
     var fill := StyleBoxFlat.new()
-    fill.bg_color = Color("6ae4c4")
+    fill.bg_color = _accent
     fill.set_corner_radius_all(4)
     bar.add_theme_stylebox_override("fill", fill)
