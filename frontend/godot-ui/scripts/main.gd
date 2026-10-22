@@ -54,7 +54,10 @@ var _details_state: Label
 
 func _ready() -> void:
     WindowLayout.apply_default_window(get_window())
+    get_tree().auto_accept_quit = false
+    get_window().close_requested.connect(_close_safely)
     _ensure_input_actions()
+    preload("res://scripts/workspace/bindings.gd").load_saved()
     _build_shell()
 
     _gameplay = get_node_or_null("LaunchIntegration")
@@ -91,12 +94,21 @@ func _ready() -> void:
     _refresh_library()
 
 
+func _reconnect_library() -> void:
+    _catalog = CatalogClient.new(_backend)
+    _search_edit.editable = true
+    _warning_label.hide()
+    if _gameplay != null:
+        _gameplay.configure(_backend, self)
+    _refresh_library()
+
+
 func _configure_backend_paths() -> String:
     if not _backend.has_method("configure_paths_json"):
         return "The Rust bridge does not expose the local runtime path contract."
 
     var user_root := OS.get_user_data_dir()
-    var library_root := user_root.path_join("library")
+    var library_root := preload("res://scripts/workspace/preferences.gd").library_root()
     var save_root := user_root.path_join("saves")
     var core_path := ProjectSettings.globalize_path("res://bin/bsnes-jg_libretro.so")
 
@@ -845,3 +857,12 @@ func _ensure_joy_motion_action(action: StringName, axis: int, axis_value: float)
     motion.axis = axis
     motion.axis_value = axis_value
     InputMap.action_add_event(action, motion)
+
+
+func _close_safely() -> void:
+    if _gameplay != null and not _gameplay.active_session_id().is_empty():
+        await _gameplay._stop_session()
+        if not _gameplay.active_session_id().is_empty():
+            _show_nonfatal_error("The game could not finish saving. Please retry Exit to library before closing.")
+            return
+    get_tree().quit()

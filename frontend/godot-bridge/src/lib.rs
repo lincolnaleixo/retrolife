@@ -37,6 +37,10 @@ struct BackendState {
     session_info: Option<SessionInfo>,
     last_error: Option<String>,
     update_guard: bool,
+    journey: retrolife_core::journey::Journey,
+    journey_error: Option<String>,
+    journey_store_error: Option<String>,
+    journey_saved_seconds: u64,
 }
 
 impl Default for BackendState {
@@ -61,12 +65,47 @@ impl Default for BackendState {
             session_info: None,
             last_error: None,
             update_guard: false,
+            journey: Default::default(),
+            journey_error: None,
+            journey_store_error: None,
+            journey_saved_seconds: 0,
         }
     }
 }
 
 impl BackendState {
+    fn journey_path(&self) -> PathBuf {
+        self.save_root
+            .parent()
+            .unwrap_or(&self.save_root)
+            .join("journey.json")
+    }
+
+    fn observe_journey(&mut self, flush: bool) {
+        if self.journey_error.is_some() || self.game_id.is_empty() {
+            return;
+        }
+        if let (Some(runtime), Some(info)) = (&self.runtime, &self.session_info) {
+            self.journey
+                .observe(&self.game_id, runtime.snapshot().frame_sequence, info.fps);
+            let seconds = self.journey.summary(&self.game_id).seconds;
+            if flush || seconds.saturating_sub(self.journey_saved_seconds) >= 30 {
+                match self.journey.save(&self.journey_path()) {
+                    Ok(()) => {
+                        self.journey_saved_seconds = seconds;
+                        self.journey_store_error = None;
+                    }
+                    Err(error) => {
+                        self.journey_store_error = Some(error.clone());
+                        self.last_error = Some(error);
+                    }
+                }
+            }
+        }
+    }
+
     fn clear_session(&mut self) {
+        self.observe_journey(true);
         if self.update_guard {
             updates::end_game();
             self.update_guard = false;
@@ -193,14 +232,82 @@ impl RetroLifeBackend {
             let save_root = checked_path(save_root.to_string(), "save root")?;
             let core_path = checked_path(core_path.to_string(), "core path")?;
             let mut state = self.state()?;
-            if state.runtime.is_some() {
+            Self::poll_events(&mut state);
+            if !state.session_id.is_empty() {
                 return Err("Stop the active emulation session before changing paths.".to_owned());
             }
             retrolife_library::Library::open(&library_root).map_err(|error| error.to_string())?;
+            state.journey = match retrolife_core::journey::Journey::load(
+                &save_root
+                    .parent()
+                    .unwrap_or(&save_root)
+                    .join("journey.json"),
+            ) {
+                Ok(journey) => {
+                    state.journey_error = None;
+                    journey
+                }
+                Err(error) => {
+                    state.journey_error = Some(error);
+                    Default::default()
+                }
+            };
+            state.journey_store_error = None;
             state.library_root = library_root;
             state.save_root = save_root;
             state.core_path = core_path;
             Ok(SimpleAck { configured: true })
+        })();
+        GString::from(response_json(result).as_str())
+    }
+
+    #[func]
+    fn journey_state_json(&self, game_id: GString) -> GString {
+        let result = (|| {
+            let mut state = self.state()?;
+            Self::poll_events(&mut state);
+            if let Some(error) = &state.journey_error {
+                return Err(error.clone());
+            }
+            state.observe_journey(false);
+            if let Some(error) = &state.journey_store_error {
+                return Err(error.clone());
+            }
+            Ok(state.journey.summary(&game_id.to_string()))
+        })();
+        GString::from(response_json(result).as_str())
+    }
+
+    #[func]
+    fn journey_confirm_json(&self, game_id: GString, milestone: GString, done: bool) -> GString {
+        let result = (|| {
+            let mut state = self.state()?;
+            if let Some(error) = &state.journey_error {
+                return Err(error.clone());
+            }
+            let id = game_id.to_string();
+            catalog::entry(&state.library_root, &id)?;
+            let mut next = state.journey.clone();
+            next.confirm(&id, &milestone.to_string(), done)?;
+            next.save(&state.journey_path())?;
+            state.journey = next;
+            state.journey_store_error = None;
+            Ok(state.journey.summary(&id))
+        })();
+        GString::from(response_json(result).as_str())
+    }
+
+    #[func]
+    fn copy_library_json(&self, destination: GString) -> GString {
+        let result = (|| {
+            let state = self.state()?;
+            if !state.session_id.is_empty() {
+                return Err("Stop gameplay before copying the library.".to_owned());
+            }
+            let target = checked_path(destination.to_string(), "library destination")?;
+            let library = retrolife_library::Library::open(&state.library_root)
+                .map_err(|error| error.to_string())?;
+            library.copy_to(target).map_err(|error| error.to_string())
         })();
         GString::from(response_json(result).as_str())
     }
@@ -318,6 +425,8 @@ impl RetroLifeBackend {
             }
             state.session_serial = state.session_serial.saturating_add(1);
             state.session_id = format!("session-{}", state.session_serial);
+            state.journey.begin(&game_id);
+            state.journey_saved_seconds = state.journey.summary(&game_id).seconds;
             state.game_id = game_id;
             state.last_frame_sequence = 0;
             state.last_frame_width = 0;

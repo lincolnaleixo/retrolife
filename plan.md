@@ -485,3 +485,16 @@ Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 3
 A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. The later published app passed Developer ID signing, Apple notarization, stapling, Gatekeeper and transferred-ZIP startup verification. The beta.2 DMG passed notarization, stapling, disk-image verification and mounted-app signature/Gatekeeper checks; its transferred SHA-256 matched the signing-machine output.
 
 Technical references checked for this planning revision: [Godot GLTFDocument](https://docs.godotengine.org/en/stable/classes/class_gltfdocument.html), [libretro serialization contract](https://docs.libretro.com/development/cores/developing-cores/), [Sparkle setup](https://sparkle-project.org/documentation/), [programmatic/non-Apple-toolkit integration](https://sparkle-project.org/documentation/programmatic-setup/), [update publication](https://sparkle-project.org/documentation/publishing/), and [Sparkle security changes](https://sparkle-project.org/documentation/security-and-reliability/). These guide implementation; compatibility with the project's exact pinned Godot/export configuration still requires the early native proof above.
+
+
+## Library and play journey
+
+- [x] Simplify the library with direct play, console/game presentation and visible storage.
+- [x] Support an external ROM root with console folders, verified copy and offline-drive recovery; preserve existing saves.
+- [x] Link a private local 3D collection without including its files in source or releases.
+- [x] Configure keyboard/gamepad bindings beside a controller model; persist mappings and use them during gameplay.
+- [x] Persist personal quests, XP, levels and collectible rewards; distinguish automatic session evidence from self-reported game challenges.
+- [x] Exercise storage, mappings, progress and native gameplay; run repository checks and record remaining limitations.
+
+
+Workspace verification (2026-10-22): `scripts/check.sh` passed (formatting, Clippy, Rust tests, publication/dependency audits, asset/update/release contracts and all Godot smokes). `scripts/test-core.sh` passed with the pinned native SNES core. Additional regressions exercise verified/retryable library copy, legacy layouts, offline-volume rejection, remap persistence/cancellation/timeout, live InputMap routing, paused progress, reward correction/idempotency and reload. The native Super Mario World session was rendered with the external library and private local models; its existing battery save was unchanged after clean stop. Generated UI captures were inspected for the library, controller target, storage and gameplay journey. Physical-gamepad and audible-output acceptance remain pending: no gamepad is connected and interactive macOS inspection was blocked by the lock screen. The local development preview is separate from the installed application and is not a signed distributable release.

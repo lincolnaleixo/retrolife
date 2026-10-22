@@ -346,7 +346,7 @@ func _exercise_inspection(shell: Control, carousel: Control, errors: Array[Strin
     if hero == null or camera == null:
         return
     var view_point := camera.unproject_position(hero.global_position)
-    var point := view_point * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
+    var point := carousel.global_position + view_point * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
     var press := InputEventMouseButton.new()
     press.button_index = MOUSE_BUTTON_LEFT
     press.pressed = true

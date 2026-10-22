@@ -33,7 +33,7 @@ pub const MIN_ROM_SIZE_BYTES: u64 = 32 * 1024;
 pub const METADATA_FILE_NAME: &str = "library.json";
 
 /// The directory containing app-managed ROM copies.
-pub const ROMS_DIRECTORY_NAME: &str = "roms";
+pub const ROMS_DIRECTORY_NAME: &str = "snes";
 
 const METADATA_VERSION: u32 = 1;
 const JOURNAL_FILE_NAME: &str = ".import-journal.json";
@@ -222,6 +222,7 @@ impl Library {
     /// method returns.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let root = path.as_ref().to_path_buf();
+        ensure_volume_available(&root)?;
         if root.exists() && !root.is_dir() {
             return Err(Error::InvalidLibraryPath {
                 reason: "the selected path is not a directory",
@@ -369,6 +370,29 @@ impl Library {
     pub fn resolve(&self, entry: &Entry) -> Result<PathBuf> {
         validate_entry_shape(entry)?;
         Ok(self.root.join(&entry.path))
+    }
+
+    /// Verify a complete copy before callers switch roots. Source files are
+    /// deliberately retained, so interruption and cancellation are recoverable.
+    pub fn copy_to(&self, destination: impl AsRef<Path>) -> Result<usize> {
+        let entries = self.list()?;
+        let target = Self::open(destination)?;
+        for entry in &entries {
+            match target.import(self.resolve(entry)?) {
+                Ok(_) | Err(Error::Duplicate { .. }) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        let _guard = target.gate.lock().map_err(|_| Error::LockPoisoned)?;
+        let mut metadata = target.load_and_recover()?;
+        for entry in &entries {
+            if let Some(copied) = metadata.entries.iter_mut().find(|item| item.id == entry.id) {
+                copied.title.clone_from(&entry.title);
+            }
+        }
+        target.validate_metadata(&metadata)?;
+        target.write_metadata(&metadata)?;
+        Ok(entries.len())
     }
 
     fn load_and_recover(&self) -> Result<Metadata> {
@@ -610,6 +634,20 @@ fn title_from_source(path: &Path) -> Option<String> {
     }
 }
 
+/// Do not recreate a missing removable volume on the system disk.
+fn ensure_volume_available(path: &Path) -> Result<()> {
+    let parts: Vec<_> = path.components().collect();
+    if path.starts_with("/Volumes") && parts.len() >= 3 {
+        let volume: PathBuf = parts[..3].iter().collect();
+        if !volume.is_dir() {
+            return Err(Error::InvalidLibraryPath {
+                reason: "the selected volume is offline; reconnect it or choose another folder",
+            });
+        }
+    }
+    Ok(())
+}
+
 fn managed_relative_path(id: &str, extension: &str) -> PathBuf {
     Path::new(ROMS_DIRECTORY_NAME).join(format!("{id}.{extension}"))
 }
@@ -635,7 +673,9 @@ fn validate_entry_shape(entry: &Entry) -> Result<()> {
 
     let components: Vec<Component<'_>> = entry.path.components().collect();
     if components.len() != 2
-        || components[0] != Component::Normal(Path::new(ROMS_DIRECTORY_NAME).as_os_str())
+        || !["snes", "roms"]
+            .iter()
+            .any(|directory| components[0] == Component::Normal(Path::new(directory).as_os_str()))
     {
         return Err(Error::MetadataInvalid {
             reason: "an entry path must stay inside the managed roms directory".to_owned(),
@@ -668,12 +708,19 @@ fn validate_journal_shape(journal: &ImportJournal) -> Result<()> {
     }
     let expected_path_sfc = managed_relative_path(&journal.id, "sfc");
     let expected_path_smc = managed_relative_path(&journal.id, "smc");
-    if journal.path != expected_path_sfc && journal.path != expected_path_smc {
+    if journal.path != expected_path_sfc
+        && journal.path != expected_path_smc
+        && journal.path != Path::new("roms").join(format!("{}.sfc", journal.id))
+        && journal.path != Path::new("roms").join(format!("{}.smc", journal.id))
+    {
         return Err(Error::InterruptedImport {
             reason: "the journal destination is outside the managed ROM layout".to_owned(),
         });
     }
-    if journal.staging_path != staging_relative_path(&journal.id) {
+    if journal.staging_path != staging_relative_path(&journal.id)
+        && journal.staging_path
+            != Path::new("roms").join(format!(".{}{STAGING_SUFFIX}", journal.id))
+    {
         return Err(Error::InterruptedImport {
             reason: "the journal staging file is outside the managed ROM layout".to_owned(),
         });
@@ -985,6 +1032,56 @@ mod tests {
     impl Drop for TestDir {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn copy_is_verified_retryable_and_preserves_title_identity_and_source() {
+        let temp = TestDir::new("copy");
+        let (rom, bytes) = temp.rom("Adventure.sfc", b"copy fixture");
+        let source = Library::open(temp.path.join("source")).unwrap();
+        let original = source.import(rom).unwrap();
+        let destination = temp.path.join("destination");
+        assert_eq!(source.copy_to(&destination).unwrap(), 1);
+        assert_eq!(source.copy_to(&destination).unwrap(), 1);
+        let target = Library::open(destination).unwrap();
+        let copied = &target.list().unwrap()[0];
+        assert_eq!(copied.title, "Adventure");
+        assert_eq!(copied.id, original.id);
+        assert_eq!(copied.path.parent(), Some(Path::new("snes")));
+        assert_eq!(fs::read(target.resolve(copied).unwrap()).unwrap(), bytes);
+        assert_eq!(fs::read(source.resolve(&original).unwrap()).unwrap(), bytes);
+    }
+
+    #[test]
+    fn legacy_roms_layout_is_read_without_moving_files() {
+        let temp = TestDir::new("legacy");
+        let (rom, _) = temp.rom("Old game.sfc", b"legacy fixture");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let mut entry = library.import(rom).unwrap();
+        fs::create_dir(root.join("roms")).unwrap();
+        let old_path = Path::new("roms").join(entry.path.file_name().unwrap());
+        fs::rename(root.join(&entry.path), root.join(&old_path)).unwrap();
+        entry.path = old_path;
+        library
+            .write_metadata(&Metadata {
+                version: 1,
+                entries: vec![entry.clone()],
+            })
+            .unwrap();
+        assert_eq!(Library::open(root).unwrap().list().unwrap(), vec![entry]);
+    }
+
+    #[test]
+    fn offline_volume_is_never_created_on_the_internal_disk() {
+        let path = Path::new("/Volumes/retrolife-offline-test-volume/ROMs");
+        if !Path::new("/Volumes/retrolife-offline-test-volume").exists() {
+            assert!(matches!(
+                Library::open(path),
+                Err(Error::InvalidLibraryPath { .. })
+            ));
+            assert!(!path.exists());
         }
     }
 

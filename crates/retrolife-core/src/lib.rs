@@ -3,6 +3,7 @@
 pub mod catalog;
 mod contracts;
 pub mod display_settings;
+pub mod journey;
 
 pub use catalog::{
     ArtworkKind, ArtworkReference, Catalog, CatalogSource, Game, GameAccent, MAX_CATALOG_GAMES,

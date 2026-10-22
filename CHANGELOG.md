@@ -4,6 +4,11 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add a library workspace with direct Play, console and game presentation, an explicit ROM storage location and a private local 3D collection link. ROM copying verifies identities and keeps originals; new imports use console folders while existing layouts remain readable. Offline volumes never fall back to internal storage.
+- Add visual SNES controller mapping with a highlighted 3D target, keyboard/gamepad capture, persistent bindings, duplicate rejection and cancellation/timeout rollback. Gameplay now uses the configured InputMap consistently.
+- Add a persistent personal Journey beside gameplay: emulator-time quests, self-reported game challenges, XP, levels and eight collectible rewards per game. Rewards are idempotent, can be corrected, and survive reload; pauses add no time.
+- Wait for save acknowledgement before closing the window and use an elapsed-time stop deadline instead of a frame-count deadline, avoiding false save timeouts on fast presentation loops.
+
 - Follow the renamed Retro 3D Library repository in canonical model-download and tag-pinned label URLs, current documentation and preview help. Preserve every model version, release tag, manifest commit, file checksum and the existing bundled notice-directory path.
 
 - Pin the approved Super Mario World labels to collection release 0.2.0: the front print has localized scan wear removed, while its artwork and folded layout are preserved. Use the canonical reproduction paths and verified checksums; the rear print and all neutral model dependencies remain unchanged.

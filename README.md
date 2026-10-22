@@ -30,3 +30,15 @@ Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PA
 ## Application updates
 
 Updater-enabled signed macOS builds provide **Settings > Software updates...** and **Check for Updates...** in the macOS application menu. Scheduled checks, optional automatic installation and stable/beta channels use signed Sparkle updates without replacing your library or saves. Beta.3 and later are updater-enabled: install one of them manually once, after which later releases are expected to arrive inside the app — the first public signed-to-signed upgrade is still pending validation on the target Mac. The older beta.1 and beta.2 downloads predate this feature. See the [updater guide](docs/updates.md).
+
+## Library workspace and personal journey
+
+- **Play game** starts the selected game directly. **Controllers** opens visual SNES button mapping; **Storage & assets** shows the active ROM folder and local artwork collection.
+- Choose a folder on an external drive to copy the managed collection. RetroLife verifies content identities, preserves display titles and leaves originals intact. New imports use `snes/` inside the selected root. Existing `roms/` libraries remain readable. Reconnect an offline drive or select an existing library; RetroLife does not silently import into the internal disk instead.
+- Battery saves remain in platform application data, keyed by the same content identity, independently of ROM storage.
+- Link a local Retro 3D Library results folder containing `controllers/`, `consoles/` and `reproductions/`. The SNES controller, console render and matching Super Mario World reproduction are loaded from that folder. No private assets, artwork, ROMs or personal configuration are bundled or uploaded. Missing assets keep the neutral presentation available.
+- In **Controllers**, select gamepad or keyboard bindings, click a target button or use **Guided setup**. The SNES model highlights the target. Escape, timeout and device disconnection restore unfinished mappings; completed mappings persist. Pause remains reserved. Gamepad bindings apply to any connected standard gamepad. SNES is still the only playable system.
+- **Journey** beside gameplay tracks four session-time milestones (1, 10, 30 and 60 minutes), four explicitly self-reported personal challenges, XP, levels and eight collectible rewards per game. Paused frames do not count. Confirming a challenge twice does not duplicate XP; correcting a checkbox removes its reward. Levels use combined XP across games. These are local personal rewards, with no purchases or monetary value. Stage clears and secrets are not automatically detected.
+- Progress is stored locally in `journey.json`, checkpointed during play and flushed on clean stop. Closing the window waits for the emulator to finish saving. Keep backups of application data along with your ROM library.
+
+Verification for this workspace is tracked in `plan.md`. A physical gamepad and audible output still need hands-on acceptance when those devices are available.

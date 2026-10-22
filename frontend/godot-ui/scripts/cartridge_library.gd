@@ -3,6 +3,21 @@ extends "res://scripts/main.gd"
 ## Cartridge-first presentation over the existing local library/gameplay contract.
 const Carousel = preload("res://scripts/library/carousel.gd")
 const UpdatePanel = preload("res://scripts/updates/update_panel.gd")
+const WorkspacePreferences = preload("res://scripts/workspace/preferences.gd")
+var _controller_panel: PopupPanel
+var _storage_panel: PopupPanel
+var _storage_summary: Button
+var _console_preview: TextureRect
+var _box_preview: TextureRect
+var _workspace_play: Button
+var _workspace_side: VBoxContainer
+var _workspace_column: VBoxContainer
+var _workspace_filters: ScrollContainer
+var _workspace_navigation: HBoxContainer
+var _workspace_hints: Label
+var _controllers_button: Button
+var _storage_button: Button
+var _settings_button: Button
 var _updates_panel: PopupPanel
 var settings_path := "user://library-ui.cfg"
 
@@ -32,6 +47,8 @@ var _fetch_collection_labels := true
 
 func _ready() -> void:
     _load_preferences()
+    if not WorkspacePreferences.read_value("collection_root").is_empty():
+        _fetch_collection_labels = false
     super._ready()
     # Starting the optional signed updater is independent of library loading.
     _update_command("status")
@@ -65,6 +82,7 @@ func _build_shell() -> void:
         margin.add_theme_constant_override("margin_" + side, 18)
     add_child(margin)
     var column := VBoxContainer.new()
+    _workspace_column = column
     column.add_theme_constant_override("separation", 6)
     margin.add_child(column)
     var header := HBoxContainer.new()
@@ -78,7 +96,12 @@ func _build_shell() -> void:
     _import_button = _button("+  Import ROM", _open_import_dialog)
     _import_button.name = "ImportButton"
     header.add_child(_import_button)
-    header.add_child(_button("Settings", _show_settings))
+    _controllers_button = _button("Controllers", _show_controllers)
+    _storage_button = _button("Storage & assets", _show_storage)
+    _settings_button = _button("Settings", _show_settings)
+    header.add_child(_controllers_button)
+    header.add_child(_storage_button)
+    header.add_child(_settings_button)
     _warning_label = _label("", 13, DANGER_COLOR)
     _warning_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _warning_label.max_lines_visible = 2
@@ -86,6 +109,7 @@ func _build_shell() -> void:
     _warning_label.hide()
     column.add_child(_warning_label)
     var filter_scroll := ScrollContainer.new()
+    _workspace_filters = filter_scroll
     filter_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
     filter_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     filter_scroll.custom_minimum_size.y = 40
@@ -100,7 +124,23 @@ func _build_shell() -> void:
     _carousel.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _carousel.selection_changed.connect(_on_cartridge_selected)
     _carousel.game_activated.connect(_open_details)
-    column.add_child(_carousel)
+    var showcase := HBoxContainer.new()
+    showcase.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    showcase.add_theme_constant_override("separation", 20)
+    column.add_child(showcase)
+    _workspace_side = VBoxContainer.new()
+    _workspace_side.custom_minimum_size.x = 230
+    _workspace_side.alignment = BoxContainer.ALIGNMENT_CENTER
+    _workspace_side.add_theme_constant_override("separation", 10)
+    showcase.add_child(_workspace_side)
+    _workspace_side.add_child(_label("THE SYSTEM", 12, MUTED_COLOR))
+    _console_preview = _render_preview(_workspace_side, 150)
+    _workspace_side.add_child(_label("Super Nintendo", 19, TEXT_COLOR))
+    _workspace_side.add_child(_label("SNES · Ready for local play", 12, MUTED_COLOR))
+    _box_preview = _render_preview(_workspace_side, 160)
+    _workspace_side.add_child(_label("Your local 3D collection", 12, MUTED_COLOR))
+    _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    showcase.add_child(_carousel)
     _carousel.set_presentation(_reduce_motion, _low_quality, _textual_view)
     _carousel.set_label_fetching(_fetch_collection_labels)
     _empty_label = _label("Import an .sfc or .smc file to start your collection.", 16, MUTED_COLOR)
@@ -116,7 +156,23 @@ func _build_shell() -> void:
     _hero_meta = _label("A collection worth coming back to", 14, MUTED_COLOR)
     _hero_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     column.add_child(_hero_meta)
+    var quick_actions := HBoxContainer.new()
+    quick_actions.alignment = BoxContainer.ALIGNMENT_CENTER
+    quick_actions.add_theme_constant_override("separation", 12)
+    column.add_child(quick_actions)
+    _workspace_play = _button("Play game", _play_from_workspace)
+    _workspace_play.custom_minimum_size = Vector2(220, 46)
+    var play_style := StyleBoxFlat.new()
+    play_style.bg_color = Color("287966")
+    play_style.set_corner_radius_all(10)
+    _workspace_play.add_theme_stylebox_override("normal", play_style)
+    quick_actions.add_child(_workspace_play)
+    quick_actions.add_child(_button("Game details", func():
+        if not _last_game_id.is_empty():
+            _open_details(_last_game_id)
+    ))
     var bottom := HBoxContainer.new()
+    _workspace_navigation = bottom
     bottom.add_theme_constant_override("separation", 12)
     column.add_child(bottom)
     bottom.add_child(_button("<", _navigate.bind(-1)))
@@ -128,6 +184,7 @@ func _build_shell() -> void:
     bottom.add_child(_button(">", _navigate.bind(1)))
     var hints := _label("Arrows / D-pad Browse  Drag Inspect  A / Enter Details  LB / RB System  Y / / Search  B / Esc Back", 12, MUTED_COLOR)
     hints.name = "InputHints"
+    _workspace_hints = hints
     hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hints.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(hints)
@@ -151,6 +208,17 @@ func _build_shell() -> void:
     _build_search()
     _build_settings()
     _build_details_overlay()
+    _controller_panel = preload("res://scripts/workspace/controller_panel.gd").new()
+    add_child(_controller_panel)
+    _storage_panel = preload("res://scripts/workspace/storage_panel.gd").new()
+    _storage_panel.owner_ui = self
+    _storage_panel.changed.connect(_refresh_workspace_assets)
+    add_child(_storage_panel)
+    _storage_summary = _button("", _show_storage)
+    _storage_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+    _storage_summary.add_theme_font_size_override("font_size", 12)
+    column.add_child(_storage_summary)
+    _refresh_workspace_assets()
     resized.connect(_update_layout_density)
     _update_layout_density()
 
@@ -158,8 +226,24 @@ func _build_shell() -> void:
 func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
+    _workspace_side.visible = size.x >= 1050 and size.y >= 700
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
     _hero_title.add_theme_font_size_override("font_size", 24 if size.x < 900 else 30)
+    var compact := size.y < 660
+    _workspace_column.add_theme_constant_override("separation", 3 if compact else 6)
+    _workspace_filters.visible = not compact
+    _workspace_navigation.visible = not compact
+    _count_label.visible = not compact
+    _hero_meta.visible = not compact
+    _hero_title.max_lines_visible = 1 if compact else 2
+    _warning_label.max_lines_visible = 1 if compact else 2
+    _workspace_play.custom_minimum_size.y = 36 if compact else 46
+    _workspace_hints.text = "← → Browse · Drag Rotate · Enter Details · Esc Back" if compact else "Arrows / D-pad Browse  Drag Inspect  A / Enter Details  LB / RB System  Y / / Search  B / Esc Back"
+    for button in [_search_button, _import_button, _controllers_button, _storage_button, _settings_button]:
+        button.add_theme_font_size_override("font_size", 12 if size.x < 1000 else 14)
+    _storage_button.text = "Storage" if size.x < 1000 else "Storage & assets"
+    _import_button.text = "+ Import" if size.x < 1000 else "+ Import ROM"
+
 
 
 func _build_search() -> void:
@@ -398,6 +482,10 @@ func _on_cartridge_selected(game: Dictionary, index: int) -> void:
     _hero_title.text = str(game.get("title", "Your next adventure starts here"))
     _hero_meta.text = "A collection worth coming back to" if game.is_empty() else "%s  /  %s" % ["Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", "")), "Ready to play" if bool(game.get("playable", false)) else "Not playable"]
     _hero_count.text = "%d / %d" % [index + 1, _current_games.size()] if index >= 0 else ""
+    if _workspace_play != null:
+        _workspace_play.disabled = game.is_empty() or not bool(game.get("playable", false))
+    if _box_preview != null:
+        _box_preview.visible = str(game.get("title", "")).to_lower().contains("super mario world") and _box_preview.texture != null
     _remember_selection()
     if _settings_timer != null:
         _settings_timer.start()
@@ -534,10 +622,12 @@ func _game_is_active() -> bool:
 
 func _process(_delta: float) -> void:
     if _carousel != null:
-        _carousel.set_active(not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible)
+        _carousel.set_active(not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if (_controller_panel != null and _controller_panel.visible) or (_storage_panel != null and _storage_panel.visible):
+        return
     if _updates_panel != null and _updates_panel.visible:
         return
     if _game_is_active():
@@ -612,3 +702,47 @@ func _update_command(command: String) -> Dictionary:
     if not parsed is Dictionary or int(parsed.get("schemaVersion", 0)) != 1:
         return {"schemaVersion": 1, "ok": false, "error": "The updater returned an invalid response."}
     return parsed
+
+
+func _render_preview(parent: Node, height: int) -> TextureRect:
+    var image := TextureRect.new()
+    image.custom_minimum_size = Vector2(230, height)
+    image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    parent.add_child(image)
+    return image
+
+func _refresh_workspace_assets() -> void:
+    if not persist_preferences:
+        _storage_summary.text = "Test library · Isolated fixtures"
+        return
+    _console_preview.texture = WorkspacePreferences.image("consoles/snes/hero.png")
+    _box_preview.texture = WorkspacePreferences.image("reproductions/snes/super-mario-world/box/hero.png")
+    _console_preview.visible = _console_preview.texture != null
+    _box_preview.visible = _box_preview.texture != null and _hero_title.text.to_lower().contains("super mario world")
+    var path := WorkspacePreferences.library_root()
+    _storage_summary.text = ("ROM storage · " if DirAccess.dir_exists_absolute(path) else "Storage offline · ") + path
+    _storage_summary.tooltip_text = "New ROMs are stored here in console folders. Click to change or reconnect."
+    if _catalog != null:
+        _refresh_library()
+
+func _show_controllers() -> void:
+    var target := Vector2i(mini(980, int(size.x) - 40), mini(620, int(size.y) - 40))
+    _controller_panel.popup_centered(target)
+    # Wrapped text can report a transient tall minimum before first layout.
+    await get_tree().process_frame
+    await get_tree().process_frame
+    if _controller_panel.visible:
+        _controller_panel.popup_centered(target)
+
+func _show_storage() -> void:
+    var target := Vector2i(mini(680, int(size.x) - 40), mini(640, int(size.y) - 40))
+    _storage_panel.popup_centered(target)
+    await get_tree().process_frame
+    await get_tree().process_frame
+    if _storage_panel.visible:
+        _storage_panel.popup_centered(target)
+
+func _play_from_workspace() -> void:
+    _return_game_id = _carousel.selected_id()
+    _play_selected_game()

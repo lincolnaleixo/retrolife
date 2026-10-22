@@ -140,10 +140,10 @@ func _execute() -> String:
         return input_failure
 
     var frame_node := _gameplay.get_node_or_null(
-        "GameplayMargin/GameplayColumn/GameplayFramePanel/GameplayFrameAspect/GameplayFrame"
+        "GameplayMargin/GameplayColumn/PlayAndJourney/GameplayFramePanel/GameplayFrameAspect/GameplayFrame"
     ) as TextureRect
     var aspect_node := _gameplay.get_node_or_null(
-        "GameplayMargin/GameplayColumn/GameplayFramePanel/GameplayFrameAspect"
+        "GameplayMargin/GameplayColumn/PlayAndJourney/GameplayFramePanel/GameplayFrameAspect"
     ) as AspectRatioContainer
     if frame_node == null or aspect_node == null:
         _backend.call("stop_emulation_json")
@@ -189,6 +189,21 @@ func _execute() -> String:
     if not pause_failure.is_empty():
         _backend.call("stop_emulation_json")
         return pause_failure
+    var progress_before := _decode(_backend.call("journey_state_json", game_id))
+    if not bool(progress_before.get("ok", false)):
+        return "personal progress was unavailable during a real session"
+    for _index in range(5):
+        await process_frame
+    var progress_paused := _decode(_backend.call("journey_state_json", game_id))
+    if progress_before.data.seconds != progress_paused.data.seconds:
+        return "paused frames added personal progress"
+    for _index in range(2):
+        var confirmation := _decode(_backend.call("journey_confirm_json", game_id, "first_stage", true))
+        if not bool(confirmation.get("ok", false)) or int(confirmation.data.gameXp) != 100:
+            return "personal reward was not idempotent"
+    var undone := _decode(_backend.call("journey_confirm_json", game_id, "first_stage", false))
+    if not bool(undone.get("ok", false)) or int(undone.data.gameXp) != 0:
+        return "personal reward correction did not persist"
     _gameplay.call("_resume_game")
     var resume_failure := await _wait_for_status("running")
     if not resume_failure.is_empty():
@@ -198,6 +213,13 @@ func _execute() -> String:
     var stop_failure := await _wait_for_stopped()
     if not stop_failure.is_empty():
         return stop_failure
+    var before_reload := _decode(_backend.call("journey_state_json", game_id))
+    var reconfigured := _decode(_backend.call("configure_paths_json", library_root, save_root, _core_path))
+    if not bool(reconfigured.get("ok", false)):
+        return "stopped backend could not reconnect library storage"
+    var reloaded := _decode(_backend.call("journey_state_json", game_id))
+    if before_reload.data != reloaded.data:
+        return "personal progress did not survive store reload"
     return ""
 
 

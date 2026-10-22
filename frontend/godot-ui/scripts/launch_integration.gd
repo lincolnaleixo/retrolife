@@ -67,6 +67,7 @@ var _pause_overlay: Control
 var _pause_title: Label
 var _resume_button: Button
 var _exit_button: Button
+var _journey: PanelContainer
 
 
 func _ready() -> void:
@@ -112,8 +113,11 @@ func start_game(game_id: String, title := "") -> Dictionary:
     _advance_error_shown = false
     _last_input_state.clear()
     _game_title.text = title if not title.is_empty() else game_id
+    _journey.configure(_backend, game_id, title)
     _session_status.text = "Playing  •  %s × %s" % [_video_width, _video_height]
     _pause_overlay.visible = false
+    _resume_button.disabled = false
+    _exit_button.disabled = false
     visible = true
     move_to_front()
     set_process(true)
@@ -180,14 +184,11 @@ func _unhandled_input(event: InputEvent) -> void:
         _toggle_pause()
         get_viewport().set_input_as_handled()
 
-    var logical_action := _event_logical_action(event)
-    if logical_action.is_empty():
-        return
-    if event.is_pressed() and not (event is InputEventKey and (event as InputEventKey).echo):
-        _set_logical_input(logical_action, true)
-    elif not event.is_pressed():
-        _set_logical_input(logical_action, false)
-    get_viewport().set_input_as_handled()
+    # Poll the configured InputMap as a whole: releasing one device must not
+    # cancel another device holding the same action.
+    if not _event_logical_action(event).is_empty():
+        _sync_inputs()
+        get_viewport().set_input_as_handled()
 
 
 func _build_gameplay_view() -> void:
@@ -235,6 +236,11 @@ func _build_gameplay_view() -> void:
     exit_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     header.add_child(exit_hint)
 
+    var play_row := HBoxContainer.new()
+    play_row.name = "PlayAndJourney"
+    play_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    play_row.add_theme_constant_override("separation", 18)
+    column.add_child(play_row)
     var frame_panel := PanelContainer.new()
     frame_panel.name = "GameplayFramePanel"
     frame_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -242,7 +248,17 @@ func _build_gameplay_view() -> void:
         "panel",
         _style_box(Color("#020307"), Color("#30394B"), 2, 18)
     )
-    column.add_child(frame_panel)
+    frame_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    play_row.add_child(frame_panel)
+    _journey = preload("res://scripts/workspace/journey_panel.gd").new()
+    play_row.add_child(_journey)
+    var journey_toggle := Button.new()
+    journey_toggle.text = "Journey"
+    journey_toggle.focus_mode = Control.FOCUS_NONE
+    journey_toggle.toggle_mode = true
+    journey_toggle.button_pressed = true
+    journey_toggle.toggled.connect(func(show_panel: bool): _journey.visible = show_panel; _frame.grab_focus())
+    header.add_child(journey_toggle)
 
     _frame_aspect = AspectRatioContainer.new()
     _frame_aspect.name = "GameplayFrameAspect"
@@ -268,7 +284,7 @@ func _build_gameplay_view() -> void:
     footer.add_theme_constant_override("separation", 18)
     column.add_child(footer)
     var controls := _label(
-        "Arrows / D-pad  Move     X/Z/C/V  B/A/Y/X     Q/E or bumpers  L/R     Enter / Start  Start",
+        "Your saved controller bindings are active · Esc pauses the game",
         13,
         Color("#9AA4B2")
     )
@@ -562,8 +578,9 @@ func _stop_session() -> void:
         _session_status.text = "Unable to save  •  %s" % str(response.get("error", "Stop failed."))
         return
 
-    for _index in range(180):
-        await get_tree().process_frame
+    var deadline := Time.get_ticks_msec() + 15000
+    while Time.get_ticks_msec() < deadline:
+        await get_tree().create_timer(0.016).timeout
         var status_response := _call_optional_response(["emulation_status_json"], [])
         if not bool(status_response.get("ok", false)):
             _stop_failed(str(status_response.get("error", "Could not verify stop.")))
@@ -603,36 +620,9 @@ func _complete_stop(ended_game_id: String) -> void:
 
 
 func _event_logical_action(event: InputEvent) -> String:
-    if event is InputEventKey:
-        var key := event as InputEventKey
-        var code := key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
-        return {
-            KEY_UP: "up", KEY_W: "up",
-            KEY_DOWN: "down", KEY_S: "down",
-            KEY_LEFT: "left", KEY_A: "left",
-            KEY_RIGHT: "right", KEY_D: "right",
-            KEY_X: "south", KEY_J: "south",
-            KEY_Z: "east", KEY_K: "east",
-            KEY_C: "west", KEY_V: "north", KEY_Q: "left_shoulder",
-            KEY_E: "right_shoulder", KEY_ENTER: "start",
-            KEY_SHIFT: "select", KEY_SPACE: "select",
-        }.get(code, "")
-    if event is InputEventJoypadButton:
-        var button := (event as InputEventJoypadButton).button_index
-        return {
-            JOY_BUTTON_A: "south",
-            JOY_BUTTON_B: "east",
-            JOY_BUTTON_X: "west",
-            JOY_BUTTON_Y: "north",
-            JOY_BUTTON_LEFT_SHOULDER: "left_shoulder",
-            JOY_BUTTON_RIGHT_SHOULDER: "right_shoulder",
-            JOY_BUTTON_BACK: "select",
-            JOY_BUTTON_START: "start",
-            JOY_BUTTON_DPAD_UP: "up",
-            JOY_BUTTON_DPAD_DOWN: "down",
-            JOY_BUTTON_DPAD_LEFT: "left",
-            JOY_BUTTON_DPAD_RIGHT: "right",
-        }.get(button, "")
+    for action in preload("res://scripts/workspace/bindings.gd").ACTIONS:
+        if InputMap.event_is_action(event, "game_" + action):
+            return action
     return ""
 
 
