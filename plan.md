@@ -551,3 +551,16 @@ Verification (2026-10-22): the 10,000-entry library, native cartridge-click/play
 Verification (2026-10-23): focused fixtures cover Rewards at desktop/compact sizes, sidebar visibility persistence, fullscreen repeat handling, catalog-revision invalidation, game identity, neutral/stale presentation cleanup, metadata/media path and checksum validation, malformed provider responses, sanitized quota failures, cancellation and credential-field clearing. Six local video-conversion helper tests pass. Existing native play/save/return, 10,000-entry navigation, Journey artwork, workspace and window-layout suites passed. Interactive installed-app acceptance is recorded separately after installation. The public private-model dependency blocker remains unchanged; PR #43 stays draft.
 
 Rendered review (2026-10-23): the real Godot renderer produced inspected desktop and compact views of the new game showcase, Rewards and ScreenScraper setup. These use fixture progress, not acceptance evidence for a user's saved totals. The installed-app pointer/drag acceptance is pending because the macOS UI remained locked. The private original background and keepsake refinements were published before local consumption. No authenticated ScreenScraper call was made.
+
+
+### Automatic gameplay achievements
+
+The owner clarified that Journey must observe actual gameplay and award keepsakes automatically. Manual checks and time-only rewards are retired.
+
+- [x] Observe read-only SNES system RAM after each executed worker frame, with exact loaded-ROM identity and lifecycle boundaries.
+- [x] Implement the four Super Mario World (USA) event rules and show read-only detection, locked/earned states and unlock notices.
+- [x] Archive version-one manual/time progress without silently counting it as verified achievements.
+- [ ] Expand verified detectors to additional games and revisions only with researched memory rules and false-positive tests.
+- [ ] Exercise every objective through normal gameplay in the installed app; synthetic event traces alone do not establish full-game acceptance.
+
+The public private-model dependency blocker remains unchanged; PR #43 stays draft.

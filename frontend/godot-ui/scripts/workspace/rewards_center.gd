@@ -55,7 +55,7 @@ func _ready() -> void:
     introduction.add_theme_constant_override("separation", 6)
     header.add_child(introduction)
     _text(introduction, "Your keepsakes", 24)
-    _subtitle = _text(introduction, "A collection of the adventures you have made your own.", 16, MUTED)
+    _subtitle = _text(introduction, "Keepsakes unlocked automatically by what happens in your games.", 16, MUTED)
     _close = _button("Close", hide)
     _close.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
     header.add_child(_close)
@@ -72,7 +72,7 @@ func _ready() -> void:
     _collected = _text(collection_card, "—", 24)
     _text(collection_card, "In your current library", 16, MUTED)
     var time_card := _stat_card(totals)
-    _text(time_card, "TIME PLAYED", 14, MUTED)
+    _text(time_card, "ACTIVE PLAY", 14, MUTED)
     _time = _text(time_card, "—", 24)
     _library_count = _text(time_card, "Across your games", 16, MUTED)
     var filters := HBoxContainer.new()
@@ -243,11 +243,9 @@ func _read_summary(id: String) -> Dictionary:
     var data: Variant = response.get("data")
     if not data is Dictionary:
         return {"error": "The progress response was incomplete."}
-    for field in ["seconds", "earnedTime", "personal", "collected", "totalRewards", "totalXp", "level", "levelProgress"]:
-        if not data.has(field):
-            return {"error": "The progress response was incomplete."}
-    if not data.personal is Array or int(data.totalRewards) != 8 or int(data.collected) < 0 or int(data.collected) > 8 or int(data.earnedTime) < 0 or int(data.earnedTime) > 4:
-        return {"error": "The progress response was unsupported."}
+    var problem := Journal.validate_summary(data)
+    if not problem.is_empty():
+        return {"error": problem}
     return data
 
 
@@ -278,7 +276,7 @@ func _matching_games() -> Array[Dictionary]:
         if not _selected_game_id.is_empty() and str(game.id) != _selected_game_id:
             continue
         var state: Dictionary = _states.get(str(game.id), {})
-        if state.is_empty() or (_status_filter == 1 and int(state.collected) == 0) or (_status_filter == 2 and int(state.collected) == 8):
+        if state.is_empty() or (_status_filter == 1 and int(state.collected) == 0) or (_status_filter == 2 and int(state.collected) == int(state.totalRewards)):
             continue
         games.append(game)
     return games
@@ -327,9 +325,13 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     copy.add_theme_constant_override("separation", 5)
     heading.add_child(copy)
     _text(copy, _title_for(game), 24)
-    _text(copy, "%s · %d of 8 collected · %s played" % [str(game.get("systemName", Profiles.SYSTEMS.get(str(game.get("systemId", "")), ""))), int(state.collected), _duration(int(state.seconds))], 16, MUTED)
-    var progress := _progress(section, 8, accent)
-    progress.value = int(state.collected)
+    _text(copy, "%s · %d of %d collected · %s active play" % [str(game.get("systemName", Profiles.SYSTEMS.get(str(game.get("systemId", "")), ""))), int(state.collected), int(state.totalRewards), _duration(int(state.seconds))], 16, MUTED)
+    _text(section, str(state.detectionMessage), 14, MUTED)
+    if int(state.totalRewards) > 0:
+        var progress := _progress(section, int(state.totalRewards), accent)
+        progress.value = int(state.collected)
+    if bool(state.legacyPreserved):
+        _text(section, "Earlier journal entries are preserved separately from verified rewards.", 13, MUTED)
     var grid := GridContainer.new()
     grid.name = "KeepsakeGrid"
     grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -337,14 +339,15 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     grid.add_theme_constant_override("v_separation", 12)
     section.add_child(grid)
     var gifts: Array = profile.get("gifts", Journal.GIFTS)
-    var quests: Array = profile.get("quests", Journal.PERSONAL_NAMES)
-    for index in 8:
-        var earned: bool = index < int(state.earnedTime) if index < 4 else state.personal.has(Journal.PERSONAL_IDS[index - 4])
+    for achievement: Dictionary in state.achievements:
+        var earned := bool(achievement.earned)
+        var index := int(achievement.artIndex)
         if (_status_filter == 1 and not earned) or (_status_filter == 2 and earned):
             continue
         var art := _load_art(base + "/journey/rewards/%02d.svg" % [index + 1]) if not base.is_empty() else null
-        var requirement := "%d minute%s of play · 50 XP" % [Journal.TARGETS[index] / 60, "" if index == 0 else "s"] if index < 4 else str(quests[index - 4]) + " · 100 XP"
-        _build_keepsake(grid, str(gifts[index]), requirement, earned, index, art, accent)
+        var requirement := str(achievement.description) + " · %d XP" % int(achievement.xp)
+        var title := str(gifts[index]) if index < gifts.size() else str(achievement.title)
+        _build_keepsake(grid, title, requirement, earned, index, art, accent)
 
 
 func _build_keepsake(parent: Control, title: String, requirement: String, earned: bool, index: int, art: Texture2D, accent: Color) -> void:

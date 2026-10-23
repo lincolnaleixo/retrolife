@@ -37,10 +37,13 @@ class FixtureBackend extends Node:
         reads.append(id)
         if id == fail_id:
             return JSON.stringify({"schemaVersion": 1, "ok": false, "error": "Fixture progress is unavailable."})
-        var seconds := 600 if id == "mario" else (60 if id == "tetris" else (120 if id == "unknown" else 0))
-        var earned := 2 if id == "mario" else (1 if id in ["tetris", "unknown"] else 0)
-        var personal := ["secret"] if id == "mario" else []
-        return JSON.stringify({"schemaVersion": 1, "ok": true, "data": {"seconds": seconds, "earnedTime": earned, "personal": personal, "collected": earned + personal.size(), "totalRewards": 8, "gameXp": earned * 50 + personal.size() * 100, "totalXp": 450, "level": 3, "levelProgress": 50}})
+        var supported := id == "mario"
+        var achievements: Array = []
+        var ids := ["first_stage", "secret", "boss", "finale"]
+        if supported:
+            for index in ids.size():
+                achievements.append({"id": ids[index], "title": "Event %d" % index, "description": "Detected in the game", "xp": 100, "earned": index < 2, "artIndex": index + 4})
+        return JSON.stringify({"schemaVersion": 1, "ok": true, "data": {"seconds": 600 if supported else 0, "achievements": achievements, "supported": supported, "detectionStatus": "waiting" if supported else "unsupported", "detectionMessage": "Waiting for game events." if supported else "Automatic rewards are not supported for this game yet.", "legacyPreserved": false, "collected": 2 if supported else 0, "totalRewards": 4 if supported else 0, "gameXp": 200 if supported else 0, "totalXp": 200, "level": 2, "levelProgress": 0}})
 
     func journey_confirm_json(_id: String, _milestone: String, _done: bool) -> String:
         writes += 1
@@ -73,24 +76,26 @@ func _run() -> void:
     center.configure(backend, catalog)
     await _settle(center)
     _check(catalog.calls == 4 and center._games.size() == 7, "The center must read every library page")
-    _check(center._totals == {"collected": 5, "available": 56, "seconds": 780}, "Collection totals must sum actual per-game progress")
-    _check(center._level.text == "Level 3" and center._xp.text == "450 total XP", "Global XP must be shown once, never summed across game summaries")
+    _check(center._totals == {"collected": 2, "available": 4, "seconds": 600}, "Collection totals must sum actual per-game progress")
+    _check(center._level.text == "Level 2" and center._xp.text == "200 total XP", "Global XP must be shown once, never summed across game summaries")
     _check(center._sections.get_child_count() == 6 and center._pager.visible, "Rendered game sections must remain bounded by a page")
     _check(center._next.disabled == false and center._previous.disabled, "Page navigation must reflect the visible page")
-    _check(_art_count(center._sections.get_child(0)) == 8, "Matching title and console must load their own reward SVGs")
+    _check(_art_count(center._sections.get_child(0)) == 4, "Matching title and console must load their own reward SVGs")
     _check(_art_count(center._sections.get_child(1)) == 0 and _art_count(center._sections.get_child(3)) == 0, "Missing art and wrong-console titles must stay neutral")
     for path in center.requested:
         _check(not path.contains("/box/"), "The center must not use box art as a journal fallback")
+    _check(_card_count(center) == 4, "Unsupported games must not fabricate rewards or time targets")
+    _check(_checkbox_count(center) == 0, "The rewards center must have no manual achievement controls")
     var read_count := backend.reads.size()
     center._status_select.select(1)
     center._status_select.item_selected.emit(1)
-    _check(center._sections.get_child_count() == 3 and _card_count(center) == 5, "Collected filter must show only earned keepsakes")
+    _check(center._sections.get_child_count() == 1 and _card_count(center) == 2, "Collected filter must show only earned keepsakes")
     center._game_filter.select(1)
     center._game_filter.item_selected.emit(1)
-    _check(center._sections.get_child_count() == 1 and _card_count(center) == 3, "Game and collection filters must work together")
+    _check(center._sections.get_child_count() == 1 and _card_count(center) == 2, "Game and collection filters must work together")
     center._status_select.select(2)
     center._status_select.item_selected.emit(2)
-    _check(_card_count(center) == 5, "The remaining keepsakes must stay visibly locked")
+    _check(_card_count(center) == 2, "The remaining keepsakes must stay visibly locked")
     _check(backend.reads.size() == read_count and backend.writes == 0, "Filtering must not change progress or reread the backend")
     center._status_select.select(0)
     center._status_select.item_selected.emit(0)
@@ -111,7 +116,7 @@ func _run() -> void:
     center.configure(backend, catalog)
     await _settle(center)
     _check(center._collected.text == "0 / 0" and center._sections.get_child_count() == 0, "An empty library must show its actual empty collection")
-    _check(center._level.text == "Level 3", "Removing library entries must not invent a reset of all-time XP")
+    _check(center._level.text == "Level 2", "Removing library entries must not invent a reset of all-time XP")
     _check(center._message.text.contains("Import a game"), "The empty state must explain how to begin")
     _check(backend.writes == 0, "The rewards center must never confirm or undo a reward")
     center.free()
@@ -148,6 +153,13 @@ func _art_count(section: Control) -> int:
         var stamp: Control = card.get_child(0).get_child(1)
         if stamp.artwork != null:
             count += 1
+    return count
+
+
+func _checkbox_count(node: Node) -> int:
+    var count := 1 if node is CheckBox else 0
+    for child in node.get_children():
+        count += _checkbox_count(child)
     return count
 
 

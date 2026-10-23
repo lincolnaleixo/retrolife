@@ -3,8 +3,9 @@ use crate::transport::{
     AtomicInputs, AudioRing, INPUT_PORTS, MAX_AUDIO_BUFFER_FRAMES, MAX_VIDEO_BYTES,
     MAX_VIDEO_HEIGHT, MAX_VIDEO_WIDTH, PixelFormat, VideoSlot,
 };
-use crate::{EmulationError, SessionInfo, StartRequest};
+use crate::{ContentIdentity, EmulationError, FrameObserver, SessionInfo, StartRequest};
 use libloading::Library;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::fs::{self, File};
@@ -18,6 +19,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const RETRO_API_VERSION: u32 = 1;
 const RETRO_DEVICE_JOYPAD: u32 = 1;
 const RETRO_MEMORY_SAVE_RAM: u32 = 0;
+const RETRO_MEMORY_SYSTEM_RAM: u32 = 2;
+const SNES_SYSTEM_RAM_BYTES: usize = 128 * 1024;
 const MAX_CONTENT_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_BATTERY_BYTES: usize = 16 * 1024 * 1024;
 
@@ -248,6 +251,7 @@ pub(crate) struct CoreSession {
     _rom_path: CString,
     callback: Arc<CallbackState>,
     battery_path: PathBuf,
+    content_identity: ContentIdentity,
     initialized: bool,
     loaded: bool,
 }
@@ -264,6 +268,7 @@ impl CoreSession {
         fs::create_dir_all(&save_directory)?;
 
         let content_bytes = read_bounded_file(&request.content_path, MAX_CONTENT_BYTES)?;
+        let content_identity = identify_content(&request.system_id, &content_bytes);
 
         let callback = Arc::new(CallbackState::new(
             &request,
@@ -412,6 +417,7 @@ impl CoreSession {
                 _rom_path: rom_path,
                 callback,
                 battery_path,
+                content_identity,
                 initialized: true,
                 loaded: true,
             },
@@ -431,6 +437,22 @@ impl CoreSession {
 
     pub(crate) fn reset(&self) {
         unsafe { (self.functions.reset)() };
+    }
+
+    pub(crate) fn content_identity(&self) -> &ContentIdentity {
+        &self.content_identity
+    }
+
+    pub(crate) fn observe_frame(&self, observer: &mut dyn FrameObserver) {
+        if !self.loaded || self.content_identity.system_id != "snes" {
+            observer.frame_completed(None);
+            return;
+        }
+        with_snes_system_ram(
+            self.functions.get_memory_size,
+            self.functions.get_memory_data,
+            |bytes| observer.frame_completed(bytes),
+        );
     }
 
     pub(crate) fn stop(&mut self) -> Result<usize, EmulationError> {
@@ -591,6 +613,46 @@ fn memory_size(functions: &Functions, id: u32) -> Option<usize> {
 fn memory_data(functions: &Functions, id: u32) -> Option<*mut c_void> {
     let get_data = functions.get_memory_data?;
     Some(unsafe { get_data(id) })
+}
+
+fn identify_content(system_id: &str, loaded_bytes: &[u8]) -> ContentIdentity {
+    let content =
+        if system_id == "snes" && loaded_bytes.len() > 512 && loaded_bytes.len() % 32768 == 512 {
+            &loaded_bytes[512..]
+        } else {
+            loaded_bytes
+        };
+    ContentIdentity {
+        system_id: system_id.to_owned(),
+        sha256: format!("{:x}", Sha256::digest(content)),
+    }
+}
+
+fn with_snes_system_ram(
+    get_size: Option<RetroGetMemorySize>,
+    get_data: Option<RetroGetMemoryData>,
+    observe: impl FnOnce(Option<&[u8]>),
+) {
+    let (Some(get_size), Some(get_data)) = (get_size, get_data) else {
+        observe(None);
+        return;
+    };
+    // Only this documented SNES layout is supported. Checking size before
+    // fetching the pointer also prevents probing unsupported memory layouts.
+    if unsafe { get_size(RETRO_MEMORY_SYSTEM_RAM) } != SNES_SYSTEM_RAM_BYTES {
+        observe(None);
+        return;
+    }
+    let pointer = unsafe { get_data(RETRO_MEMORY_SYSTEM_RAM) };
+    if pointer.is_null() {
+        observe(None);
+        return;
+    }
+    // The loaded libretro core owns this memory and guarantees that it remains
+    // available between retro_run calls. This function runs on that same
+    // worker, invokes a read-only callback synchronously, and returns no slice.
+    let bytes = unsafe { std::slice::from_raw_parts(pointer.cast::<u8>(), SNES_SYSTEM_RAM_BYTES) };
+    observe(Some(bytes));
 }
 
 fn load_battery(functions: &Functions, path: &Path) -> Result<usize, EmulationError> {
@@ -1068,6 +1130,104 @@ fn c_string_lossy(pointer: *const c_char, fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static OBSERVATION_BYTES: [u8; SNES_SYSTEM_RAM_BYTES] = [0x37; SNES_SYSTEM_RAM_BYTES];
+    static UNEXPECTED_POINTER_READ: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "C" fn snes_memory_size(id: u32) -> usize {
+        if id == RETRO_MEMORY_SYSTEM_RAM {
+            SNES_SYSTEM_RAM_BYTES
+        } else {
+            0
+        }
+    }
+
+    unsafe extern "C" fn undersized_memory(_id: u32) -> usize {
+        SNES_SYSTEM_RAM_BYTES - 1
+    }
+
+    unsafe extern "C" fn oversized_memory(_id: u32) -> usize {
+        usize::MAX
+    }
+
+    unsafe extern "C" fn snes_memory_data(id: u32) -> *mut c_void {
+        if id == RETRO_MEMORY_SYSTEM_RAM {
+            OBSERVATION_BYTES.as_ptr().cast_mut().cast()
+        } else {
+            ptr::null_mut()
+        }
+    }
+
+    unsafe extern "C" fn unexpected_memory_data(_id: u32) -> *mut c_void {
+        UNEXPECTED_POINTER_READ.store(true, Ordering::Relaxed);
+        ptr::null_mut()
+    }
+
+    unsafe extern "C" fn null_memory_data(_id: u32) -> *mut c_void {
+        ptr::null_mut()
+    }
+
+    #[test]
+    fn content_identity_hashes_the_loaded_bytes_and_normalizes_only_snes_headers() {
+        assert_eq!(
+            identify_content("snes", b"abc").sha256,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let clean = vec![0x37; 32768];
+        let mut headered = vec![0xab; 512];
+        headered.extend_from_slice(&clean);
+        assert_eq!(
+            identify_content("snes", &clean),
+            identify_content("snes", &headered)
+        );
+        assert_ne!(
+            identify_content("nes", &clean),
+            identify_content("nes", &headered)
+        );
+        headered[512] ^= 1;
+        assert_ne!(
+            identify_content("snes", &clean),
+            identify_content("snes", &headered)
+        );
+    }
+
+    #[test]
+    fn system_ram_observation_is_read_only_and_exactly_bounded() {
+        let before = Sha256::digest(OBSERVATION_BYTES);
+        let mut calls = 0;
+        with_snes_system_ram(Some(snes_memory_size), Some(snes_memory_data), |memory| {
+            calls += 1;
+            let bytes = memory.expect("SNES RAM");
+            assert_eq!(bytes.len(), SNES_SYSTEM_RAM_BYTES);
+            assert!(bytes.iter().all(|byte| *byte == 0x37));
+        });
+        assert_eq!(calls, 1);
+        assert_eq!(Sha256::digest(OBSERVATION_BYTES), before);
+    }
+
+    #[test]
+    fn unavailable_or_nonstandard_memory_never_probes_a_pointer() {
+        UNEXPECTED_POINTER_READ.store(false, Ordering::Relaxed);
+        for get_size in [
+            None,
+            Some(undersized_memory as RetroGetMemorySize),
+            Some(oversized_memory as RetroGetMemorySize),
+        ] {
+            let mut calls = 0;
+            with_snes_system_ram(get_size, Some(unexpected_memory_data), |memory| {
+                calls += 1;
+                assert!(memory.is_none());
+            });
+            assert_eq!(calls, 1);
+        }
+        assert!(!UNEXPECTED_POINTER_READ.load(Ordering::Relaxed));
+        with_snes_system_ram(Some(snes_memory_size), None, |memory| {
+            assert!(memory.is_none());
+        });
+        with_snes_system_ram(Some(snes_memory_size), Some(null_memory_data), |memory| {
+            assert!(memory.is_none());
+        });
+    }
 
     fn system_info(need_fullpath: bool) -> RetroSystemInfo {
         RetroSystemInfo {

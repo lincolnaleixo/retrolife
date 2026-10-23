@@ -16,30 +16,27 @@ class FixtureJournal extends "res://scripts/workspace/journey_panel.gd":
 
 
 class FixtureBackend extends Node:
-    var confirmations: Array[Dictionary] = []
-    var reject_next := false
-    var state := {"seconds": 120, "earnedTime": 1, "personal": ["secret"], "gameXp": 150, "totalXp": 150, "level": 1, "levelProgress": 150, "collected": 2, "totalRewards": 8}
+    var confirmations := 0
+    var state: Dictionary
+
+    func _init() -> void:
+        state = supported_state()
+
+    static func supported_state() -> Dictionary:
+        var achievements: Array = []
+        for index in CHAPTER_IDS.size():
+            achievements.append({"id": CHAPTER_IDS[index], "title": ["Clear a stage on Yoshi's Island", "Discover a secret exit", "Defeat a Koopa Kid", "Rescue Peach"][index], "description": "Detected directly from the game.", "xp": 100, "earned": index == 1, "artIndex": index + 4})
+        return {"seconds": 120, "achievements": achievements, "supported": true, "detectionStatus": "watching", "detectionMessage": "Watching for game events.", "legacyPreserved": false, "gameXp": 100, "totalXp": 100, "level": 1, "levelProgress": 100, "collected": 1, "totalRewards": 4}
+
+    static func unsupported_state() -> Dictionary:
+        return {"seconds": 0, "achievements": [], "supported": false, "detectionStatus": "unsupported", "detectionMessage": "Automatic rewards are not supported for this game yet.", "legacyPreserved": false, "gameXp": 0, "totalXp": 200, "level": 2, "levelProgress": 0, "collected": 0, "totalRewards": 0}
 
     func journey_state_json(_id: String) -> String:
         return JSON.stringify({"ok": true, "data": state})
 
-    func journey_confirm_json(id: String, milestone: String, done: bool) -> String:
-        confirmations.append({"id": id, "milestone": milestone, "done": done})
-        if reject_next:
-            reject_next = false
-            return JSON.stringify({"ok": false, "error": "Fixture save was rejected."})
-        var personal: Array = state.personal
-        if done and not personal.has(milestone):
-            personal.append(milestone)
-        elif not done:
-            personal.erase(milestone)
-        var xp := int(state.earnedTime) * 50 + personal.size() * 100
-        state.gameXp = xp
-        state.totalXp = xp
-        state.level = 1 + xp / 200
-        state.levelProgress = xp % 200
-        state.collected = int(state.earnedTime) + personal.size()
-        return journey_state_json(id)
+    func journey_confirm_json(_id: String, _milestone: String, _done: bool) -> String:
+        confirmations += 1
+        return "{}"
 
 
 var _fixture_root := ""
@@ -79,10 +76,12 @@ func _run() -> void:
     _check(panel._art.texture != null and panel._cover_frame.visible, "A dedicated PNG cover must display")
     _check(_color_matches(panel._art.texture, Color("46b282")), "The journal must display the pack's original cover pixels")
     _check(_texture_count(panel._chapter_textures) == 4, "All four chapter SVGs must load from stable milestone names")
-    _check(_texture_count(panel._reward_textures) == 8, "All eight reward SVGs must load using zero-padded filenames")
-    _check(panel._personal_buttons[1].button_pressed and not panel._personal_buttons[0].button_pressed, "Art must not change the backend's confirmed chapter state")
-    _check(panel._xp.value == 150 and panel._quest_progress.value == 120 and panel._quest_progress.max_value == 600, "XP and session targets must still come from backend progress")
-    _check(panel._collection_progress.value == 2 and panel._collection_progress.max_value == 8, "Reward artwork must retain the eight-item collection count")
+    _check(_texture_count(panel._reward_textures) == 4, "Only the four event SVGs must load using their existing zero-padded filenames")
+    _check(panel._chapter_statuses[1].text.contains("UNLOCKED") and panel._chapter_statuses[0].text.contains("WAITING"), "Achievement cards must reflect verified backend events")
+    _check(panel._xp.value == 100 and panel._time.text.contains("active play"), "XP and active gameplay time must come from the backend")
+    _check(not panel._unlock_notice.visible, "The initial summary must not announce previously earned rewards")
+    _check(panel._detection.text == "Watching for game events.", "The detector status must come from the backend")
+    _check(panel._collection_progress.value == 1 and panel._collection_progress.max_value == 4, "Only four verified event rewards belong in the collection")
     _assert_rendered_art(panel)
     var cover_id: int = panel._art.texture.get_instance_id() if panel._art.texture != null else 0
     var chapter_ids := _texture_ids(panel._chapter_textures)
@@ -93,14 +92,17 @@ func _run() -> void:
     _check(panel._art.texture != null and panel._art.texture.get_instance_id() == cover_id, "Progress polling must reuse the loaded cover")
     _check(_texture_ids(panel._chapter_textures) == chapter_ids and _texture_ids(panel._reward_textures) == reward_ids, "Progress polling must reuse chapter and reward textures")
     _check(panel.requested_paths.size() == path_count, "Progress polling must not reopen the external art pack")
-    _check(backend.confirmations.is_empty(), "Loading and refreshing art must never grant a personal reward")
-    _exercise_confirmations(panel, backend)
+    _check(backend.confirmations == 0, "Loading and refreshing art must never grant a reward")
+    _exercise_read_only_updates(panel, backend)
+    backend.state = FixtureBackend.unsupported_state()
 
     panel.configure(backend, "fixture-tetris", "Tetris", "game-boy")
     _check(panel._art.texture == null and not panel._cover_frame.visible, "Missing journal cover must clear the previous game's art, without box fallback")
     _check(_texture_count(panel._chapter_textures) == 0 and _texture_count(panel._reward_textures) == 0, "A game without a pack must clear all stale chapter and reward textures")
     _check(panel._profile.get("slug") == "tetris", "Missing optional art must not remove the game's personalized chapter text")
-    _check(panel._chapter_titles[0].text.contains("line"), "Switching games must replace the previous chapter captions")
+    _check(panel._reward_grid.get_child_count() == 0 and panel._gift_tab.text == "Collection · 0/0", "An unsupported game must have no invented rewards")
+    _check(panel._detection.text.contains("not supported") and not panel._time.visible, "Unsupported detection must be explicit")
+    _check(not panel._unlock_notice.visible, "Switching games must clear a previous unlock notice")
 
     _assert_rendered_art(panel)
     # Deliberately malformed input is expected to fail image decoding.
@@ -113,8 +115,10 @@ func _run() -> void:
     _check(_texture_count(panel._reward_textures) == 0, "Missing reward images must remain neutral")
     _assert_rendered_art(panel)
 
+    backend.state = FixtureBackend.supported_state()
     panel.configure(backend, "fixture-mario", "Super Mario World", "snes")
     _check(panel._art.texture != null, "Returning to a known game must reload its own pack")
+    backend.state = FixtureBackend.unsupported_state()
     panel.configure(backend, "fixture-unlisted", "Unlisted Fixture Adventure", "snes")
     _assert_neutral(panel, "An unknown game")
     panel.configure(backend, "fixture-wrong-system", "Super Mario World", "nes")
@@ -127,7 +131,7 @@ func _run() -> void:
     backend.free()
     _remove_fixture_tree(_fixture_root)
     if _errors.is_empty():
-        print("Journey art smoke passed: scoped PNG/SVG packs, neutral fallbacks, stale clearing, cached refresh and unchanged reward semantics.")
+        print("Journey art smoke passed: scoped PNG/SVG packs, neutral fallbacks, stale clearing, cached refresh, read-only automatic events and unsupported-game states.")
         quit(0)
     else:
         for error in _errors:
@@ -135,18 +139,48 @@ func _run() -> void:
         quit(1)
 
 
-func _exercise_confirmations(panel: Control, backend: FixtureBackend) -> void:
-    var seconds := int(backend.state.seconds)
-    var earned := int(backend.state.earnedTime)
-    panel._personal_buttons[0].button_pressed = true
-    _check(backend.confirmations.back() == {"id": "fixture-mario", "milestone": "first_stage", "done": true}, "A chapter check must retain the stable game and milestone identifiers")
-    _check(backend.state.totalXp == 250 and panel._collection_progress.value == 3, "A confirmed chapter must remain worth 100 XP and one reward")
-    backend.reject_next = true
-    panel._personal_buttons[0].button_pressed = false
-    _check(panel._personal_buttons[0].button_pressed and panel._error.visible, "Rejected changes must restore the committed chapter and show the failure")
-    panel._personal_buttons[0].button_pressed = false
-    _check(not panel._personal_buttons[0].button_pressed and backend.state.totalXp == 150, "A personal chapter check must remain reversible")
-    _check(int(backend.state.seconds) == seconds and int(backend.state.earnedTime) == earned, "Personal artwork/checks must never add emulated time or session rewards")
+func _exercise_read_only_updates(panel: Control, backend: FixtureBackend) -> void:
+    _check(_checkbox_count(panel) == 0, "The live Journey must not contain manual checkboxes")
+    var click := InputEventMouseButton.new()
+    click.button_index = MOUSE_BUTTON_LEFT
+    click.pressed = true
+    panel._chapter_cards[0].gui_input.emit(click)
+    panel._gift_tab.pressed.emit()
+    _check(panel._detection.visible and panel._detection.get_parent() != panel._quests, "Detection status must remain available in the collection tab")
+    panel._quests_tab.pressed.emit()
+    _check(backend.confirmations == 0 and backend.state.collected == 1, "Clicking cards and tabs must never write progress")
+    backend.state.achievements[0].earned = true
+    backend.state.collected = 2
+    backend.state.gameXp = 200
+    backend.state.totalXp = 200
+    backend.state.level = 2
+    backend.state.levelProgress = 0
+    panel.refresh()
+    _check(panel._chapter_statuses[0].text.contains("UNLOCKED") and panel._collection_progress.value == 2, "A new game event must update the visible achievement and collection")
+    _check(panel._unlock_notice.visible and panel._unlock_notice.text.contains("Yoshi's Island"), "A newly earned live event must produce a compact notice")
+    panel._notice_remaining = 0.0
+    panel._unlock_notice.hide()
+    panel.refresh()
+    _check(not panel._unlock_notice.visible, "Repeated summaries must not repeat an unlock notice")
+    backend.state.detectionStatus = "waiting"
+    backend.state.detectionMessage = "Waiting for active gameplay."
+    backend.state.legacyPreserved = true
+    panel.refresh()
+    _check(panel._legacy.visible and panel._detection.text == "Waiting for active gameplay.", "Preserved legacy entries and detector waiting state must be explained")
+    _check(backend.confirmations == 0, "No automatic Journey interaction may invoke a mutation")
+    var malformed := backend.state.duplicate(true)
+    malformed.collected = 3
+    panel._render_response({"ok": true, "data": malformed})
+    _check(panel._error.visible and panel._collection_progress.value == 2, "Inconsistent responses must not fabricate collection progress")
+    panel.refresh()
+    _check(not panel._error.visible, "A valid subsequent snapshot must recover without mutation")
+
+
+func _checkbox_count(node: Node) -> int:
+    var count := 1 if node is CheckBox else 0
+    for child in node.get_children():
+        count += _checkbox_count(child)
+    return count
 
 
 func _assert_neutral(panel: Control, description: String) -> void:
@@ -165,22 +199,17 @@ func _exercise_compact_layout(panel: Control) -> void:
     var expected_width := summary.get_theme_font("font").get_string_size(summary.text, HORIZONTAL_ALIGNMENT_LEFT, -1, summary.get_theme_font_size("font_size")).x
     _check(summary.size.x >= expected_width - 1, "The compact XP label must have room for its complete text")
     _check(row.get_global_rect().end.x <= panel.get_global_rect().end.x, "The level and XP row must not overflow the journal")
-    for button in panel._personal_buttons:
-        var checked: Texture2D = button.get_theme_icon("checked")
-        var unchecked: Texture2D = button.get_theme_icon("unchecked")
-        _check(checked != null and unchecked != null and checked.get_width() >= 18 and unchecked.get_width() >= 18, "Chapter checks must have visible touchpoints")
-        if checked != null and unchecked != null:
-            _check(checked.get_image().get_data() != unchecked.get_image().get_data(), "Completed and incomplete chapters must have distinct check icons")
 
 
 func _assert_rendered_art(panel: Control) -> void:
     for index in range(4):
         _check(panel._chapter_icons[index].texture == panel._chapter_textures[index], "Visible chapter art must match the newly loaded game pack")
         _check(panel._chapter_numbers[index].visible == (panel._chapter_textures[index] == null), "A chapter without art must display its neutral number")
-    _check(panel._reward_grid.get_child_count() == 8, "Game switches must retain exactly eight reward cards")
-    for index in range(panel._reward_grid.get_child_count()):
+    var available: int = panel._reward_grid.get_child_count()
+    _check(available == 0 or available == 4, "The journal must contain four event rewards or no unsupported rewards")
+    for index in range(available):
         var stamp: Control = panel._reward_grid.get_child(index).get_child(0).get_child(0)
-        _check(stamp.artwork == panel._reward_textures[index], "Rendered keepsakes must not retain a previous game's image")
+        _check(stamp.artwork == panel._reward_textures[index + 4], "Event keepsakes must use their original event artwork, never time rewards")
 
 
 func _texture_count(textures: Array) -> int:

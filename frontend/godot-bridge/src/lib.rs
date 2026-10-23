@@ -1,4 +1,5 @@
 mod catalog;
+mod journey_observer;
 mod updates;
 
 use godot::builtin::{GString, PackedByteArray, PackedFloat32Array};
@@ -11,7 +12,7 @@ use retrolife_emulation::{
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 const RESPONSE_SCHEMA_VERSION: u32 = 1;
 const INPUT_PLAYER: usize = 0;
@@ -41,6 +42,7 @@ struct BackendState {
     journey_error: Option<String>,
     journey_store_error: Option<String>,
     journey_saved_seconds: u64,
+    journey_detector: Arc<Mutex<retrolife_core::journey::smw::Detector>>,
 }
 
 impl Default for BackendState {
@@ -69,6 +71,7 @@ impl Default for BackendState {
             journey_error: None,
             journey_store_error: None,
             journey_saved_seconds: 0,
+            journey_detector: Default::default(),
         }
     }
 }
@@ -85,11 +88,18 @@ impl BackendState {
         if self.journey_error.is_some() || self.game_id.is_empty() {
             return;
         }
-        if let (Some(runtime), Some(info)) = (&self.runtime, &self.session_info) {
-            self.journey
-                .observe(&self.game_id, runtime.snapshot().frame_sequence, info.fps);
-            let seconds = self.journey.summary(&self.game_id).seconds;
-            if flush || seconds.saturating_sub(self.journey_saved_seconds) >= 30 {
+        if self.session_info.is_some() {
+            let observation = match self.journey_detector.lock() {
+                Ok(detector) => detector.snapshot(),
+                Err(_) => return,
+            };
+            let awarded = self.journey.observe(&self.game_id, &observation);
+            let seconds = self.journey.summary(&self.game_id, None).seconds;
+            if flush
+                || awarded
+                || self.journey_store_error.is_some()
+                || seconds.saturating_sub(self.journey_saved_seconds) >= 30
+            {
                 match self.journey.save(&self.journey_path()) {
                     Ok(()) => {
                         self.journey_saved_seconds = seconds;
@@ -106,6 +116,11 @@ impl BackendState {
 
     fn clear_session(&mut self) {
         self.observe_journey(true);
+        // Keep the session/save barrier until pending achievement writes succeed.
+        // The core can already be stopped; regular polling retries the journal.
+        if self.journey_store_error.is_some() {
+            return;
+        }
         if self.update_guard {
             updates::end_game();
             self.update_guard = false;
@@ -172,9 +187,27 @@ impl RetroLifeBackend {
         {
             state.last_error = Some(error);
         }
+        // Saving achievements does not depend on the Journey sidebar being visible.
+        state.observe_journey(false);
+        if !state.session_id.is_empty()
+            && state
+                .runtime
+                .as_ref()
+                .is_some_and(|runtime| runtime.snapshot().status == RuntimeStatus::Stopped)
+        {
+            state.clear_session();
+        }
     }
 
     fn runtime_status(state: &BackendState) -> &'static str {
+        if state.journey_store_error.is_some()
+            && state
+                .runtime
+                .as_ref()
+                .is_none_or(|runtime| runtime.snapshot().status == RuntimeStatus::Stopped)
+        {
+            return "failed";
+        }
         match state
             .runtime
             .as_ref()
@@ -273,26 +306,25 @@ impl RetroLifeBackend {
             if let Some(error) = &state.journey_store_error {
                 return Err(error.clone());
             }
-            Ok(state.journey.summary(&game_id.to_string()))
-        })();
-        GString::from(response_json(result).as_str())
-    }
-
-    #[func]
-    fn journey_confirm_json(&self, game_id: GString, milestone: GString, done: bool) -> GString {
-        let result = (|| {
-            let mut state = self.state()?;
-            if let Some(error) = &state.journey_error {
-                return Err(error.clone());
-            }
             let id = game_id.to_string();
-            catalog::entry(&state.library_root, &id)?;
-            let mut next = state.journey.clone();
-            next.confirm(&id, &milestone.to_string(), done)?;
-            next.save(&state.journey_path())?;
-            state.journey = next;
-            state.journey_store_error = None;
-            Ok(state.journey.summary(&id))
+            let mut live = if id == state.game_id && state.session_info.is_some() {
+                state
+                    .journey_detector
+                    .lock()
+                    .ok()
+                    .map(|detector| detector.snapshot())
+            } else {
+                None
+            };
+            if let Some(observation) = &mut live
+                && state
+                    .runtime
+                    .as_ref()
+                    .is_some_and(|runtime| runtime.snapshot().status != RuntimeStatus::Running)
+            {
+                observation.playing = false;
+            }
+            Ok(state.journey.summary(&id, live.as_ref()))
         })();
         GString::from(response_json(result).as_str())
     }
@@ -407,7 +439,12 @@ impl RetroLifeBackend {
                 return Err("Stop and save the active game before starting another.".to_owned());
             }
             if state.runtime.is_none() {
-                state.runtime = Some(EmulationRuntime::new().map_err(|error| error.to_string())?);
+                let observer =
+                    journey_observer::JourneyObserver(Arc::clone(&state.journey_detector));
+                state.runtime = Some(
+                    EmulationRuntime::with_observer(Box::new(observer))
+                        .map_err(|error| error.to_string())?,
+                );
             }
             let request =
                 StartRequest::new(core_path, content_path, save_root, "snes", game_id.clone());
@@ -426,7 +463,7 @@ impl RetroLifeBackend {
             state.session_serial = state.session_serial.saturating_add(1);
             state.session_id = format!("session-{}", state.session_serial);
             state.journey.begin(&game_id);
-            state.journey_saved_seconds = state.journey.summary(&game_id).seconds;
+            state.journey_saved_seconds = state.journey.summary(&game_id, None).seconds;
             state.game_id = game_id;
             state.last_frame_sequence = 0;
             state.last_frame_width = 0;
@@ -751,6 +788,70 @@ fn action_bit(action: &str) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn observed_backend(label: &str) -> BackendState {
+        let root = std::env::temp_dir().join(format!("retrolife-{label}-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut state = BackendState {
+            save_root: root.join("saves"),
+            session_id: "fixture-session".into(),
+            game_id: "fixture-game".into(),
+            session_info: Some(SessionInfo {
+                core_name: "fixture".into(),
+                core_version: "1".into(),
+                width: 256,
+                height: 224,
+                max_width: 256,
+                max_height: 224,
+                aspect_ratio: 4.0 / 3.0,
+                fps: 60.0,
+                sample_rate: 32000.0,
+                pixel_format: "RGB565",
+                has_battery_ram: false,
+            }),
+            ..Default::default()
+        };
+        state.journey.begin("fixture-game");
+        state
+    }
+
+    #[test]
+    fn regular_emulation_polls_save_awards_without_a_visible_journey() {
+        let mut state = observed_backend("hidden-journey");
+        let mut ram = vec![0; 0x20000];
+        ram[0x0100] = 0x14;
+        ram[0x13bf] = 0x29;
+        {
+            let mut detector = state.journey_detector.lock().unwrap();
+            detector.start("snes", retrolife_core::journey::smw::USA_SHA256, 60.0);
+            detector.observe(Some(&ram));
+            ram[0x0100] = 0x0b;
+            ram[0x0dd5] = 1;
+            detector.observe(Some(&ram));
+        }
+        RetroLifeBackend::poll_events(&mut state);
+        let persisted = retrolife_core::journey::Journey::load(&state.journey_path()).unwrap();
+        assert_eq!(persisted.summary("fixture-game", None).collected, 1);
+        std::fs::remove_dir_all(state.save_root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn failed_journal_write_retains_session_and_retries_before_clean_stop() {
+        let mut state = observed_backend("journey-save-retry");
+        let path = state.journey_path();
+        std::fs::create_dir(&path).unwrap();
+        state.clear_session();
+        assert!(state.journey_store_error.is_some());
+        assert_eq!(state.session_id, "fixture-session");
+        assert_eq!(RetroLifeBackend::runtime_status(&state), "failed");
+        std::fs::remove_dir(&path).unwrap();
+        state.clear_session();
+        assert!(state.journey_store_error.is_none());
+        assert!(state.session_id.is_empty());
+        assert_eq!(RetroLifeBackend::runtime_status(&state), "stopped");
+        assert!(path.is_file());
+        std::fs::remove_dir_all(state.save_root.parent().unwrap()).unwrap();
+    }
 
     #[test]
     fn physical_snes_actions_map_to_the_expected_bits() {

@@ -148,6 +148,32 @@ pub struct SessionInfo {
     pub has_battery_ram: bool,
 }
 
+/// Identity of the bytes actually loaded by the worker, independent of a
+/// frontend's title, filename or catalogue identifier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentIdentity {
+    pub system_id: String,
+    /// SHA-256 in lowercase hex. For SNES, a 512-byte copier header is excluded
+    /// when the file length is 512 bytes more than a multiple of 32 KiB.
+    pub sha256: String,
+}
+
+/// Read-only observation performed on the emulation worker after every frame.
+///
+/// Callbacks must be bounded and must not wait for frontend work. The borrowed
+/// RAM is valid only during `frame_completed`; no core pointer crosses this
+/// boundary. Missing or nonstandard memory is represented by `None`, rather
+/// than guessed or truncated. No observations are made for paused frames.
+pub trait FrameObserver: Send {
+    fn session_started(&mut self, content: &ContentIdentity, info: &SessionInfo);
+    /// SNES system RAM (exactly 128 KiB, starting at CPU address $7E0000).
+    fn frame_completed(&mut self, system_ram: Option<&[u8]>);
+    /// A reset invalidates transition baselines, but need not discard awards.
+    fn reset(&mut self);
+    /// Retain any cumulative observations needed by the frontend to flush them.
+    fn session_stopped(&mut self);
+}
+
 /// Lifecycle state visible to a frontend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeStatus {
@@ -307,12 +333,21 @@ pub struct EmulationRuntime {
 impl EmulationRuntime {
     /// Start an idle worker. Core loading happens asynchronously on `start`.
     pub fn new() -> Result<Self, EmulationError> {
+        Self::create(None)
+    }
+
+    /// Start an idle worker with a synchronous read-only frame observer.
+    pub fn with_observer(observer: Box<dyn FrameObserver>) -> Result<Self, EmulationError> {
+        Self::create(Some(observer))
+    }
+
+    fn create(observer: Option<Box<dyn FrameObserver>>) -> Result<Self, EmulationError> {
         let shared = Arc::new(Shared::new());
         let (tx, rx) = mpsc::sync_channel(COMMAND_CAPACITY);
         let worker_shared = Arc::clone(&shared);
         let join = thread::Builder::new()
             .name("retrolife-emulation".into())
-            .spawn(move || worker_loop(rx, worker_shared))
+            .spawn(move || worker_loop(rx, worker_shared, observer))
             .map_err(EmulationError::from)?;
         Ok(Self {
             tx,
@@ -477,7 +512,11 @@ impl Drop for EmulationRuntime {
     }
 }
 
-fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
+fn worker_loop(
+    rx: Receiver<WorkerCommand>,
+    shared: Arc<Shared>,
+    mut observer: Option<Box<dyn FrameObserver>>,
+) {
     let mut session: Option<CoreSession> = None;
     while let Ok(command) = rx.recv() {
         match command {
@@ -495,6 +534,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                         });
                         continue;
                     }
+                    if let Some(observer) = observer.as_mut() {
+                        observer.session_stopped();
+                    }
                     session = None;
                 }
                 shared.clear_transport();
@@ -505,6 +547,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                     Arc::clone(&shared.inputs),
                 ) {
                     Ok((new_session, info)) => {
+                        if let Some(observer) = observer.as_mut() {
+                            observer.session_started(new_session.content_identity(), &info);
+                        }
                         shared.set_status(
                             if shared.paused.load(std::sync::atomic::Ordering::Acquire) {
                                 RuntimeStatus::Paused
@@ -533,6 +578,11 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                 };
                 if let Err(error) = current.run_frame() {
                     session = fail_session(session.take(), &shared, error);
+                    if let Some(observer) = observer.as_mut() {
+                        observer.session_stopped();
+                    }
+                } else if let Some(observer) = observer.as_mut() {
+                    current.observe_frame(observer.as_mut());
                 }
             }
             WorkerCommand::PauseChanged => {
@@ -555,6 +605,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
             WorkerCommand::Reset => {
                 if let Some(current) = session.as_ref() {
                     current.reset();
+                    if let Some(observer) = observer.as_mut() {
+                        observer.reset();
+                    }
                 }
             }
             WorkerCommand::Stop => {
@@ -562,6 +615,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                     shared.set_status(RuntimeStatus::Stopping);
                     match current.stop() {
                         Ok(battery_bytes) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             session = None;
                             shared.clear_pause();
                             shared.clear_error();
@@ -585,11 +641,17 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                 if let Some(current) = session.as_mut() {
                     match current.stop() {
                         Ok(_) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             shared.clear_pause();
                             shared.clear_error();
                             shared.set_status(RuntimeStatus::Stopped);
                         }
                         Err(error) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             shared.force_pause();
                             shared.set_status(RuntimeStatus::Failed);
                             shared.set_error(&error);

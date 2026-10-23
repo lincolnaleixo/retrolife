@@ -25,7 +25,7 @@ class ProgressBackend extends Node:
     var writes := 0
 
     func journey_state_json(_game_id: String) -> String:
-        return JSON.stringify({"ok": true, "data": {"seconds": 0, "earnedTime": 0, "personal": [], "collected": 0, "totalRewards": 8, "totalXp": 0, "level": 1, "levelProgress": 0}})
+        return JSON.stringify({"ok": true, "data": {"seconds": 0, "achievements": [], "supported": false, "detectionStatus": "unsupported", "detectionMessage": "Automatic achievements are not available for this game version yet.", "legacyPreserved": false, "collected": 0, "totalRewards": 0, "gameXp": 0, "totalXp": 0, "level": 1, "levelProgress": 0}})
 
     func journey_confirm_json(_game_id: String, _milestone: String, _done: bool) -> String:
         writes += 1
@@ -110,7 +110,7 @@ func _run() -> void:
     shell._header._rewards.pressed.emit()
     for _frame in 6:
         await process_frame
-    _check(shell._rewards_panel.visible and shell._rewards_panel._collected.text == "0 / 16", "Header Rewards must open the central collection using real library totals")
+    _check(shell._rewards_panel.visible and shell._rewards_panel._collected.text == "0 / 0", "Header Rewards must show no invented rewards for unsupported library games")
     _check(shell._rewards_panel._close.has_focus(), "The collection must expose a keyboard focused Close action")
     _check(shell._carousel._viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED, "Opening Rewards must suspend the 3D stage")
     shell._rewards_panel.hide()
