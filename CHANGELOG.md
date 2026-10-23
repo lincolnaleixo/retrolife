@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Keep short selection layouts at 1024×720 and similar narrow windows compact, preventing the synopsis and preview from pushing soundtrack controls or navigation below the window.
+
 - Show the selected game’s external 3D box and cartridge together as one collectible composition. Reuse the existing validated box loader, retain only one selected box, and preserve click-to-play, shared drag/zoom inspection, keyboard/gamepad navigation and cartridge-only/text fallbacks.
 - Replace the full-height selection panel with a continuous subdued artwork canvas, a bounded video preview, concise opening synopsis and responsive typography. Align the optional publisher mark with the system name and generate logo mipmaps for clean scaling; keep private artwork outside the app.
 

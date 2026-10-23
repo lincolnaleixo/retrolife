@@ -421,7 +421,7 @@ func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
-    var compact := size.y < 720
+    var compact := size.y < 780 or size.x < 1150
     var wide := size.x >= 1800
     var sidebar_width := clampf(size.x * 0.32, 310, 620)
     _info_panel.custom_minimum_size.x = sidebar_width
@@ -1172,7 +1172,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     _game_facts.text = "  ·  ".join(facts)
     _game_description.text = _selection_summary(str(_presentation.get("description", "")))
     if _game_description.text == "<null>": _game_description.text = ""
-    _game_description.visible = size.y >= 720 and not _game_description.text.is_empty()
+    _game_description.visible = size.y >= 780 and size.x >= 1150 and not _game_description.text.is_empty()
     var maker := str(_presentation.get("developer", ""))
     _game_source.text = maker if maker not in ["", "<null>"] else ""
     _publisher_logo.texture = null

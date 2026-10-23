@@ -78,7 +78,11 @@ func _run() -> void:
     await _settle(shell)
     _check(shell._game_description.text == "Metadata after changing the linked collection." and shell._presentation.description == catalog.rich.description, "Changing collection refreshes the concise summary while preserving the complete description for Details")
 
-    for dimensions in [Vector2i(900, 600), Vector2i(1280, 800)]:
+    shell.set_process(false)
+    shell._inline_still.texture = ImageTexture.create_from_image(Image.create(16, 12, false, Image.FORMAT_RGBA8))
+    shell._inline_preview.show()
+    shell._music_controls.show()
+    for dimensions in [Vector2i(900, 600), Vector2i(1024, 720), Vector2i(1280, 800)]:
         root.size = dimensions
         for _frame in 5:
             await process_frame
@@ -87,6 +91,10 @@ func _run() -> void:
         _check(shell._game_info.get_global_rect().end.y <= shell.size.y, "Game information must remain inside the window")
         _check(shell._header.get_global_rect().end.x <= shell.size.x, "Integrated header actions must fit inside the window")
 
+    shell._inline_still.texture = null
+    shell._inline_preview.hide()
+    shell._music_controls.hide()
+    shell.set_process(true)
     root.size = Vector2i(1024, 640)
     for _frame in 3:
         await process_frame
