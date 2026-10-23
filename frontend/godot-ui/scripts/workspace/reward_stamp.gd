@@ -16,7 +16,8 @@ func _draw() -> void:
         var dimensions := Vector2(artwork.get_width(), artwork.get_height())
         var ratio := minf(available.x / dimensions.x, available.y / dimensions.y)
         var target := dimensions * ratio
-        draw_texture_rect(artwork, Rect2((size - target) * 0.5, target), false, Color.WHITE if earned else Color(0.73, 0.79, 0.83, 0.62))
+        # Art remains a colorful preview; the containing card names the lock state.
+        draw_texture_rect(artwork, Rect2((size - target) * 0.5, target), false, Color.WHITE)
         return
     # A missing game-specific illustration stays typographic and neutral.
     var font := get_theme_default_font()

@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Give supported custom Journeys larger illustrated chapters and full-color collectible artwork, with per-event colors, region captions and keepsake names from an optional bounded external theme. Supported games without art keep a neutral presentation. Hide the gameplay Journey column and toggle for unsupported games, omit them from Rewards, and retry temporary support failures without losing the visibility preference. Themes never enable detection or change progress.
+
 - Preserve macOS privacy permission continuity across local app updates with a pinned Apple Development signing identity. Add a dedicated installer that verifies signatures and designated requirements, refuses running-app replacement and ad-hoc fallback, and backs up the previous application with rollback. Keep ROM locations, saves, artwork and existing privacy settings unchanged. The first migration from an ad-hoc build can require one new authorization.
 
 - Replace manual Journey checks and elapsed-time gifts with verified Super Mario World (USA) gameplay events: Yoshi's Island stage clears, secret exits, Koopaling castles and Bowser's ending. Read SNES memory on the emulation worker after each frame, match the loaded ROM hash, and reject menus, demos, death exits, unsupported versions and unavailable memory. Keep the original version-one journal in an exact backup and archive legacy records without treating them as verified XP. Journey and Rewards now show read-only event rewards and automatic unlock notices.

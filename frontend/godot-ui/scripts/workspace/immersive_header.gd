@@ -47,11 +47,11 @@ func _ready() -> void:
     wordmark.mouse_filter = Control.MOUSE_FILTER_IGNORE
     brand.add_child(wordmark)
 
-    _rewards = _action_button("Rewards", "rewards", "Your rewards across every game")
+    _rewards = _action_button("Rewards", "rewards", "Keepsakes from supported games")
     _rewards.icon = preload("res://scripts/workspace/ui_icons.gd").icon("trophy")
     add_child(_rewards)
     _box = _action_button("Box", "box", "Inspect this game's box in 3D")
-    _details = _action_button("Details", "details", "Game details and journey")
+    _details = _action_button("Details", "details", "Game details")
     _search = _action_button("Search", "search", "Search this collection  ·  /")
     _box.icon = preload("res://scripts/workspace/ui_icons.gd").icon("box")
     _search.icon = preload("res://scripts/workspace/ui_icons.gd").icon("search")

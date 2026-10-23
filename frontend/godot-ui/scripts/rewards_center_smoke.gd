@@ -20,6 +20,9 @@ class FixtureCatalog extends RefCounted:
         {"id": "five", "title": "Fixture Five", "systemId": "snes"},
         {"id": "six", "title": "Fixture Six", "systemId": "snes"},
         {"id": "seven", "title": "Fixture Seven", "systemId": "snes"},
+        {"id": "eight", "title": "Fixture Eight", "systemId": "snes"},
+        {"id": "nine", "title": "Fixture Nine", "systemId": "snes"},
+        {"id": "wrong-hash", "title": "Super Mario World", "systemId": "snes"},
     ]
     var calls := 0
 
@@ -37,13 +40,13 @@ class FixtureBackend extends Node:
         reads.append(id)
         if id == fail_id:
             return JSON.stringify({"schemaVersion": 1, "ok": false, "error": "Fixture progress is unavailable."})
-        var supported := id == "mario"
+        var supported := id in ["mario", "unknown", "five", "six", "seven", "eight", "nine"]
         var achievements: Array = []
         var ids := ["first_stage", "secret", "boss", "finale"]
         if supported:
             for index in ids.size():
-                achievements.append({"id": ids[index], "title": "Event %d" % index, "description": "Detected in the game", "xp": 100, "earned": index < 2, "artIndex": index + 4})
-        return JSON.stringify({"schemaVersion": 1, "ok": true, "data": {"seconds": 600 if supported else 0, "achievements": achievements, "supported": supported, "detectionStatus": "waiting" if supported else "unsupported", "detectionMessage": "Waiting for game events." if supported else "Automatic rewards are not supported for this game yet.", "legacyPreserved": false, "collected": 2 if supported else 0, "totalRewards": 4 if supported else 0, "gameXp": 200 if supported else 0, "totalXp": 200, "level": 2, "levelProgress": 0}})
+                achievements.append({"id": ids[index], "title": "Event %d" % index, "description": "Detected in the game", "xp": 100, "earned": id == "mario" and index < 2, "artIndex": index + 4})
+        return JSON.stringify({"schemaVersion": 1, "ok": true, "data": {"seconds": 600 if id == "mario" else 0, "achievements": achievements, "supported": supported, "detectionStatus": "waiting" if supported else "unsupported", "detectionMessage": "Waiting for game events." if supported else "Automatic rewards are not supported for this game yet.", "legacyPreserved": false, "collected": 2 if id == "mario" else 0, "totalRewards": 4 if supported else 0, "gameXp": 200 if id == "mario" else 0, "totalXp": 200, "level": 2, "levelProgress": 0}})
 
     func journey_confirm_json(_id: String, _milestone: String, _done: bool) -> String:
         writes += 1
@@ -66,6 +69,9 @@ func _run() -> void:
     for index in range(1, 9):
         var file := FileAccess.open(art_directory.path_join("%02d.svg" % index), FileAccess.WRITE)
         file.store_string('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="24" fill="#7799bb"/></svg>')
+    var theme_file := FileAccess.open(art_directory.get_base_dir().path_join("theme.json"), FileAccess.WRITE)
+    theme_file.store_string(JSON.stringify({"version": 1, "cards": {"first_stage": {"rewardName": "Fixture island diorama", "accent": "f3a971"}, "secret": {"rewardName": "Fixture hidden passage", "accent": "a892ed"}}}))
+    theme_file.close()
     var backend := FixtureBackend.new()
     root.add_child(backend)
     var catalog := FixtureCatalog.new()
@@ -75,16 +81,25 @@ func _run() -> void:
     root.add_child(center)
     center.configure(backend, catalog)
     await _settle(center)
-    _check(catalog.calls == 4 and center._games.size() == 7, "The center must read every library page")
-    _check(center._totals == {"collected": 2, "available": 4, "seconds": 600}, "Collection totals must sum actual per-game progress")
+    _check(catalog.calls == 5 and center._library_size == 10 and center._games.size() == 7, "The center must read every library page and keep only supported games")
+    _check(center._game_filter.item_count == 8 and not center._states.has("wrong-hash") and not center._states.has("wrong-console") and not center._states.has("tetris"), "Unsupported games must not appear in sections, filters or totals, even with a matching title")
+    _check(center._totals == {"collected": 2, "available": 28, "seconds": 600}, "Collection totals must sum actual per-game progress")
     _check(center._level.text == "Level 2" and center._xp.text == "200 total XP", "Global XP must be shown once, never summed across game summaries")
     _check(center._sections.get_child_count() == 6 and center._pager.visible, "Rendered game sections must remain bounded by a page")
     _check(center._next.disabled == false and center._previous.disabled, "Page navigation must reflect the visible page")
     _check(_art_count(center._sections.get_child(0)) == 4, "Matching title and console must load their own reward SVGs")
-    _check(_art_count(center._sections.get_child(1)) == 0 and _art_count(center._sections.get_child(3)) == 0, "Missing art and wrong-console titles must stay neutral")
+    var custom_grid := center._sections.get_child(0).get_node("KeepsakeGrid")
+    var custom_column := custom_grid.get_child(0).get_child(0)
+    var secret_column := custom_grid.get_child(1).get_child(0)
+    _check(custom_column.get_child(2).text == "Fixture island diorama" and secret_column.get_child(2).text == "Fixture hidden passage", "The Rewards center must use per-achievement custom names from the optional art theme")
+    _check(custom_column.get_child(1).accent == Color("f3a971") and secret_column.get_child(1).accent == Color("a892ed"), "Each custom reward must use its own illustrated theme accent")
+    _check(custom_column.get_child(1).custom_minimum_size.y == 160, "Custom illustrations need a prominent, readable display area")
+    var basic_column := center._sections.get_child(1).get_node("KeepsakeGrid").get_child(0).get_child(0)
+    _check(basic_column.get_child(2).text == "Event 0" and basic_column.get_child(1).accent == Color("91b1c5") and basic_column.get_child(1).custom_minimum_size.y == 60, "Supported games without art use backend achievement titles and compact neutral presentation")
+    _check(_art_count(center._sections.get_child(1)) == 0 and _art_count(center._sections.get_child(3)) == 0, "Supported games without a custom art pack must stay neutral")
     for path in center.requested:
         _check(not path.contains("/box/"), "The center must not use box art as a journal fallback")
-    _check(_card_count(center) == 4, "Unsupported games must not fabricate rewards or time targets")
+    _check(_card_count(center) == 24, "Only supported game rewards are rendered within the current page")
     _check(_checkbox_count(center) == 0, "The rewards center must have no manual achievement controls")
     var read_count := backend.reads.size()
     center._status_select.select(1)
@@ -105,6 +120,12 @@ func _run() -> void:
     _check(center._sections.get_child_count() == 1 and center._previous.disabled == false and center._next.disabled, "The last collection page must contain only its remaining games")
     center._previous.pressed.emit()
     await _exercise_layout(center)
+    for index in range(1, 9):
+        DirAccess.remove_absolute(art_directory.path_join("%02d.svg" % index))
+    center.refresh()
+    await _settle(center)
+    var without_art := center._sections.get_child(0).get_node("KeepsakeGrid").get_child(0).get_child(0)
+    _check(without_art.get_child(1).artwork == null and without_art.get_child(2).text == "Event 0" and without_art.get_child(1).accent == Color("91b1c5"), "A theme file without its game artwork must fall back to basic presentation instead of inventing custom keepsakes")
     center.hide()
     backend.fail_id = "tetris"
     center.configure(backend, catalog)
@@ -112,18 +133,23 @@ func _run() -> void:
     _check(center._totals.is_empty() and center._collected.text == "—", "Failed progress must never be represented as zero or partial totals")
     _check(center._message.visible and center._message.text.contains("Tetris") and not center._refresh.disabled, "A failed game must be identified with a retry action")
     backend.fail_id = "never"
+    catalog.entries = [{"id": "wrong-hash", "title": "Super Mario World", "systemId": "snes"}]
+    center.configure(backend, catalog)
+    await _settle(center)
+    _check(center._sections.get_child_count() == 0 and center._totals == {"collected": 0, "available": 0, "seconds": 0}, "An unsupported-only library has no quests, reward cards or fabricated totals")
+    _check(center._message.text.contains("None of your games have automatic rewards") and center._game_filter.disabled and center._status_select.disabled, "Unsupported-only libraries explain the empty collection without dead filters")
     catalog.entries.clear()
     center.configure(backend, catalog)
     await _settle(center)
     _check(center._collected.text == "0 / 0" and center._sections.get_child_count() == 0, "An empty library must show its actual empty collection")
     _check(center._level.text == "Level 2", "Removing library entries must not invent a reset of all-time XP")
-    _check(center._message.text.contains("Import a game"), "The empty state must explain how to begin")
+    _check(center._message.text.contains("Import a supported game"), "The empty state must explain how to begin")
     _check(backend.writes == 0, "The rewards center must never confirm or undo a reward")
     center.free()
     backend.free()
     _remove_tree(_fixture_root)
     if _errors.is_empty():
-        print("Rewards center smoke passed: paginated totals, global XP, scoped art, readonly filters, bounded cards, empty/error states and responsive layout.")
+        print("Rewards center smoke passed: support-only pagination and totals, global XP, scoped art, readonly filters, bounded cards, empty/error states and responsive layout.")
         quit(0)
     else:
         for error in _errors:

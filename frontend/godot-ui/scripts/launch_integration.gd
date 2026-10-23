@@ -59,6 +59,7 @@ var _last_input_state := {}
 var preferences_path := "user://gameplay-ui.cfg"
 var persist_preferences := true
 var _journey_visible := true
+var _journey_supported := false
 
 var _background: ColorRect
 var _frame: TextureRect
@@ -305,10 +306,9 @@ func _build_gameplay_view() -> void:
     frame_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     play_row.add_child(frame_panel)
     _journey = preload("res://scripts/workspace/journey_panel.gd").new()
+    _journey.support_changed.connect(_journey_support_changed)
     play_row.add_child(_journey)
-    _journey.visible = _journey_visible
-    _journey_toggle.text = "Hide Journey" if _journey_visible else "Show Journey"
-    _journey_toggle.accessibility_name = _journey_toggle.text
+    _sync_journey_visibility()
 
     _frame_aspect = AspectRatioContainer.new()
     _frame_aspect.name = "GameplayFrameAspect"
@@ -382,12 +382,27 @@ func _restore_play_focus() -> void:
             _frame.grab_focus()
 
 
-func set_journey_visible(show_panel: bool) -> void:
-    _journey_visible = show_panel
-    _journey.visible = show_panel
-    _journey_toggle.set_pressed_no_signal(show_panel)
-    _journey_toggle.text = "Hide Journey" if show_panel else "Show Journey"
+func _journey_support_changed(supported: bool) -> void:
+    _journey_supported = supported
+    _sync_journey_visibility()
+
+
+func _sync_journey_visibility() -> void:
+    # The backend validates the actual ROM. A matching title or an art pack
+    # cannot enable a journal for a game without automatic event detection.
+    var shown := _journey_supported and _journey_visible
+    _journey.visible = shown
+    _journey_toggle.visible = _journey_supported
+    _journey_toggle.set_pressed_no_signal(shown)
+    _journey_toggle.text = "Hide Journey" if shown else "Show Journey"
     _journey_toggle.accessibility_name = _journey_toggle.text
+
+
+func set_journey_visible(show_panel: bool) -> void:
+    if not _journey_supported:
+        return
+    _journey_visible = show_panel
+    _sync_journey_visibility()
     var error := _save_view_preferences()
     if error != OK:
         _session_status.text = "Journey visibility changed, but its preference could not be saved."
@@ -726,6 +741,8 @@ func _stop_failed(message: String) -> void:
 func _complete_stop(ended_game_id: String) -> void:
     _session_id = ""
     _game_id = ""
+    _journey.game_id = ""
+    _journey_support_changed(false)
     _paused = false
     _stopping = false
     _pause_overlay.visible = false

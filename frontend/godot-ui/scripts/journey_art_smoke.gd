@@ -3,6 +3,7 @@ extends SceneTree
 ## Generated PNG/SVG fixtures only. Never reads the user's collection settings.
 const Profiles = preload("res://scripts/workspace/collection_profiles.gd")
 const Journal = preload("res://scripts/workspace/journey_panel.gd")
+const JourneyTheme = preload("res://scripts/workspace/journey_theme.gd")
 const CHAPTER_IDS := ["first_stage", "secret", "boss", "finale"]
 
 class FixtureJournal extends "res://scripts/workspace/journey_panel.gd":
@@ -53,6 +54,14 @@ func _run() -> void:
     var tetris_base := Profiles.asset_base(Profiles.for_game("Tetris", "game-boy"))
     var sonic_base := Profiles.asset_base(Profiles.for_game("Sonic the Hedgehog", "mega-drive"))
     _write_png(mario_base + "/journey/cover.png", Color("46b282"))
+    _write_text(mario_base + "/journey/theme.json", JSON.stringify({"version": 1, "title": "Fixture field guide", "collectionTitle": "Fixture treasures", "cards": {"first_stage": {"accent": "83df9b", "region": "ISLAND\nADVENTURE", "rewardName": "Island diorama", "xp": 99999}, "secret": {"accent": "not-a-color"}, "unrecognized": {"rewardName": "Must be ignored"}}}))
+    var theme := JourneyTheme.from_file(_fixture_root.path_join(mario_base + "/journey/theme.json"))
+    _check(theme.title == "Fixture field guide" and JourneyTheme.card(theme, "first_stage").region == "ISLAND ADVENTURE", "Theme captions must be bounded inert data with normalized whitespace")
+    _check(not JourneyTheme.card(theme, "first_stage").has("xp") and not theme.cards.has("unrecognized") and not JourneyTheme.card(theme, "secret").has("accent"), "Theme metadata must never accept XP, unknown milestones or invalid colors")
+    _write_text("invalid-theme.json", '{"version":2,"title":"Unsupported"}')
+    _check(JourneyTheme.from_file(_fixture_root.path_join("invalid-theme.json")).is_empty(), "Unknown art-theme versions must stay neutral")
+    _write_text("oversized-theme.json", " ".repeat(16 * 1024 + 1))
+    _check(JourneyTheme.from_file(_fixture_root.path_join("oversized-theme.json")).is_empty(), "Oversized art themes must be ignored")
     for id in CHAPTER_IDS:
         _write_svg(mario_base + "/journey/chapters/%s.svg" % id, "#487bc7")
     for index in range(1, 9):
@@ -77,6 +86,9 @@ func _run() -> void:
     _check(_color_matches(panel._art.texture, Color("46b282")), "The journal must display the pack's original cover pixels")
     _check(_texture_count(panel._chapter_textures) == 4, "All four chapter SVGs must load from stable milestone names")
     _check(_texture_count(panel._reward_textures) == 4, "Only the four event SVGs must load using their existing zero-padded filenames")
+    _check(panel._customized and panel._chapter.text == "Fixture field guide", "A supported game with its own art must use its own custom theme")
+    _check(panel._chapter_regions[0].text == "01 · ISLAND ADVENTURE" and panel._chapter_icons[0].custom_minimum_size.x >= 80, "Custom chapters must give their illustrations and region labels room to read")
+    _check(panel._reward_grid.get_child(0).get_child(0).get_child(1).text == "Island diorama", "Custom reward names must come from the selected game's art pack")
     _check(panel._chapter_statuses[1].text.contains("UNLOCKED") and panel._chapter_statuses[0].text.contains("WAITING"), "Achievement cards must reflect verified backend events")
     _check(panel._xp.value == 100 and panel._time.text.contains("active play"), "XP and active gameplay time must come from the backend")
     _check(not panel._unlock_notice.visible, "The initial summary must not announce previously earned rewards")
@@ -95,6 +107,10 @@ func _run() -> void:
     _check(backend.confirmations == 0, "Loading and refreshing art must never grant a reward")
     _exercise_read_only_updates(panel, backend)
     backend.state = FixtureBackend.unsupported_state()
+    path_count = panel.requested_paths.size()
+    panel.configure(backend, "fixture-unsupported-mario", "Super Mario World", "snes")
+    _check(panel.requested_paths.size() == path_count and not panel._support_available and not panel._customized, "A matching title without backend support must not load a custom Journey pack")
+    _check(panel._art.texture == null and _texture_count(panel._chapter_textures) == 0, "Unsupported same-title games must clear all previous custom artwork")
 
     panel.configure(backend, "fixture-tetris", "Tetris", "game-boy")
     _check(panel._art.texture == null and not panel._cover_frame.visible, "Missing journal cover must clear the previous game's art, without box fallback")
@@ -106,6 +122,7 @@ func _run() -> void:
 
     _assert_rendered_art(panel)
     # Deliberately malformed input is expected to fail image decoding.
+    backend.state = FixtureBackend.supported_state()
     var previous_errors := Engine.print_error_messages
     Engine.print_error_messages = false
     panel.configure(backend, "fixture-sonic", "Sonic the Hedgehog", "mega-drive")
@@ -114,6 +131,11 @@ func _run() -> void:
     _check(panel._chapter_textures[1] == null, "Malformed optional SVG must remain a neutral chapter placeholder")
     _check(_texture_count(panel._reward_textures) == 0, "Missing reward images must remain neutral")
     _assert_rendered_art(panel)
+
+    panel.configure(backend, "fixture-basic", "Basic supported fixture", "snes")
+    _check(panel._support_available and not panel._customized and panel._theme_data.is_empty(), "Supported games without art packs must retain a basic presentation")
+    _check(panel._reward_grid.get_child(0).get_child(0).get_child(1).text == backend.state.achievements[0].title, "Basic rewards must use actual event names, never another game's keepsake names")
+    _check(panel._quests_tab.text == "Milestones", "Basic presentation must keep neutral wording")
 
     backend.state = FixtureBackend.supported_state()
     panel.configure(backend, "fixture-mario", "Super Mario World", "snes")

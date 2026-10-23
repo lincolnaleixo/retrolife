@@ -5,6 +5,7 @@ const Profiles = preload("res://scripts/workspace/collection_profiles.gd")
 const Preferences = preload("res://scripts/workspace/preferences.gd")
 const Journal = preload("res://scripts/workspace/journey_panel.gd")
 const RewardStamp = preload("res://scripts/workspace/reward_stamp.gd")
+const JourneyTheme = preload("res://scripts/workspace/journey_theme.gd")
 const PAGE_SIZE := 6
 const INK := Color("eaf0f5")
 const MUTED := Color("a6b6c5")
@@ -12,6 +13,7 @@ const MUTED := Color("a6b6c5")
 var backend: Node
 var _catalog: RefCounted
 var _games: Array[Dictionary] = []
+var _library_size := 0
 var _states: Dictionary = {}
 var _global: Dictionary = {}
 var _totals: Dictionary = {}
@@ -155,6 +157,7 @@ func refresh() -> void:
     _generation += 1
     var generation := _generation
     _games.clear()
+    _library_size = 0
     _states.clear()
     _global.clear()
     _totals.clear()
@@ -206,6 +209,8 @@ func refresh() -> void:
     if _global.has("error"):
         _fail(_global.error)
         return
+    _library_size = _games.size()
+    var supported_games: Array[Dictionary] = []
     var collected := 0
     var available := 0
     var seconds := 0
@@ -215,24 +220,31 @@ func refresh() -> void:
         if state.has("error"):
             _fail("Progress could not be read for %s. %s" % [_title_for(_games[index]), state.error])
             return
-        _states[id] = state
-        collected += int(state.collected)
-        available += int(state.totalRewards)
-        seconds += int(state.seconds)
+        # Never infer support from a familiar game title or installed artwork.
+        # Unsupported revisions do not create empty sections, filters or totals.
+        if bool(state.supported):
+            supported_games.append(_games[index])
+            _states[id] = state
+            collected += int(state.collected)
+            available += int(state.totalRewards)
+            seconds += int(state.seconds)
         if index % 16 == 15:
             _message.text = "Reading progress · %d / %d games" % [index + 1, _games.size()]
             await get_tree().process_frame
             if generation != _generation:
                 return
+    _games = supported_games
     _totals = {"collected": collected, "available": available, "seconds": seconds}
     _level.text = "Level %d" % int(_global.level)
     _xp.text = "%d total XP" % int(_global.totalXp)
     _level_progress.value = int(_global.levelProgress)
     _collected.text = "%d / %d" % [collected, available]
     _time.text = _duration(seconds)
-    _library_count.text = "%d game%s in your library" % [_games.size(), "" if _games.size() == 1 else "s"]
+    _library_count.text = "%d of %d games with automatic rewards" % [_games.size(), _library_size]
     _rebuild_game_filter()
     _set_loading(false)
+    _game_filter.disabled = _games.is_empty()
+    _status_select.disabled = _games.is_empty()
     _render_games()
 
 
@@ -251,7 +263,7 @@ func _read_summary(id: String) -> Dictionary:
 
 func _rebuild_game_filter() -> void:
     _game_filter.clear()
-    _game_filter.add_item("All games · %d" % _games.size())
+    _game_filter.add_item("Games with rewards · %d" % _games.size())
     _game_filter.set_item_metadata(0, "")
     var selected := 0
     for game in _games:
@@ -276,7 +288,7 @@ func _matching_games() -> Array[Dictionary]:
         if not _selected_game_id.is_empty() and str(game.id) != _selected_game_id:
             continue
         var state: Dictionary = _states.get(str(game.id), {})
-        if state.is_empty() or (_status_filter == 1 and int(state.collected) == 0) or (_status_filter == 2 and int(state.collected) == int(state.totalRewards)):
+        if state.is_empty() or not bool(state.get("supported", false)) or (_status_filter == 1 and int(state.collected) == 0) or (_status_filter == 2 and int(state.collected) == int(state.totalRewards)):
             continue
         games.append(game)
     return games
@@ -293,7 +305,12 @@ func _render_games() -> void:
     _next.disabled = _page >= pages - 1
     _page_label.text = "%d / %d" % [_page + 1, pages]
     _message.visible = games.is_empty()
-    _message.text = "Import a game to start your keepsake collection." if _games.is_empty() else "No keepsakes in this view yet. Try another filter."
+    if _library_size == 0:
+        _message.text = "Import a supported game to start your keepsake collection."
+    elif _games.is_empty():
+        _message.text = "None of your games have automatic rewards yet. You can play them normally; quests and keepsakes appear only for supported games."
+    else:
+        _message.text = "No keepsakes in this view yet. Try another filter."
     for game in games.slice(_page * PAGE_SIZE, (_page + 1) * PAGE_SIZE):
         _build_game(game, _states[str(game.id)])
     _scroll.scroll_vertical = 0
@@ -304,6 +321,18 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     var profile := Profiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
     var accent := Color(profile.get("color", "91b1c5"))
     var base := Profiles.asset_base(profile)
+    var theme_data := JourneyTheme.from_file(_art_path(base + "/journey/theme.json")) if not base.is_empty() else {}
+    var cover := _load_art(base + "/journey/cover.png") if not base.is_empty() else null
+    var reward_art := {}
+    var customized := cover != null
+    for achievement: Dictionary in state.achievements:
+        var index := int(achievement.artIndex)
+        var texture := _load_art(base + "/journey/rewards/%02d.svg" % [index + 1]) if not base.is_empty() else null
+        reward_art[str(achievement.id)] = texture
+        customized = customized or texture != null
+    if not customized:
+        theme_data.clear()
+        accent = Color("91b1c5")
     var section := VBoxContainer.new()
     section.add_theme_constant_override("separation", 12)
     section.set_meta("game_id", str(game.id))
@@ -311,7 +340,6 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     var heading := HBoxContainer.new()
     heading.add_theme_constant_override("separation", 14)
     section.add_child(heading)
-    var cover := _load_art(base + "/journey/cover.png") if not base.is_empty() else null
     if cover != null:
         var image := TextureRect.new()
         image.texture = cover
@@ -344,10 +372,12 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
         var index := int(achievement.artIndex)
         if (_status_filter == 1 and not earned) or (_status_filter == 2 and earned):
             continue
-        var art := _load_art(base + "/journey/rewards/%02d.svg" % [index + 1]) if not base.is_empty() else null
+        var art: Texture2D = reward_art.get(str(achievement.id))
+        var art_direction := JourneyTheme.card(theme_data, str(achievement.id)) if art != null else {}
+        var card_accent := Color(art_direction.get("accent", accent.to_html(false)))
         var requirement := str(achievement.description) + " · %d XP" % int(achievement.xp)
-        var title := str(gifts[index]) if index < gifts.size() else str(achievement.title)
-        _build_keepsake(grid, title, requirement, earned, index, art, accent)
+        var title := str(art_direction.get("rewardName", gifts[index] if art != null and index < gifts.size() else achievement.title))
+        _build_keepsake(grid, title, requirement, earned, index, art, card_accent)
 
 
 func _build_keepsake(parent: Control, title: String, requirement: String, earned: bool, index: int, art: Texture2D, accent: Color) -> void:
@@ -355,18 +385,18 @@ func _build_keepsake(parent: Control, title: String, requirement: String, earned
     card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     card.set_meta("earned", earned)
     card.set_meta("reward_index", index)
-    card.add_theme_stylebox_override("panel", _style(accent.darkened(0.87) if earned else Color("17212b"), accent.darkened(0.40) if earned else Color("2b3a48"), 14, 14))
+    card.add_theme_stylebox_override("panel", _style(accent.darkened(0.87) if earned else Color("17212b"), accent.darkened(0.40) if earned else accent.darkened(0.65), 14, 14))
     parent.add_child(card)
     var column := VBoxContainer.new()
     column.add_theme_constant_override("separation", 10)
     card.add_child(column)
-    _text(column, "COLLECTED" if earned else "TO DISCOVER", 14, accent if earned else MUTED)
+    _text(column, "COLLECTED" if earned else "LOCKED", 14, accent if earned else MUTED)
     var stamp := RewardStamp.new()
     stamp.accent = accent
     stamp.earned = earned
     stamp.symbol = index
     stamp.artwork = art
-    stamp.custom_minimum_size = Vector2(96, 112)
+    stamp.custom_minimum_size = Vector2(96, 160 if art != null else 60)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)
     var label := _text(column, title, 16)

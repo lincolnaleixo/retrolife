@@ -1,8 +1,11 @@
 extends PanelContainer
 
+signal support_changed(supported: bool)
+
 const Profiles = preload("res://scripts/workspace/collection_profiles.gd")
 const Preferences = preload("res://scripts/workspace/preferences.gd")
 const RewardStamp = preload("res://scripts/workspace/reward_stamp.gd")
+const JourneyTheme = preload("res://scripts/workspace/journey_theme.gd")
 const ACHIEVEMENT_IDS := ["first_stage", "secret", "boss", "finale"]
 const GIFTS := ["First-light badge", "Explorer pin", "Adventure ticket", "Golden hour trophy", "Stage star", "Secret compass", "Boss crown", "Victory gift"]
 const INK := Color("eaf0f5")
@@ -29,6 +32,13 @@ var _chapter_titles: Array[Label] = []
 var _chapter_cards: Array[PanelContainer] = []
 var _chapter_icons: Array[TextureRect] = []
 var _chapter_numbers: Array[Label] = []
+var _chapter_regions: Array[Label] = []
+var _chapter_icon_frames: Array[PanelContainer] = []
+var _theme_data: Dictionary = {}
+var _customized := false
+var _support_available := false
+var _game_title := ""
+var _art_configured := false
 var _timer := 0.0
 var _collection_key := ""
 var _error: Label
@@ -135,13 +145,18 @@ func _build_chapter(index: int) -> void:
     row.add_theme_constant_override("separation", 10)
     card.add_child(row)
     var icon := TextureRect.new()
-    icon.custom_minimum_size = Vector2(42, 42)
+    var frame := PanelContainer.new()
+    frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    row.add_child(frame)
+    _chapter_icon_frames.append(frame)
+    icon.custom_minimum_size = Vector2(88, 88)
     icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    row.add_child(icon)
+    frame.add_child(icon)
     _chapter_icons.append(icon)
     var number := _text(row, "%02d" % [index + 1], 18, MUTED)
     number.custom_minimum_size.x = 28
@@ -151,6 +166,7 @@ func _build_chapter(index: int) -> void:
     copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     copy.add_theme_constant_override("separation", 4)
     row.add_child(copy)
+    _chapter_regions.append(_text(copy, "", 11, MUTED))
     _chapter_titles.append(_text(copy, "", 15))
     _quest_notes.append(_text(copy, "", 13, MUTED))
     var status := _text(copy, "WAITING TO DISCOVER", 10, MUTED)
@@ -159,6 +175,7 @@ func _build_chapter(index: int) -> void:
     card.hide()
 
 func configure(node: Node, id: String, title: String, system := "") -> void:
+    _set_supported(false)
     backend = node
     game_id = id
     _timer = 0.0
@@ -168,32 +185,8 @@ func configure(node: Node, id: String, title: String, system := "") -> void:
     _notice_remaining = 0.0
     _unlock_notice.hide()
     _profile = Profiles.for_game(title, system)
-    _accent = Color(_profile.get("color", "8eb5ca"))
-    _world.text = str(_profile.get("title", title)).to_upper() + " · JOURNAL"
-    _world.add_theme_color_override("font_color", _accent)
-    _chapter.text = str(_profile.get("chapter", "Your personal journey"))
-    _description.text = str(_profile.get("subtitle", "Rewards from the moments you discover while playing."))
-    _gift_names = _profile.get("gifts", GIFTS)
-    _art_cache.clear()
-    _chapter_textures.clear()
-    _reward_textures.clear()
-    var base := Profiles.asset_base(_profile)
-    var journey := base + "/journey/" if not base.is_empty() else ""
-    _art.texture = _load_art(journey + "cover.png") if not journey.is_empty() else null
-    _cover_frame.visible = _art.texture != null
-    _art.visible = _art.texture != null
-    for index in ACHIEVEMENT_IDS.size():
-        _chapter_textures.append(_load_art(journey + "chapters/" + ACHIEVEMENT_IDS[index] + ".svg") if not journey.is_empty() else null)
-    _reward_textures.resize(GIFTS.size())
-    for index in range(4, GIFTS.size()):
-        _reward_textures[index] = _load_art(journey + "rewards/%02d.svg" % [index + 1]) if not journey.is_empty() else null
-    for index in ACHIEVEMENT_IDS.size():
-        _chapter_icons[index].texture = _chapter_textures[index]
-        _chapter_icons[index].visible = _chapter_textures[index] != null
-        _chapter_numbers[index].visible = _chapter_textures[index] == null
-        _chapter_cards[index].hide()
-    for bar in [_xp, _collection_progress]:
-        _style_progress(bar)
+    _game_title = title
+    _reset_art()
     _detection.text = "Connecting to game events…"
     _time.hide()
     _legacy.hide()
@@ -207,6 +200,90 @@ func configure(node: Node, id: String, title: String, system := "") -> void:
     _collection.hide()
     _scroll.scroll_vertical = 0
     refresh()
+
+func _reset_art() -> void:
+    _art_configured = false
+    _customized = false
+    _theme_data.clear()
+    _art_cache.clear()
+    _accent = Color("8eb5ca")
+    _chapter.text = _game_title
+    _description.text = "Milestones detected automatically while you play."
+    _world.text = "GAME PROGRESS"
+    _world.add_theme_color_override("font_color", _accent)
+    _quests_tab.text = "Milestones"
+    _art.texture = null
+    _cover_frame.hide()
+    _art.hide()
+    _chapter_textures.clear()
+    _chapter_textures.resize(ACHIEVEMENT_IDS.size())
+    _reward_textures.clear()
+    _reward_textures.resize(GIFTS.size())
+    for index in ACHIEVEMENT_IDS.size():
+        _chapter_icons[index].texture = null
+        _chapter_icons[index].hide()
+        _chapter_icon_frames[index].hide()
+        _chapter_regions[index].hide()
+        _chapter_numbers[index].show()
+        _chapter_cards[index].hide()
+    for bar in [_xp, _collection_progress]:
+        _style_progress(bar)
+
+func _configure_art() -> void:
+    _accent = Color(_profile.get("color", "8eb5ca"))
+    _world.text = str(_profile.get("title", _game_title)).to_upper() + " · JOURNAL"
+    _world.add_theme_color_override("font_color", _accent)
+    _chapter.text = str(_profile.get("chapter", "Your personal journey"))
+    _description.text = str(_profile.get("subtitle", "Rewards from the moments you discover while playing."))
+    _gift_names = _profile.get("gifts", GIFTS)
+    _art_cache.clear()
+    _chapter_textures.clear()
+    _reward_textures.clear()
+    var base := Profiles.asset_base(_profile)
+    var journey := base + "/journey/" if not base.is_empty() else ""
+    _theme_data = JourneyTheme.from_file(_art_path(journey + "theme.json")) if not journey.is_empty() else {}
+    _art.texture = _load_art(journey + "cover.png") if not journey.is_empty() else null
+    _cover_frame.visible = _art.texture != null
+    _art.visible = _art.texture != null
+    for index in ACHIEVEMENT_IDS.size():
+        _chapter_textures.append(_load_art(journey + "chapters/" + ACHIEVEMENT_IDS[index] + ".svg") if not journey.is_empty() else null)
+    _reward_textures.resize(GIFTS.size())
+    for index in range(4, GIFTS.size()):
+        _reward_textures[index] = _load_art(journey + "rewards/%02d.svg" % [index + 1]) if not journey.is_empty() else null
+    _customized = _art.texture != null or _chapter_textures.any(func(texture: Texture2D): return texture != null) or _reward_textures.any(func(texture: Texture2D): return texture != null)
+    if not _customized:
+        _theme_data.clear()
+        _accent = Color("8eb5ca")
+        _chapter.text = _game_title
+        _description.text = "Milestones detected automatically while you play."
+        _world.text = "GAME PROGRESS"
+        _world.add_theme_color_override("font_color", _accent)
+    else:
+        _chapter.text = str(_theme_data.get("title", _chapter.text))
+        _description.text = str(_theme_data.get("subtitle", _description.text))
+    _quests_tab.text = "Chapters" if _customized else "Milestones"
+    for index in ACHIEVEMENT_IDS.size():
+        var art_direction := JourneyTheme.card(_theme_data, ACHIEVEMENT_IDS[index])
+        var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
+        _chapter_icons[index].texture = _chapter_textures[index]
+        _chapter_icons[index].visible = _chapter_textures[index] != null
+        _chapter_icon_frames[index].visible = _chapter_textures[index] != null
+        _chapter_icon_frames[index].add_theme_stylebox_override("panel", _panel_style(card_accent.darkened(0.84), card_accent.darkened(0.55), 14, 3))
+        var region := str(art_direction.get("region", ""))
+        _chapter_regions[index].text = "%02d · %s" % [index + 1, region]
+        _chapter_regions[index].visible = not region.is_empty() and _chapter_textures[index] != null
+        _chapter_regions[index].add_theme_color_override("font_color", card_accent)
+        _chapter_numbers[index].visible = _chapter_textures[index] == null
+        _chapter_cards[index].hide()
+    for bar in [_xp, _collection_progress]:
+        _style_progress(bar)
+    _art_configured = true
+
+func _set_supported(supported: bool) -> void:
+    if _support_available == supported:
+        return
+    _support_available = supported
+    support_changed.emit(supported)
 
 func _art_path(relative: String) -> String:
     return Preferences.asset(relative)
@@ -229,13 +306,13 @@ func _load_art(relative: String) -> Texture2D:
     return _art_cache[relative]
 
 func _process(delta: float) -> void:
-    if not is_visible_in_tree() or game_id.is_empty():
+    if game_id.is_empty():
         return
     if _notice_remaining > 0:
         _notice_remaining = maxf(0, _notice_remaining - delta)
         _unlock_notice.visible = _notice_remaining > 0
     _timer += delta
-    if _timer >= 1:
+    if _timer >= 1 and (is_visible_in_tree() or not _support_available):
         _timer = 0
         refresh()
 
@@ -246,6 +323,7 @@ func refresh() -> void:
 
 func _render_response(response: Variant) -> void:
     if not response is Dictionary or not bool(response.get("ok", false)):
+        _set_supported(false)
         _error.text = str(response.get("error", "Progress is unavailable.")) if response is Dictionary else "Progress is unavailable."
         _error.show()
         _detection.text = "Game-event detection is unavailable. Retrying…"
@@ -254,12 +332,18 @@ func _render_response(response: Variant) -> void:
     var data: Variant = response.get("data")
     var problem := validate_summary(data)
     if not problem.is_empty():
+        _set_supported(false)
         _error.text = problem
         _error.show()
         _detection.text = "Game-event detection is unavailable. Retrying…"
         _detection.add_theme_color_override("font_color", MUTED)
         return
     _error.hide()
+    if bool(data.supported) and not _art_configured:
+        _configure_art()
+    elif not bool(data.supported) and _art_configured:
+        _reset_art()
+    _set_supported(bool(data.supported))
     _level.text = "LEVEL %d" % int(data.level)
     _xp.value = int(data.levelProgress)
     _summary.text = "%d / 200 XP" % int(_xp.value)
@@ -267,7 +351,7 @@ func _render_response(response: Variant) -> void:
     var collected := int(data.collected)
     var available := int(data.totalRewards)
     _gift_tab.text = "Collection · %d/%d" % [collected, available]
-    _collection_summary.text = "%d of %d keepsakes collected automatically" % [collected, available] if available > 0 else "No automatic rewards available for this game yet."
+    _collection_summary.text = "%s\n%d of %d discovered" % [str(_theme_data.get("collectionTitle", "Your keepsake collection")), collected, available] if available > 0 else "No automatic rewards available for this game yet."
     _collection_progress.max_value = maxi(1, available)
     _collection_progress.value = collected
     _collection_progress.visible = available > 0
@@ -292,12 +376,17 @@ func _render_response(response: Variant) -> void:
                 newly_earned.append(str(achievement.title))
         if index < 0:
             continue
+        var art_direction := JourneyTheme.card(_theme_data, id)
+        var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
         _chapter_cards[index].show()
         _chapter_titles[index].text = str(achievement.title)
         _quest_notes[index].text = str(achievement.description)
         _chapter_statuses[index].text = ("UNLOCKED" if done else "WAITING TO DISCOVER") + " · %d XP" % int(achievement.xp)
-        _chapter_statuses[index].add_theme_color_override("font_color", _accent if done else MUTED)
-        _chapter_cards[index].add_theme_stylebox_override("panel", _panel_style(_accent.darkened(0.84) if done else Color("17222d"), _accent.darkened(0.35) if done else Color("2a3947"), 12, 11))
+        _chapter_statuses[index].add_theme_color_override("font_color", card_accent if done else MUTED)
+        var style := _panel_style(card_accent.darkened(0.85) if done else Color("17222d"), card_accent.darkened(0.3) if done else card_accent.darkened(0.65), 14, 11)
+        if _chapter_textures[index] != null:
+            style.border_width_left = 3
+        _chapter_cards[index].add_theme_stylebox_override("panel", style)
     if not newly_earned.is_empty():
         _unlock_notice.text = "Keepsake unlocked · " + ", ".join(newly_earned)
         _unlock_notice.add_theme_color_override("font_color", _accent)
@@ -351,26 +440,28 @@ func _clear_rewards() -> void:
 func _build_reward(achievement: Dictionary) -> void:
     var index := int(achievement.artIndex)
     var unlocked := bool(achievement.earned)
+    var art_direction := JourneyTheme.card(_theme_data, str(achievement.id))
+    var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
     var card := PanelContainer.new()
     card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    card.add_theme_stylebox_override("panel", _panel_style(_accent.darkened(0.86) if unlocked else Color("17212c"), _accent.darkened(0.4) if unlocked else Color("2b3745"), 12, 10))
+    card.add_theme_stylebox_override("panel", _panel_style(card_accent.darkened(0.86) if unlocked else Color("17212c"), card_accent.darkened(0.4) if unlocked else card_accent.darkened(0.67), 14, 10))
     _reward_grid.add_child(card)
     var column := VBoxContainer.new()
     column.add_theme_constant_override("separation", 7)
     card.add_child(column)
     var stamp := RewardStamp.new()
-    stamp.accent = _accent
+    stamp.accent = card_accent
     stamp.earned = unlocked
     stamp.symbol = index
     stamp.artwork = _reward_textures[index] if index < _reward_textures.size() else null
-    stamp.custom_minimum_size = Vector2(88, 106 if stamp.artwork != null else 38)
+    stamp.custom_minimum_size = Vector2(88, 132 if stamp.artwork != null else 38)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)
-    var title := str(_gift_names[index]) if index < _gift_names.size() else str(achievement.title)
+    var title := str(art_direction.get("rewardName", _gift_names[index] if stamp.artwork != null and index < _gift_names.size() else achievement.title))
     var caption := _text(column, title, 14, INK if unlocked else MUTED)
     caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     caption.custom_minimum_size.y = 34
-    var status := _text(column, "COLLECTED" if unlocked else "LOCKED", 9, _accent if unlocked else Color("748696"))
+    var status := _text(column, "COLLECTED" if unlocked else "LOCKED · %d XP" % int(achievement.xp), 10, card_accent if unlocked else MUTED)
     status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     card.tooltip_text = str(achievement.description) + " · %d XP" % int(achievement.xp)
     card.mouse_filter = Control.MOUSE_FILTER_IGNORE
