@@ -440,7 +440,8 @@ func _clear_rewards() -> void:
 func _build_reward(achievement: Dictionary) -> void:
     var index := int(achievement.artIndex)
     var unlocked := bool(achievement.earned)
-    var art_direction := JourneyTheme.card(_theme_data, str(achievement.id))
+    var art: Texture2D = _reward_textures[index] if index < _reward_textures.size() else null
+    var art_direction := JourneyTheme.card(_theme_data, str(achievement.id)) if art != null else {}
     var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
     var card := PanelContainer.new()
     card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -453,7 +454,7 @@ func _build_reward(achievement: Dictionary) -> void:
     stamp.accent = card_accent
     stamp.earned = unlocked
     stamp.symbol = index
-    stamp.artwork = _reward_textures[index] if index < _reward_textures.size() else null
+    stamp.artwork = art
     stamp.custom_minimum_size = Vector2(88, 132 if stamp.artwork != null else 38)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)

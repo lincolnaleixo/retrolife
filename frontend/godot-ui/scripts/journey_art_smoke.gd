@@ -69,6 +69,7 @@ func _run() -> void:
     # This existing box preview must never be substituted for missing journal art.
     _write_png(tetris_base + "/box/hero.png", Color("ef3c62"))
     _write_svg(sonic_base + "/journey/chapters/first_stage.svg", "#845ac5")
+    _write_text(sonic_base + "/journey/theme.json", JSON.stringify({"version": 1, "cards": {"first_stage": {"rewardName": "Missing illustration must not rename event", "accent": "ff33aa"}}}))
     _write_text(sonic_base + "/journey/chapters/secret.svg", "not an SVG image")
 
     var backend := FixtureBackend.new()
@@ -130,6 +131,10 @@ func _run() -> void:
     _check(panel._art.texture == null and _texture_count(panel._chapter_textures) == 1, "A partial art pack must load its available chapter without inventing a cover")
     _check(panel._chapter_textures[1] == null, "Malformed optional SVG must remain a neutral chapter placeholder")
     _check(_texture_count(panel._reward_textures) == 0, "Missing reward images must remain neutral")
+    var missing_reward := panel._reward_grid.get_child(0).get_child(0)
+    _check(panel._customized and not panel._theme_data.is_empty(), "The partial-pack fixture must retain the custom chapter and its theme")
+    _check(missing_reward.get_child(0).artwork == null and missing_reward.get_child(1).text == backend.state.achievements[0].title, "Missing illustrations in a partial pack must use backend event names instead of per-card custom keepsake names")
+    _check(missing_reward.get_child(0).accent == panel._accent, "A missing reward illustration must ignore its per-card theme accent, consistently with Rewards")
     _assert_rendered_art(panel)
 
     panel.configure(backend, "fixture-basic", "Basic supported fixture", "snes")
