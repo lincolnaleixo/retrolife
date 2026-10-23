@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Show the selected game’s external 3D box and cartridge together as one collectible composition. Reuse the existing validated box loader, retain only one selected box, and preserve click-to-play, shared drag/zoom inspection, keyboard/gamepad navigation and cartridge-only/text fallbacks.
+- Replace the full-height selection panel with a continuous subdued artwork canvas, a bounded video preview, concise opening synopsis and responsive typography. Align the optional publisher mark with the system name and generate logo mipmaps for clean scaling; keep private artwork outside the app.
+
 - Give active gameplay exclusive ownership of mapped controller input before GUI navigation, so Circle remains SNES A and face buttons cannot activate a focused fullscreen control. Keep library window dragging out of fullscreen and route in-game fullscreen shortcuts only through gameplay.
 - Soften the selection dossier with a translucent background, center its content, add optional checksum-verified external publisher logos, and replace tiny music text with a speaker toggle, styled volume track and percentage. Missing publisher artwork retains its text fallback.
 

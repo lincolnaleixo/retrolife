@@ -55,6 +55,7 @@ func _run() -> void:
     carousel.select_id("rich-fixture")
     await process_frame
     _check(shell._game_facts.text == "1994  ·  Adventure / Platform  ·  2 players", "Facts must come from actual catalog metadata")
+    _check(not shell._carousel.allow_local_art, "Isolated library views never load private box artwork")
     _check(shell._game_source.text == "Fixture Studio" and not shell._game_description.text.is_empty(), "Developer and description must use the selected game's metadata")
     _check(shell._game_backdrop.texture == null and not shell._media_button.visible, "Missing background and video must remain neutral")
     var detail_calls := catalog.detail_calls
@@ -75,7 +76,7 @@ func _run() -> void:
     shell._refresh_workspace_assets()
     await shell._refresh_library("rich-fixture")
     await _settle(shell)
-    _check(shell._game_description.text == catalog.rich.description, "Changing the collection root must clear presentation even without a catalog revision")
+    _check(shell._game_description.text == "Metadata after changing the linked collection." and shell._presentation.description == catalog.rich.description, "Changing collection refreshes the concise summary while preserving the complete description for Details")
 
     for dimensions in [Vector2i(900, 600), Vector2i(1280, 800)]:
         root.size = dimensions

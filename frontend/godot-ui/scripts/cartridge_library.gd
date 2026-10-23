@@ -13,6 +13,9 @@ var _box_path := ""
 var _game_info: VBoxContainer
 var _info_panel: PanelContainer
 var _info_margin: MarginContainer
+var _publisher_row: HBoxContainer
+var _showcase_margin: MarginContainer
+var _collection_hint: Label
 var _preview_caption: Label
 var _game_description: Label
 var _game_facts: Label
@@ -166,24 +169,24 @@ func _build_shell() -> void:
     _count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     column.add_child(_count_label)
     _carousel = Carousel.new()
+    _carousel.allow_local_art = persist_preferences
     _carousel.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _carousel.selection_changed.connect(_on_cartridge_selected)
     _carousel.game_activated.connect(_activate_game_art)
     var showcase := HBoxContainer.new()
     showcase.size_flags_vertical = Control.SIZE_EXPAND_FILL
     showcase.name = "GameShowcase"
-    showcase.add_theme_constant_override("separation", 20)
-    column.add_child(showcase)
+    showcase.add_theme_constant_override("separation", 24)
+    _showcase_margin = MarginContainer.new()
+    _showcase_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    column.add_child(_showcase_margin)
+    _showcase_margin.add_child(showcase)
     _info_panel = PanelContainer.new()
     _info_panel.name = "GameDossier"
     _info_panel.custom_minimum_size.x = 420
     _info_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    var dossier_style := StyleBoxFlat.new()
-    dossier_style.bg_color = Color(0.035, 0.070, 0.090, 0.62)
-    dossier_style.border_color = Color(0.65, 0.85, 0.79, 0.12)
-    dossier_style.border_width_right = 1
-    dossier_style.set_corner_radius_all(8)
-    _info_panel.add_theme_stylebox_override("panel", dossier_style)
+    # Keep a single illustrated canvas, without a full-height opaque sidebar.
+    _info_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
     showcase.add_child(_info_panel)
     _info_margin = MarginContainer.new()
     for side in ["left", "right", "top", "bottom"]:
@@ -227,8 +230,14 @@ func _build_shell() -> void:
     _hero_meta = _label("A collection worth coming back to", 14, MUTED_COLOR)
     _hero_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
     _hero_meta.add_theme_color_override("font_color", Color("a7e7ce"))
-    _game_info.add_child(_hero_meta)
-    _game_info.move_child(_hero_meta, 0)
+    _publisher_row = HBoxContainer.new()
+    _publisher_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+    _publisher_row.add_theme_constant_override("separation", 18)
+    _game_info.add_child(_publisher_row)
+    _game_info.move_child(_publisher_row, 0)
+    _hero_meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _hero_meta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    _publisher_row.add_child(_hero_meta)
     var accent := ColorRect.new()
     accent.color = Color("9ce1c1")
     accent.custom_minimum_size = Vector2(42, 3)
@@ -248,7 +257,7 @@ func _build_shell() -> void:
     _inline_preview.name = "SelectionPreview"
     _inline_preview.ratio = 4.0 / 3.0
     _inline_preview.custom_minimum_size.y = 170
-    _inline_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _inline_preview.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
     _game_info.add_child(_inline_preview)
     _inline_still = TextureRect.new()
     _inline_still.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -344,13 +353,14 @@ func _build_shell() -> void:
     _game_source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _game_info.add_child(_game_source)
     _publisher_logo = TextureRect.new()
-    _publisher_logo.custom_minimum_size = Vector2(112, 28)
+    _publisher_logo.custom_minimum_size = Vector2(136, 34)
+    _publisher_logo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _publisher_logo.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
     _publisher_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     _publisher_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     _publisher_logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _publisher_logo.hide()
-    _game_info.add_child(_publisher_logo)
+    _publisher_row.add_child(_publisher_logo)
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -390,7 +400,17 @@ func _build_shell() -> void:
     _media_settings.presentation_changed.connect(_refresh_game_presentation)
     _media_settings.popup_hide.connect(_restore_carousel_focus)
     add_child(_media_settings)
-    _game_sections = [filter_scroll, _count_label, showcase, _empty_label]
+    _collection_hint = _label("Click the artwork to play  ·  Drag to explore", 13, Color("b5c9c5"))
+    _collection_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _collection_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _collection_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+    _collection_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
+    _collection_hint.offset_left = -210
+    _collection_hint.offset_right = 210
+    _collection_hint.offset_top = -42
+    _collection_hint.offset_bottom = -18
+    _carousel.add_child(_collection_hint)
+    _game_sections = [filter_scroll, _count_label, _showcase_margin, _empty_label]
     _refresh_workspace_assets()
     _apply_library_page()
     resized.connect(_update_layout_density)
@@ -402,19 +422,29 @@ func _update_layout_density() -> void:
         return
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
     var compact := size.y < 720
-    _info_panel.custom_minimum_size.x = clampf(size.x * 0.32, 310, 580)
-    var padding := 20 if compact else 30
-    for side in ["left", "right", "top", "bottom"]:
-        _info_margin.add_theme_constant_override("margin_" + side, padding)
-    _hero_title.add_theme_font_size_override("font_size", 26 if compact else (34 if size.x < 1600 else 44))
-    _hero_meta.add_theme_font_size_override("font_size", 12)
-    _game_facts.add_theme_font_size_override("font_size", 13 if compact else 14)
-    _game_description.add_theme_font_size_override("font_size", 15 if compact else 17)
-    _game_info.add_theme_constant_override("separation", 10 if compact else 18)
-    _game_description.max_lines_visible = 2 if compact else 4
+    var wide := size.x >= 1800
+    var sidebar_width := clampf(size.x * 0.32, 310, 620)
+    _info_panel.custom_minimum_size.x = sidebar_width
+    var outer_margin := int(clampf(size.x * 0.025, 8, 56))
+    _showcase_margin.add_theme_constant_override("margin_left", outer_margin)
+    _showcase_margin.add_theme_constant_override("margin_right", outer_margin)
+    for side in ["left", "right"]:
+        _info_margin.add_theme_constant_override("margin_" + side, 0)
+    for side in ["top", "bottom"]:
+        _info_margin.add_theme_constant_override("margin_" + side, 16 if compact else 36)
+    _hero_title.add_theme_font_size_override("font_size", 30 if compact else (52 if wide else 40))
+    _hero_meta.add_theme_font_size_override("font_size", 13 if wide else 11)
+    _game_facts.add_theme_font_size_override("font_size", 13 if compact else (17 if wide else 14))
+    _game_description.add_theme_font_size_override("font_size", 15 if compact else (20 if wide else 17))
+    _game_info.add_theme_constant_override("separation", 14 if compact else (24 if wide else 18))
+    _game_description.max_lines_visible = 3
     _game_description.visible = not compact and not _game_description.text.is_empty()
+    _publisher_logo.custom_minimum_size = Vector2(116, 29) if compact else (Vector2(164, 41) if wide else Vector2(136, 34))
     if is_instance_valid(_inline_preview):
-        _inline_preview.custom_minimum_size.y = minf((_info_panel.custom_minimum_size.x - padding * 2) * 0.75, size.y * (0.24 if compact else 0.30))
+        var preview_width := minf(sidebar_width, minf(420.0, size.y * (0.36 if compact else 0.40)))
+        _inline_preview.custom_minimum_size = Vector2(preview_width, preview_width * 0.75)
+    if is_instance_valid(_collection_hint):
+        _collection_hint.visible = not _textual_view and not _current_games.is_empty()
     _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
     _hero_title.max_lines_visible = 2
     _warning_label.max_lines_visible = 1 if compact else 2
@@ -1105,6 +1135,8 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     _game_facts.text = ""
     _game_description.text = ""
     _game_source.text = ""
+    _publisher_logo.texture = null
+    _publisher_logo.hide()
     _media_group.hide()
     _music_controls.hide()
     if key.is_empty():
@@ -1136,9 +1168,9 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
         facts.append("Platformer" if str(genre) == "Platform / Run & Jump, Platform" else str(genre))
     var players := str(_presentation.get("players", ""))
     if players not in ["", "<null>"]:
-        facts.append(players + (" players" if players != "1" else " player") if players.is_valid_int() else players)
+        facts.append(players + (" players" if players != "1" else " player") if players.is_valid_int() else players.replace("-", "–") + " players")
     _game_facts.text = "  ·  ".join(facts)
-    _game_description.text = str(_presentation.get("description", ""))
+    _game_description.text = _selection_summary(str(_presentation.get("description", "")))
     if _game_description.text == "<null>": _game_description.text = ""
     _game_description.visible = size.y >= 720 and not _game_description.text.is_empty()
     var maker := str(_presentation.get("developer", ""))
@@ -1148,6 +1180,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     if not logo_path.is_empty():
         var logo_image := Image.load_from_file(logo_path)
         if logo_image != null and not logo_image.is_empty() and logo_image.get_width() <= 2048 and logo_image.get_height() <= 2048:
+            logo_image.generate_mipmaps()
             _publisher_logo.texture = ImageTexture.create_from_image(logo_image)
     _publisher_logo.visible = _publisher_logo.texture != null
     _publisher_logo.tooltip_text = str(_presentation.get("publisher", maker))
@@ -1166,6 +1199,15 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
                 _game_backdrop.visible = not _at_console_home
     _update_selection_media_controls()
     _sync_selection_music()
+
+
+func _selection_summary(description: String) -> String:
+    # Keep the selection concise; the full scraped description stays in Details.
+    for separator in [". ", "! ", "? "]:
+        var end := description.find(separator)
+        if end >= 40 and end < 240:
+            return description.substr(0, end + 1)
+    return description
 
 
 func _refresh_game_presentation() -> void:

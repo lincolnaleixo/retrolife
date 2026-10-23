@@ -5,6 +5,8 @@ signal game_activated(game_id: String)
 
 const CartridgeScene = preload("res://scenes/Cartridge3D.tscn")
 const LabelCache = preload("res://scripts/library/label_cache.gd")
+const CollectibleBox = preload("res://scripts/library/collectible_box.gd")
+const CollectionProfiles = preload("res://scripts/workspace/collection_profiles.gd")
 const POOL_SIZE := 7
 const REPEAT_DELAY := 0.34
 const REPEAT_INTERVAL := 0.11
@@ -29,6 +31,7 @@ var reduced_motion := false
 var low_quality := false
 var textual_view := false
 var force_fallback_model := false
+var allow_local_art := true
 var label_fetch_enabled := true
 var labels := LabelCache.new()
 var _indices: Dictionary = {}
@@ -48,6 +51,8 @@ var _pan_distance := 0.0
 var _held_direction := 0
 var _repeat_remaining := REPEAT_DELAY
 var _hero: Node3D
+var _selected_box: Node3D
+var _box_game_id := ""
 var _inspecting := false
 var _inspect_yaw := 0.0
 var _inspect_pitch := 0.0
@@ -105,6 +110,9 @@ func _ready() -> void:
     _light(Vector3(-16, 150, 0), Color("b3c8f0"), 0.65)
     _light(Vector3(25, 20, 0), Color("f5d8be"), 0.25)
     _build_shadow()
+    _selected_box = CollectibleBox.new()
+    _selected_box.name = "SelectedGameBox"
+    _world.add_child(_selected_box)
     for index in range(POOL_SIZE):
         var cartridge := CartridgeScene.instantiate() as Node3D
         cartridge.set("force_fallback", force_fallback_model)
@@ -324,6 +332,7 @@ func _emit_selection() -> void:
 func _layout(animate: bool, refresh := false) -> void:
     if _world == null or _fallback == null:
         return
+    _update_selected_box()
     _shadow.visible = not textual_view and not games.is_empty()
     _container.visible = not textual_view
     _fallback.visible = textual_view
@@ -379,13 +388,48 @@ func _layout(animate: bool, refresh := false) -> void:
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)
         var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-18.0 if distance == 0 else -signi(distance) * 23.0), 0)
-        var scale_factor := 0.78 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
+        var scale_factor := 0.68 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
+        if distance == 0 and _selected_box.visible:
+            target = Vector3(1.16, -0.39, 0.54)
+            angle = Vector3(deg_to_rad(-3.0), deg_to_rad(-12.0), 0)
+            scale_factor = 0.50
         item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound)
         item.call("set_motion_enabled", not reduced_motion)
         item.call("set_pointer", Vector2.ZERO)
         if distance == 0:
             _hero = item
     _apply_inspection()
+
+
+func _box_path_for(game: Dictionary) -> String:
+    if force_fallback_model or not allow_local_art:
+        return ""
+    var profile := CollectionProfiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
+    return CollectionProfiles.box_path(profile)
+
+
+func _update_selected_box() -> void:
+    if _selected_box == null:
+        return
+    if textual_view or games.is_empty() or selected_index < 0:
+        _selected_box.call("clear")
+        _box_game_id = ""
+        return
+    var game: Dictionary = games[selected_index]
+    var path := _box_path_for(game)
+    # The previous game's resource is released before loading the next one;
+    # the seven cartridge slots never create seven high-resolution boxes.
+    if _box_game_id != selected_id() or str(_selected_box.get("source_path")) != path:
+        _selected_box.call("clear")
+        _box_game_id = selected_id()
+        _selected_box.call("load_model", path)
+    if _selected_box.visible:
+        _selected_box.position = Vector3(-0.36, 0.20, -0.28)
+        _selected_box.rotation = Vector3(deg_to_rad(-3.0), deg_to_rad(-19.0), 0)
+
+
+func selected_box_count() -> int:
+    return 1 if _selected_box != null and _selected_box.visible else 0
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -519,6 +563,8 @@ func _apply_inspection() -> void:
         float_offset = sin(_idle_time * IDLE_SPEED * 1.37) * IDLE_BOB_AMPLITUDE
     pitch = clampf(pitch, -PITCH_LIMIT, PITCH_LIMIT)
     _hero.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
+    if _selected_box != null and _selected_box.visible:
+        _selected_box.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
 
 
 func _zoom_by(step: float) -> void:
@@ -553,7 +599,16 @@ func _cartridge_index_at(at: Vector2) -> int:
         if relative.x <= 1.0 and relative.y <= 1.0 and distance < closest:
             closest = distance
             best_index = int(item.get("library_index"))
+    if _selected_box.visible and _bounds_at_point(_selected_box.call("world_bounds"), point):
+        return selected_index
     return best_index
+
+
+func _bounds_at_point(bounds: AABB, point: Vector2) -> bool:
+    var projected := Rect2(_camera.unproject_position(bounds.get_endpoint(0)), Vector2.ZERO)
+    for corner in range(1, 8):
+        projected = projected.expand(_camera.unproject_position(bounds.get_endpoint(corner)))
+    return projected.has_point(point)
 
 
 func _click_cartridge(at: Vector2) -> void:
@@ -622,6 +677,9 @@ func _update_contact_shadow() -> void:
         if item.visible:
             var bounds: AABB = item.call("world_bounds")
             floor_y = minf(floor_y, bounds.position.y - 0.12)
+    if _selected_box != null and _selected_box.visible:
+        var box_bounds: AABB = _selected_box.call("world_bounds")
+        floor_y = minf(floor_y, box_bounds.position.y - 0.12)
     # A transparent quad still draws over geometry it intersects. Keep the
     # entire floor below every visible shell, including inspection and zoom.
     _shadow.position.y = floor_y
@@ -631,4 +689,4 @@ func _draw() -> void:
     if has_focus() and _active:
         # Focus belongs to the selected physical object, not a giant card frame.
         var center := size.x * 0.5
-        draw_line(Vector2(center - 32, size.y - 7), Vector2(center + 32, size.y - 7), Color("b9a8e2"), 3.0, true)
+        draw_line(Vector2(center - 32, size.y - 7), Vector2(center + 32, size.y - 7), Color("9ce1c1"), 3.0, true)
