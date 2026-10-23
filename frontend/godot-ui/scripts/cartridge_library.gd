@@ -11,6 +11,9 @@ var _box_title: Label
 var _box_hint: Label
 var _box_path := ""
 var _game_info: VBoxContainer
+var _info_panel: PanelContainer
+var _info_margin: MarginContainer
+var _preview_caption: Label
 var _game_description: Label
 var _game_facts: Label
 var _game_source: Label
@@ -169,17 +172,26 @@ func _build_shell() -> void:
     showcase.name = "GameShowcase"
     showcase.add_theme_constant_override("separation", 20)
     column.add_child(showcase)
-    var info_margin := MarginContainer.new()
-    info_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    info_margin.size_flags_stretch_ratio = 1.0
-    info_margin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-    info_margin.add_theme_constant_override("margin_left", 28)
-    info_margin.add_theme_constant_override("margin_right", 24)
-    showcase.add_child(info_margin)
+    _info_panel = PanelContainer.new()
+    _info_panel.name = "GameDossier"
+    _info_panel.custom_minimum_size.x = 420
+    _info_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    var dossier_style := StyleBoxFlat.new()
+    dossier_style.bg_color = Color(0.025, 0.045, 0.065, 0.91)
+    dossier_style.border_color = Color(0.65, 0.85, 0.79, 0.12)
+    dossier_style.border_width_right = 1
+    dossier_style.set_corner_radius_all(8)
+    _info_panel.add_theme_stylebox_override("panel", dossier_style)
+    showcase.add_child(_info_panel)
+    _info_margin = MarginContainer.new()
+    for side in ["left", "right", "top", "bottom"]:
+        _info_margin.add_theme_constant_override("margin_" + side, 28)
+    _info_panel.add_child(_info_margin)
     _game_info = VBoxContainer.new()
     _game_info.name = "GameInformation"
+    _game_info.alignment = BoxContainer.ALIGNMENT_CENTER
     _game_info.add_theme_constant_override("separation", 20)
-    info_margin.add_child(_game_info)
+    _info_margin.add_child(_game_info)
     _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     _carousel.size_flags_stretch_ratio = 1.15
     showcase.add_child(_carousel)
@@ -201,6 +213,7 @@ func _build_shell() -> void:
     _empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(_empty_label)
+    column.move_child(_count_label, column.get_child_count() - 1)
     _hero_title = _label("Your next adventure starts here", 30, TEXT_COLOR)
     _hero_title.add_theme_font_override("font", preload("res://scripts/workspace/presentation_theme.gd").heading_font())
     _hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -213,6 +226,13 @@ func _build_shell() -> void:
     _hero_meta.add_theme_color_override("font_color", Color("a7e7ce"))
     _game_info.add_child(_hero_meta)
     _game_info.move_child(_hero_meta, 0)
+    var accent := ColorRect.new()
+    accent.color = Color("9ce1c1")
+    accent.custom_minimum_size = Vector2(42, 3)
+    accent.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+    accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _game_info.add_child(accent)
+    _game_info.move_child(accent, 1)
     _game_facts = _label("", 16, Color("cbd8dc"))
     _game_facts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _game_info.add_child(_game_facts)
@@ -243,26 +263,46 @@ func _build_shell() -> void:
     _media_group = VBoxContainer.new()
     _media_group.add_theme_constant_override("separation", 6)
     _game_info.add_child(_media_group)
-    _media_button = _button("Preview video", _show_game_video)
-    _media_button.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 24)
-    _media_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-    _media_button.custom_minimum_size.y = 52
+    _media_button = _button("", _show_game_video)
+    _media_button.name = "WatchPreview"
+    _media_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+    _media_button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+    var preview_hover := StyleBoxFlat.new()
+    preview_hover.bg_color = Color(0.02, 0.05, 0.07, 0.12)
+    preview_hover.border_color = Color("9ce1c1")
+    preview_hover.set_border_width_all(2)
+    _media_button.add_theme_stylebox_override("hover", preview_hover)
+    _media_button.add_theme_stylebox_override("focus", preview_hover)
     _media_button.accessibility_name = "Preview selected game video"
-    _media_group.add_child(_media_button)
+    _inline_preview.add_child(_media_button)
+    _preview_caption = _label("↗  WATCH PREVIEW", 11, Color("e6f0ee"))
+    _preview_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _preview_caption.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    _preview_caption.position = Vector2(-170, -28)
+    _preview_caption.size = Vector2(170, 28)
+    _preview_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    var caption_style := StyleBoxFlat.new()
+    caption_style.bg_color = Color(0.02, 0.04, 0.06, 0.86)
+    caption_style.set_content_margin_all(6)
+    _preview_caption.add_theme_stylebox_override("normal", caption_style)
+    _media_button.add_child(_preview_caption)
     _external_preview_return = _button("Return to browsing", _return_from_external_preview)
     _external_preview_return.icon = preload("res://scripts/workspace/ui_icons.gd").icon("back")
     _external_preview_return.hide()
     _media_group.add_child(_external_preview_return)
     _media_hint = _label("", 12, MUTED_COLOR)
     _media_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _media_hint.hide()
     _media_group.add_child(_media_hint)
     _media_group.hide()
     _music_controls = HBoxContainer.new()
-    _music_controls.add_theme_constant_override("separation", 12)
+    _music_controls.add_theme_constant_override("separation", 16)
     _game_info.add_child(_music_controls)
     _music_toggle = _button("Game music", func(): _set_selection_music_enabled(_music_toggle.button_pressed))
     _music_toggle.toggle_mode = true
-    _music_toggle.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 18)
+    _music_toggle.flat = true
+    _music_toggle.add_theme_font_size_override("font_size", 12)
+    _music_toggle.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 16)
     _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
     _music_controls.add_child(_music_toggle)
     _music_slider = HSlider.new()
@@ -270,13 +310,13 @@ func _build_shell() -> void:
     _music_slider.max_value = 100
     _music_slider.step = 1
     _music_slider.value = _selection_music_volume * 100.0
-    _music_slider.custom_minimum_size.x = 110
-    _music_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _music_slider.custom_minimum_size.x = 90
+    _music_slider.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
     _music_slider.accessibility_name = "Game selection music volume"
     _music_slider.value_changed.connect(func(value: float): _set_selection_music_volume(value / 100.0))
     _music_controls.add_child(_music_slider)
     _music_controls.hide()
-    _game_source = _label("", 12, MUTED_COLOR)
+    _game_source = _label("", 11, MUTED_COLOR)
     _game_source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _game_info.add_child(_game_source)
     _file_dialog = FileDialog.new()
@@ -329,15 +369,22 @@ func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
-    _hero_title.add_theme_font_size_override("font_size", 30 if size.x < 1300 else 40)
-    _game_description.add_theme_font_size_override("font_size", 16 if size.x < 1300 else 20)
-    _game_info.add_theme_constant_override("separation", 8 if size.y < 720 else 12)
-    _game_description.max_lines_visible = 2 if size.y < 720 else 3
+    var compact := size.y < 720
+    _info_panel.custom_minimum_size.x = clampf(size.x * 0.32, 310, 580)
+    var padding := 20 if compact else 30
+    for side in ["left", "right", "top", "bottom"]:
+        _info_margin.add_theme_constant_override("margin_" + side, padding)
+    _hero_title.add_theme_font_size_override("font_size", 26 if compact else (34 if size.x < 1600 else 44))
+    _hero_meta.add_theme_font_size_override("font_size", 12)
+    _game_facts.add_theme_font_size_override("font_size", 13 if compact else 14)
+    _game_description.add_theme_font_size_override("font_size", 15 if compact else 17)
+    _game_info.add_theme_constant_override("separation", 10 if compact else 18)
+    _game_description.max_lines_visible = 2 if compact else 4
+    _game_description.visible = not compact and not _game_description.text.is_empty()
     if is_instance_valid(_inline_preview):
-        _inline_preview.custom_minimum_size.y = 140 if size.y < 720 else clampf(size.y * 0.28, 210, 400)
-    var compact := size.y < 660
+        _inline_preview.custom_minimum_size.y = minf((_info_panel.custom_minimum_size.x - padding * 2) * 0.75, size.y * (0.24 if compact else 0.30))
     _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
-    _hero_title.max_lines_visible = 2 if compact else 3
+    _hero_title.max_lines_visible = 2
     _warning_label.max_lines_visible = 1 if compact else 2
     _apply_library_page()
 
@@ -598,7 +645,7 @@ func _on_cartridge_selected(game: Dictionary, index: int) -> void:
     _last_game_id = str(game.get("id", ""))
     var profile := CollectionProfiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
     _hero_title.text = str(profile.get("title", game.get("title", "Your next adventure starts here")))
-    _hero_meta.text = "" if game.is_empty() else ("Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", "")))
+    _hero_meta.text = "" if game.is_empty() else ("Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", ""))).to_upper()
     _box_path = CollectionProfiles.box_path(profile) if persist_preferences else ""
     _previous_game.visible = _current_games.size() > 1
     _next_game.visible = _current_games.size() > 1
@@ -1050,14 +1097,14 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     if genre is Array:
         if not genre.is_empty(): facts.append(" / ".join(genre))
     elif str(genre) not in ["", "<null>"]:
-        facts.append(str(genre))
+        facts.append("Platformer" if str(genre) == "Platform / Run & Jump, Platform" else str(genre))
     var players := str(_presentation.get("players", ""))
     if players not in ["", "<null>"]:
         facts.append(players + (" players" if players != "1" else " player") if players.is_valid_int() else players)
     _game_facts.text = "  ·  ".join(facts)
     _game_description.text = str(_presentation.get("description", ""))
     if _game_description.text == "<null>": _game_description.text = ""
-    _game_description.visible = not _game_description.text.is_empty()
+    _game_description.visible = size.y >= 720 and not _game_description.text.is_empty()
     var maker := str(_presentation.get("developer", ""))
     _game_source.text = maker if maker not in ["", "<null>"] else ""
     var background := str(_presentation.get("background_path", ""))
@@ -1198,9 +1245,11 @@ func _update_selection_media_controls() -> void:
     var selected := not _at_console_home and not _presentation_key.is_empty()
     var video_path := str(_presentation.get("video_path", ""))
     var has_video := _valid_local_preview(video_path)
-    _media_group.visible = selected and (has_video or _external_preview_active)
+    _media_group.visible = selected and _external_preview_active
     _media_button.visible = has_video and not _external_preview_active
+    _preview_caption.text = "↗  WATCH PREVIEW" if video_path.get_extension().to_lower() == "ogv" else "↗  OPEN VIDEO"
     _external_preview_return.visible = _external_preview_active
+    _media_hint.visible = _external_preview_active
     if _external_preview_active:
         _media_hint.text = "Preview opened in your video player. Return when you finish watching."
     else:
@@ -1209,11 +1258,12 @@ func _update_selection_media_controls() -> void:
     var music_path := str(_presentation.get("music_path", ""))
     _music_controls.visible = selected and not music_path.is_empty() and FileAccess.file_exists(music_path)
     _music_toggle.set_pressed_no_signal(_selection_music_enabled)
-    _music_toggle.text = ("Music muted" if is_zero_approx(_selection_music_volume) else "Music on") if _selection_music_enabled else "Game music"
+    _music_toggle.text = ("MUSIC · MUTED" if is_zero_approx(_selection_music_volume) else "MUSIC · ON") if _selection_music_enabled else "MUSIC · OFF"
     _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
     _music_slider.set_value_no_signal(_selection_music_volume * 100.0)
     _music_slider.tooltip_text = "Selection music volume · %d%%" % roundi(_selection_music_volume * 100.0)
     _music_slider.editable = _selection_music_enabled
+    _music_slider.visible = _selection_music_enabled
     if music_path == _selection_music_failed_path and not music_path.is_empty():
         _music_toggle.text = "Music unavailable"
         _music_toggle.tooltip_text = "This local track could not be decoded. Add a valid OGG, MP3 or WAV through Game media."
@@ -1316,7 +1366,7 @@ func _sync_inline_preview(delta: float) -> void:
             blocked = true
     var path := str(_presentation.get("video_path", ""))
     var playable := path.get_extension().to_lower() == "ogv"
-    _inline_preview.visible = not _at_console_home and not _presentation_key.is_empty() and (playable or _inline_still.texture != null)
+    _inline_preview.visible = not _at_console_home and not _presentation_key.is_empty() and (playable or _inline_still.texture != null or _media_button.visible)
     if blocked or _reduce_motion or not playable:
         _stop_inline_preview()
         _preview_delay = 0.0

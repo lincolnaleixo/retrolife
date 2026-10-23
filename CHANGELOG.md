@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Recompose game selection around a narrow illustrated dossier and a brighter artwork stage, inspired by ES-DE theme layouts. Keep copy bounded, integrate a clickable video with a small watch caption, replace full-width preview/music controls with compact controls, move collection count to the lower edge, and reduce the selected 3D cartridge. Compact windows suppress long synopses while preserving preview, navigation and neutral missing-media behavior.
+
 - Scale the inline game preview with the window height (140–400 pixels) so large displays show meaningful gameplay footage beside the cartridge instead of a tiny fixed-height thumbnail.
 
 - Make Super Mario World's Journey progressive: thirteen automatic discoveries, early power-up/Yoshi/Dragon Coin events, separate named keepsakes and later castle rewards. Hide future spoilers and move completed discoveries into Collection while preserving existing verified progress.

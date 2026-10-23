@@ -3,9 +3,9 @@ render_mode unshaded;
 
 void fragment() {
     vec4 art = texture(TEXTURE, UV);
-    // Keep the selected game's scenery visible while reserving contrast for copy.
-    float left_shade = mix(0.07, 0.32, smoothstep(0.12, 0.68, UV.x));
-    float edge_shade = smoothstep(0.0, 0.22, UV.y) * (1.0 - smoothstep(0.63, 1.0, UV.y));
-    vec3 ink = vec3(0.028, 0.050, 0.061);
-    COLOR = vec4(mix(ink, art.rgb, left_shade * (0.48 + 0.52 * edge_shade)), 1.0);
+    // The dossier protects copy; the remaining screen is an illustrated stage.
+    float reveal = mix(0.10, 0.65, smoothstep(0.14, 0.55, UV.x));
+    float edges = smoothstep(0.0, 0.18, UV.y) * (1.0 - smoothstep(0.76, 1.0, UV.y));
+    vec3 ink = vec3(0.018, 0.028, 0.043);
+    COLOR = vec4(mix(ink, art.rgb, reveal * (0.30 + 0.70 * edges)), 1.0);
 }
