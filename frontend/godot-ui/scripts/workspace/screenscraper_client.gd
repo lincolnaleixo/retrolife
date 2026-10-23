@@ -87,6 +87,11 @@ func fetch_game(credentials: Dictionary, system: String, slug: String, game_id: 
             busy = false
             return download
         var bytes: PackedByteArray = download.body
+        # A media listed in metadata can disappear before download. ScreenScraper
+        # documents this successful HTTP response; keep cached media in that case.
+        if bytes.size() <= 64 and bytes.get_string_from_utf8().strip_edges() == "NOMEDIA":
+            notes.append("No %s is available for this game. Existing media was retained." % kind)
+            continue
         var extension := "mp4" if kind == "video" else "png"
         if kind == "background":
             var picture := Image.new()
@@ -215,6 +220,10 @@ static func parse_game(game: Dictionary, system: String, slug: String, expected_
     return Packs.clean_document(document, system, slug)
 
 static func choose_media(game: Dictionary, kind: String) -> Dictionary:
+    # The public API documents image/video downloads, not a soundtrack endpoint.
+    # Unknown kinds must never silently resolve to a background image.
+    if not kind in ["background", "video"]:
+        return {}
     var media: Variant = game.get("medias", [])
     if not media is Array:
         return {}
@@ -223,5 +232,14 @@ static func choose_media(game: Dictionary, kind: String) -> Dictionary:
         for region in ["us", "wor", "eu", "jp", ""]:
             for entry in media:
                 if entry is Dictionary and str(entry.get("type", "")) == type and str(entry.get("region", "")) == region:
+                    if kind == "video":
+                        var format := str(entry.get("format", "")).to_lower()
+                        var size := str(entry.get("size", ""))
+                        # Skip unusable advertised candidates so a normal MP4 can
+                        # still be selected when the normalized version is invalid.
+                        if not format.is_empty() and format != "mp4":
+                            continue
+                        if not size.is_empty() and (not size.is_valid_int() or int(size) <= 0 or int(size) > Packs.MAX_VIDEO_BYTES):
+                            continue
                     return {"selector": type + ("(" + region + ")" if not region.is_empty() else "")}
     return {}

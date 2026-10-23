@@ -6,6 +6,7 @@ const SYSTEMS := ["nes", "snes", "mega-drive", "playstation-1", "nintendo-64", "
 const MAX_METADATA_BYTES := 262144
 const MAX_IMAGE_BYTES := 16777216
 const MAX_VIDEO_BYTES := 134217728
+const MAX_MUSIC_BYTES := 33554432
 const FIELDS := {"title": 256, "description": 6000, "developer": 160, "publisher": 160, "year": 4, "genre": 160, "players": 48}
 
 static func valid_slug(value: String) -> bool:
@@ -38,6 +39,7 @@ static func load_for_game(system: String, slug: String, root_override := "") -> 
     result["background_path"] = local_media_path(directory, document.media.get("background", {}), "background")
     result["video_path"] = local_media_path(directory, document.media.get("video", {}), "video")
     result["video_playable"] = str(result.video_path).get_extension().to_lower() == "ogv"
+    result["music_path"] = local_media_path(directory, document.media.get("music", {}), "music")
     return result
 
 static func read_document(path: String, system: String, slug: String) -> Dictionary:
@@ -79,7 +81,7 @@ static func clean_document(value: Variant, system: String, slug: String) -> Dict
         result.source = {"provider": "Local metadata", "gameId": "", "systemId": "", "retrievedAt": "", "url": ""}
     var media: Variant = value.get("media", {})
     if media is Dictionary:
-        for kind in ["background", "video"]:
+        for kind in ["background", "video", "music"]:
             if not media.has(kind):
                 continue
             var entry: Variant = media.get(kind, {})
@@ -125,14 +127,25 @@ static func valid_media_name(value: String, kind: String) -> bool:
     if value.is_empty() or value.length() > 160 or value != value.get_file() or ".." in value or ":" in value or "\\" in value:
         return false
     var extension := value.get_extension().to_lower()
-    return extension in (["png", "jpg", "jpeg", "webp"] if kind == "background" else ["ogv", "mp4"])
+    match kind:
+        "background": return extension in ["png", "jpg", "jpeg", "webp"]
+        "video": return extension in ["ogv", "mp4"]
+        "music": return extension in ["ogg", "mp3", "wav"]
+    return false
+
+static func media_size_limit(kind: String) -> int:
+    match kind:
+        "background": return MAX_IMAGE_BYTES
+        "video": return MAX_VIDEO_BYTES
+        "music": return MAX_MUSIC_BYTES
+    return 0
 
 static func local_media_path(directory: String, entry: Variant, kind: String) -> String:
     if not entry is Dictionary or not valid_media_name(str(entry.get("path", "")), kind):
         return ""
     var path := directory.path_join(str(entry.path))
     var handle := FileAccess.open(path, FileAccess.READ)
-    if handle == null or handle.get_length() <= 0 or handle.get_length() > (MAX_IMAGE_BYTES if kind == "background" else MAX_VIDEO_BYTES):
+    if handle == null or handle.get_length() <= 0 or handle.get_length() > media_size_limit(kind):
         return ""
     var expected := str(entry.get("sha256", ""))
     if not expected.is_empty() and (not valid_hash(expected) or FileAccess.get_sha256(path) != expected):
@@ -168,7 +181,7 @@ static func save_document(document: Dictionary, root_override := "") -> Error:
     return result
 
 static func write_media(directory: String, kind: String, extension: String, bytes: PackedByteArray) -> Dictionary:
-    if not valid_media_name("file." + extension, kind) or bytes.is_empty() or bytes.size() > (MAX_IMAGE_BYTES if kind == "background" else MAX_VIDEO_BYTES):
+    if not valid_media_name("file." + extension, kind) or bytes.is_empty() or bytes.size() > media_size_limit(kind):
         return {}
     var hash_value := _sha256(bytes)
     var filename := "%s-%s.%s" % [kind, hash_value.substr(0, 20), extension]
@@ -219,3 +232,60 @@ static func import_pack(source_json: String, system: String, slug: String, root_
     if save_document(document, root_override) != OK:
         return {"ok": false, "error": "The presentation could not be saved. Your current presentation was retained."}
     return {"ok": true, "document": document}
+
+
+static func load_music_stream(path: String) -> AudioStream:
+    if not valid_media_name(path.get_file(), "music"):
+        return null
+    var file := FileAccess.open(path, FileAccess.READ)
+    if file == null or file.get_length() <= 12 or file.get_length() > MAX_MUSIC_BYTES:
+        return null
+    var header := file.get_buffer(12)
+    file.close()
+    var stream: AudioStream
+    match path.get_extension().to_lower():
+        "ogg":
+            if header.slice(0, 4).get_string_from_ascii() != "OggS":
+                return null
+            stream = AudioStreamOggVorbis.load_from_file(path)
+        "mp3":
+            var mp3_header := header.slice(0, 3).get_string_from_ascii() == "ID3" or (header[0] == 0xff and (header[1] & 0xe0) == 0xe0)
+            if not mp3_header:
+                return null
+            var mp3 := AudioStreamMP3.new()
+            mp3.data = FileAccess.get_file_as_bytes(path)
+            stream = mp3
+        "wav":
+            if header.slice(0, 4).get_string_from_ascii() != "RIFF" or header.slice(8, 12).get_string_from_ascii() != "WAVE":
+                return null
+            stream = AudioStreamWAV.load_from_file(path)
+    if stream == null or not is_finite(stream.get_length()) or stream.get_length() <= 0.0:
+        return null
+    if stream is AudioStreamOggVorbis or stream is AudioStreamMP3:
+        stream.loop = true
+    elif stream is AudioStreamWAV:
+        stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+        stream.loop_begin = 0
+        stream.loop_end = roundi(stream.get_length() * stream.mix_rate)
+    return stream
+
+static func import_music(source_audio: String, system: String, slug: String, game_title := "", root_override := "") -> Dictionary:
+    var directory := pack_directory(system, slug, root_override)
+    if directory.is_empty():
+        return {"ok": false, "error": "Connect the collection folder before adding game music."}
+    if load_music_stream(source_audio) == null:
+        return {"ok": false, "error": "Choose a valid OGG, MP3 or WAV track up to 32 MB. The current music was retained."}
+    var document_path := directory.path_join("metadata.json")
+    var document := read_document(document_path, system, slug)
+    if document.is_empty():
+        if FileAccess.file_exists(document_path):
+            return {"ok": false, "error": "The existing metadata could not be read. It was retained without changes."}
+        document = clean_document({"schemaVersion": 1, "game": {"system": system, "slug": slug, "title": game_title}, "media": {}, "source": {"provider": "Local metadata"}}, system, slug)
+    var stored := write_media(directory, "music", source_audio.get_extension().to_lower(), FileAccess.get_file_as_bytes(source_audio))
+    if stored.is_empty():
+        return {"ok": false, "error": "The music could not be copied. The current presentation was retained."}
+    stored.source = "Local music import"
+    document.media.music = stored
+    if save_document(document, root_override) != OK:
+        return {"ok": false, "error": "The presentation could not be saved. The current presentation was retained."}
+    return {"ok": true, "document": document, "message": "Game music imported. Enable Game music on the selection screen to listen."}

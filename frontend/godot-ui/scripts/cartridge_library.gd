@@ -16,6 +16,19 @@ var _game_facts: Label
 var _game_source: Label
 var _game_backdrop: TextureRect
 var _media_button: Button
+var _media_group: VBoxContainer
+var _media_hint: Label
+var _external_preview_return: Button
+var _external_preview_active := false
+var _selection_launch_pending := false
+var _music_controls: HBoxContainer
+var _music_toggle: Button
+var _music_slider: HSlider
+var _selection_music: AudioStreamPlayer
+var _selection_music_enabled := false
+var _selection_music_volume := 0.35
+var _selection_music_path := ""
+var _selection_music_failed_path := ""
 var _video_panel: PopupPanel
 var _video_player: VideoStreamPlayer
 var _presentation: Dictionary = {}
@@ -77,6 +90,8 @@ func _load_preferences() -> void:
         _fetch_collection_labels = bool(_preferences.get_value("view", "fetch_collection_labels", true))
         _selected_system_id = str(_preferences.get_value("selection", "system", ""))
         _last_game_id = str(_preferences.get_value("selection", "game", ""))
+        _selection_music_enabled = bool(_preferences.get_value("media", "selection_music_enabled", false))
+        _selection_music_volume = _valid_music_volume(_preferences.get_value("media", "selection_music_volume", 0.35))
 
 
 func _build_shell() -> void:
@@ -199,11 +214,42 @@ func _build_shell() -> void:
     _game_description.max_lines_visible = 5
     _game_description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
     _game_info.add_child(_game_description)
-    _media_button = _button("Watch preview", _show_game_video)
-    _media_button.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play")
-    _media_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-    _media_button.hide()
-    _game_info.add_child(_media_button)
+    _media_group = VBoxContainer.new()
+    _media_group.add_theme_constant_override("separation", 6)
+    _game_info.add_child(_media_group)
+    _media_button = _button("Preview video", _show_game_video)
+    _media_button.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 24)
+    _media_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+    _media_button.custom_minimum_size.y = 52
+    _media_button.accessibility_name = "Preview selected game video"
+    _media_group.add_child(_media_button)
+    _external_preview_return = _button("Return to browsing", _return_from_external_preview)
+    _external_preview_return.icon = preload("res://scripts/workspace/ui_icons.gd").icon("back")
+    _external_preview_return.hide()
+    _media_group.add_child(_external_preview_return)
+    _media_hint = _label("", 12, MUTED_COLOR)
+    _media_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _media_group.add_child(_media_hint)
+    _media_group.hide()
+    _music_controls = HBoxContainer.new()
+    _music_controls.add_theme_constant_override("separation", 12)
+    _game_info.add_child(_music_controls)
+    _music_toggle = _button("Game music", func(): _set_selection_music_enabled(_music_toggle.button_pressed))
+    _music_toggle.toggle_mode = true
+    _music_toggle.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 18)
+    _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
+    _music_controls.add_child(_music_toggle)
+    _music_slider = HSlider.new()
+    _music_slider.min_value = 0
+    _music_slider.max_value = 100
+    _music_slider.step = 1
+    _music_slider.value = _selection_music_volume * 100.0
+    _music_slider.custom_minimum_size.x = 110
+    _music_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _music_slider.accessibility_name = "Game selection music volume"
+    _music_slider.value_changed.connect(func(value: float): _set_selection_music_volume(value / 100.0))
+    _music_controls.add_child(_music_slider)
+    _music_controls.hide()
     _game_source = _label("", 12, MUTED_COLOR)
     _game_source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _game_info.add_child(_game_source)
@@ -235,6 +281,10 @@ func _build_shell() -> void:
     add_child(_storage_panel)
     _build_box_inspector()
     _build_game_video()
+    _selection_music = AudioStreamPlayer.new()
+    _selection_music.name = "SelectionMusic"
+    _selection_music.volume_linear = _selection_music_volume
+    add_child(_selection_music)
     _rewards_panel = preload("res://scripts/workspace/rewards_center.gd").new()
     _rewards_panel.popup_hide.connect(_restore_carousel_focus)
     add_child(_rewards_panel)
@@ -659,11 +709,14 @@ func _save_preferences() -> void:
     _preferences.set_value("view", "fetch_collection_labels", _fetch_collection_labels)
     _preferences.set_value("selection", "system", _selected_system_id)
     _preferences.set_value("selection", "game", _last_game_id)
+    _preferences.set_value("media", "selection_music_enabled", _selection_music_enabled)
+    _preferences.set_value("media", "selection_music_volume", _selection_music_volume)
     var temporary := settings_path + ".tmp"
-    if _preferences.save(temporary) == OK:
-        var result := DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(settings_path))
-        if result != OK:
-            _show_nonfatal_error("Library preferences could not be saved.")
+    var result := _preferences.save(temporary)
+    if result == OK:
+        result = DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(settings_path))
+    if result != OK:
+        _show_nonfatal_error("Library preferences could not be saved.")
 
 
 func _game_is_active() -> bool:
@@ -672,6 +725,7 @@ func _game_is_active() -> bool:
 
 func _process(_delta: float) -> void:
     _update_settings_context()
+    _sync_selection_music()
     if _carousel != null:
         _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible and not _rewards_panel.visible and not _media_settings.visible and not _video_panel.visible)
 
@@ -833,6 +887,10 @@ func _open_console(system_id: String) -> void:
     _apply_library_page()
 
 func _show_console_home() -> void:
+    _stop_selection_music()
+    _external_preview_active = false
+    if is_instance_valid(_video_panel):
+        _video_panel.hide()
     _remember_selection()
     _at_console_home = true
     _search_query = ""
@@ -857,6 +915,8 @@ func _apply_library_page() -> void:
         _hero_meta.visible = true
         _count_label.visible = size.y >= 660
     _header.configure_page(_at_console_home, not _current_games.is_empty(), not _box_path.is_empty())
+    _update_selection_media_controls()
+    _sync_selection_music()
 
 func _build_box_inspector() -> void:
     _box_panel = PopupPanel.new()
@@ -921,6 +981,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     var key := str(game.get("id", ""))
     if key == _presentation_key:
         return
+    _stop_selection_music()
     _presentation_key = key
     _presentation = {}
     _game_backdrop.texture = null
@@ -928,8 +989,10 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     _game_facts.text = ""
     _game_description.text = ""
     _game_source.text = ""
-    _media_button.hide()
+    _media_group.hide()
+    _music_controls.hide()
     if key.is_empty():
+        _update_selection_media_controls()
         return
     if _presentation_cache.has(key):
         _presentation = _presentation_cache[key]
@@ -975,8 +1038,8 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
                 art.generate_mipmaps()
                 _game_backdrop.texture = ImageTexture.create_from_image(art)
                 _game_backdrop.visible = not _at_console_home
-    _media_button.visible = not str(_presentation.get("video_path", "")).is_empty()
-    _media_button.tooltip_text = "Play the local game preview" if str(_presentation.get("video_path", "")).get_extension().to_lower() == "ogv" else "Open the local video in your default player"
+    _update_selection_media_controls()
+    _sync_selection_music()
 
 
 func _refresh_game_presentation() -> void:
@@ -1007,32 +1070,194 @@ func _show_media_settings() -> void:
 
 func _build_game_video() -> void:
     _video_panel = PopupPanel.new()
+    _video_panel.name = "GameVideoPreview"
+    var style := StyleBoxFlat.new()
+    style.bg_color = Color("080f17")
+    style.border_color = Color("36505b")
+    style.set_border_width_all(1)
+    style.set_corner_radius_all(18)
+    style.set_content_margin_all(20)
+    _video_panel.add_theme_stylebox_override("panel", style)
     add_child(_video_panel)
     var column := VBoxContainer.new()
-    column.add_theme_constant_override("separation", 16)
+    column.add_theme_constant_override("separation", 12)
     _video_panel.add_child(column)
+    var heading := _label("Game preview", 22, TEXT_COLOR)
+    heading.name = "VideoPreviewTitle"
+    heading.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+    heading.clip_text = true
+    column.add_child(heading)
     _video_player = VideoStreamPlayer.new()
     _video_player.expand = true
-    _video_player.custom_minimum_size = Vector2(640, 360)
+    _video_player.custom_minimum_size = Vector2(320, 180)
     _video_player.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _video_player.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(_video_player)
-    column.add_child(_button("Close preview", _video_panel.hide))
+    var actions := HBoxContainer.new()
+    actions.add_theme_constant_override("separation", 12)
+    column.add_child(actions)
+    var pause := _button("Pause / Play", func():
+        if not _video_player.is_playing():
+            _video_player.play()
+        else:
+            _video_player.paused = not _video_player.paused
+    )
+    pause.icon = preload("res://scripts/workspace/ui_icons.gd").icon("pause")
+    actions.add_child(pause)
+    var close := _button("Close preview", _video_panel.hide)
+    close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    actions.add_child(close)
     _video_panel.popup_hide.connect(func():
         _video_player.stop()
         _video_player.stream = null
+        _sync_selection_music()
         _restore_carousel_focus())
 
 
 func _show_game_video() -> void:
-    var path := str(_presentation.get("video_path", ""))
-    if path.is_empty() or not FileAccess.file_exists(path):
+    if _game_is_active() or _at_console_home or _external_preview_active:
         return
+    var path := str(_presentation.get("video_path", ""))
+    if not _valid_local_preview(path):
+        _media_hint.text = "The local preview is unavailable. Add it again through Game media."
+        return
+    _stop_selection_music(false)
     if path.get_extension().to_lower() != "ogv":
-        OS.shell_open(path)
+        var result := _open_external_game_video(path)
+        _external_preview_active = result == OK
+        _update_selection_media_controls()
+        if result != OK:
+            _media_hint.text = "The video player could not open this preview."
+            _sync_selection_music()
         return
     var stream := VideoStreamTheora.new()
     stream.file = path
     _video_player.stream = stream
+    _video_player.paused = false
+    _video_panel.get_node("VBoxContainer/VideoPreviewTitle").text = _hero_title.text + " · Preview"
     _video_panel.popup_centered(Vector2i(mini(1000, int(size.x) - 60), mini(650, int(size.y) - 60)))
     _video_player.play()
+
+
+func _valid_local_preview(path: String) -> bool:
+    var packs = preload("res://scripts/workspace/game_presentation.gd")
+    if path.is_empty() or not packs.valid_media_name(path.get_file(), "video"):
+        return false
+    var handle := FileAccess.open(path, FileAccess.READ)
+    return handle != null and handle.get_length() > 0 and handle.get_length() <= packs.MAX_VIDEO_BYTES
+
+
+func _open_external_game_video(path: String) -> Error:
+    return OS.shell_open(path)
+
+
+func _return_from_external_preview() -> void:
+    _external_preview_active = false
+    _update_selection_media_controls()
+    _sync_selection_music()
+    _restore_carousel_focus()
+
+
+func _update_selection_media_controls() -> void:
+    if not is_instance_valid(_media_group):
+        return
+    var selected := not _at_console_home and not _presentation_key.is_empty()
+    var video_path := str(_presentation.get("video_path", ""))
+    var has_video := _valid_local_preview(video_path)
+    _media_group.visible = selected and (has_video or _external_preview_active)
+    _media_button.visible = has_video and not _external_preview_active
+    _external_preview_return.visible = _external_preview_active
+    if _external_preview_active:
+        _media_hint.text = "Preview opened in your video player. Return when you finish watching."
+    else:
+        _media_hint.text = "Local video · Plays inside RetroLife" if video_path.get_extension().to_lower() == "ogv" else "Local MP4 · Opens your video player"
+    _media_button.tooltip_text = _media_hint.text
+    var music_path := str(_presentation.get("music_path", ""))
+    _music_controls.visible = selected and not music_path.is_empty() and FileAccess.file_exists(music_path)
+    _music_toggle.set_pressed_no_signal(_selection_music_enabled)
+    _music_toggle.text = ("Music muted" if is_zero_approx(_selection_music_volume) else "Music on") if _selection_music_enabled else "Game music"
+    _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
+    _music_slider.set_value_no_signal(_selection_music_volume * 100.0)
+    _music_slider.tooltip_text = "Selection music volume · %d%%" % roundi(_selection_music_volume * 100.0)
+    _music_slider.editable = _selection_music_enabled
+    if music_path == _selection_music_failed_path and not music_path.is_empty():
+        _music_toggle.text = "Music unavailable"
+        _music_toggle.tooltip_text = "This local track could not be decoded. Add a valid OGG, MP3 or WAV through Game media."
+
+
+func _valid_music_volume(value: Variant) -> float:
+    if (value is int or value is float) and is_finite(float(value)):
+        return clampf(float(value), 0.0, 1.0)
+    return 0.35
+
+
+func _set_selection_music_enabled(enabled: bool) -> void:
+    _selection_music_enabled = enabled
+    _selection_music_failed_path = ""
+    _save_preferences()
+    _update_selection_media_controls()
+    _sync_selection_music()
+
+
+func _set_selection_music_volume(value: float) -> void:
+    _selection_music_volume = _valid_music_volume(value)
+    if is_instance_valid(_selection_music):
+        _selection_music.volume_linear = _selection_music_volume
+    _save_preferences()
+    _update_selection_media_controls()
+
+
+func _stop_selection_music(clear_track := true) -> void:
+    if not is_instance_valid(_selection_music):
+        return
+    if _selection_music.playing:
+        _selection_music.stop()
+    if clear_track:
+        _selection_music.stream = null
+        _selection_music_path = ""
+        _selection_music_failed_path = ""
+
+
+func _sync_selection_music() -> void:
+    if not is_instance_valid(_selection_music):
+        return
+    if _at_console_home or _game_is_active() or _selection_launch_pending:
+        _external_preview_active = false
+        if is_instance_valid(_video_panel) and _video_panel.visible:
+            _video_panel.hide()
+        _stop_selection_music()
+        return
+    var blocked := not is_visible_in_tree() or _external_preview_active or _importing
+    for popup in [_video_panel, _media_settings, _settings_panel, _controller_panel, _storage_panel, _rewards_panel, _box_panel, _updates_panel, _details_overlay, _search_panel, _file_dialog, _art_dialog]:
+        if is_instance_valid(popup) and popup.visible:
+            blocked = true
+    var path := str(_presentation.get("music_path", ""))
+    if not _selection_music_enabled or blocked or path.is_empty():
+        _stop_selection_music(not _selection_music_enabled or path.is_empty())
+        return
+    if path == _selection_music_failed_path:
+        return
+    if path != _selection_music_path or _selection_music.stream == null:
+        _stop_selection_music()
+        var stream := preload("res://scripts/workspace/game_presentation.gd").load_music_stream(path)
+        if stream == null:
+            _selection_music_failed_path = path
+            _update_selection_media_controls()
+            return
+        _selection_music.stream = stream
+        _selection_music_path = path
+    _selection_music.volume_linear = _selection_music_volume
+    if not _selection_music.playing:
+        _selection_music.play()
+
+
+func _play_selected_game() -> void:
+    # Stop before the backend starts, not one UI frame after game audio begins.
+    _selection_launch_pending = true
+    _stop_selection_music()
+    _external_preview_active = false
+    if is_instance_valid(_video_panel):
+        _video_panel.hide()
+    super._play_selected_game()
+    _selection_launch_pending = false
+    _sync_selection_music()

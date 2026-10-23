@@ -27,3 +27,6 @@ python3 scripts/make-test-rom.py .cache/test.sfc
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/gameplay_window_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/rewards_center_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/library_presentation_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/gameplay_shader_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/gameplay_settings_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/selection_media_smoke.gd

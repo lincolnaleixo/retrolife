@@ -55,6 +55,7 @@ func _run() -> void:
     _check(Client.parse_search({"response": {"jeux": [_fixture(), {"id": "2", "systeme": {"id": "3"}, "noms": [{"region": "us", "text": "Other console"}]}]}}, "snes").size() == 1, "Search filters by console")
     _check(Client.choose_media(_fixture(), "background").selector == "fanart(us)", "Fanart chosen from allowlisted media")
     _check(Client.choose_media(_fixture(), "video").selector == "video(wor)", "Video selector")
+    _exercise_video_selection()
     _check(Client.localized([{ "langue": "fr", "text": "French"}], "langue", ["en"]).is_empty(), "No foreign-language synopsis fallback")
     _check(not Client.credential_error({}).is_empty(), "Developer credentials required")
     _check(not Client.credential_error({"devid": "fixture", "devpassword": "fixture", "ssid": "user"}).is_empty(), "Partial user credentials rejected")
@@ -109,6 +110,26 @@ func _run() -> void:
     client.responses = [{"ok": true, "body": JSON.stringify({"response": {"jeu": _fixture()}}).to_utf8_buffer()}, {"ok": false, "error": "Fixture quota reached"}]
     failed = await client.fetch_game(credentials, "snes", "example-game", "123", true, false, _temporary)
     _check(not failed.ok and FileAccess.get_file_as_string(directory.path_join("metadata.json")) == original, "Download failure preserves metadata")
+    var existing := Packs.read_document(directory.path_join("metadata.json"), "snes", "example-game")
+    existing.media.music = Packs.write_media(directory, "music", "wav", "Synthetic owned metadata-only fixture".to_utf8_buffer())
+    existing.media.video = Packs.write_media(directory, "video", "mp4", PackedByteArray([0, 0, 0, 12, 102, 116, 121, 112, 105, 115, 111, 109]))
+    _check(Packs.save_document(existing, _temporary) == OK, "Synthetic prior video fixture saved without decoding or playback")
+    var refreshed := _fixture()
+    refreshed.synopsis = [{"langue": "en", "text": "Updated metadata without replacing local media."}]
+    client.responses = [
+        {"ok": true, "body": JSON.stringify({"response": {"jeu": refreshed}}).to_utf8_buffer()},
+        {"ok": true, "body": "NOMEDIA".to_utf8_buffer()},
+        {"ok": true, "body": "NOMEDIA\n".to_utf8_buffer()},
+    ]
+    var no_media := await client.fetch_game(credentials, "snes", "example-game", "123", true, true, _temporary)
+    var retained := Packs.read_document(directory.path_join("metadata.json"), "snes", "example-game")
+    _check(no_media.ok and retained.description == refreshed.synopsis[0].text, "NOMEDIA still saves fresh game metadata")
+    _check(retained.media.background == existing.media.background and retained.media.video == existing.media.video and retained.media.music == existing.media.music, "NOMEDIA preserves prior background, video and local music")
+    client.responses = [{"ok": true, "body": JSON.stringify({"response": {"jeu": refreshed}}).to_utf8_buffer()}, {"ok": true, "body": image_bytes}]
+    var with_background := await client.fetch_game(credentials, "snes", "example-game", "123", true, false, _temporary)
+    retained = Packs.read_document(directory.path_join("metadata.json"), "snes", "example-game")
+    _check(with_background.ok and retained.media.music == existing.media.music, "Successful metadata and artwork refresh also retains imported music")
+    _check("No background" in str(no_media.get("message", "")) and "No video" in str(no_media.get("message", "")), "NOMEDIA explains unavailable optional assets without claiming a download")
     client.responses = [{"ok": true, "body": "bad response containing devpassword=never-echo".to_utf8_buffer()}]
     var malformed := await client.search_games(credentials, "snes", "Example")
     _check(not malformed.ok and not "never-echo" in str(malformed), "Malformed response cannot echo secrets")
@@ -152,6 +173,19 @@ func _run() -> void:
 
 func _run_cancel_search(client: Node) -> void:
     _cancel_result = await client.search_games({"devid": "fixture", "devpassword": "fixture"}, "snes", "Example")
+
+func _exercise_video_selection() -> void:
+    var regular := {"type": "video", "region": "us", "format": "mp4", "size": "128"}
+    var normalized := {"type": "video-normalized", "region": "wor", "format": "MP4", "size": "256"}
+    _check(Client.choose_media({"medias": [regular, normalized]}, "video").get("selector") == "video-normalized(wor)", "Normalized MP4 takes priority over an ordinary regional video")
+    for invalid_size in ["0", "-1", "not-a-size", str(Packs.MAX_VIDEO_BYTES + 1)]:
+        var invalid := normalized.duplicate()
+        invalid.size = invalid_size
+        _check(Client.choose_media({"medias": [invalid, regular]}, "video").get("selector") == "video(us)", "Invalid normalized video size falls back to a bounded ordinary MP4")
+    normalized.format = "webm"
+    _check(Client.choose_media({"medias": [normalized, regular]}, "video").get("selector") == "video(us)", "Unsupported normalized video format falls back to MP4")
+    _check(Client.choose_media({"medias": [{"type": "video-normalized", "region": "us"}]}, "video").get("selector") == "video-normalized(us)", "A missing optional format/size advertisement does not hide a valid selector")
+    _check(Client.choose_media(_fixture(), "music").is_empty() and Client.choose_media(_fixture(), "unsupported").is_empty(), "Unknown media kinds never resolve to a background or invented music API")
 
 func _remove_tree(path: String) -> void:
     var directory := DirAccess.open(path)

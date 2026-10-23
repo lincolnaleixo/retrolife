@@ -7,6 +7,7 @@ const ScreenScraper = preload("res://scripts/workspace/screenscraper_client.gd")
 var _client: Node
 var _system := ""
 var _slug := ""
+var _game_title := ""
 var _generation := 0
 var _heading: Label
 var _query: LineEdit
@@ -14,12 +15,14 @@ var _credentials: Dictionary = {}
 var _search: Button
 var _fetch: Button
 var _import: Button
+var _music_import: Button
 var _results: OptionButton
 var _background: CheckBox
 var _video: CheckBox
 var _status: Label
 var _scroll: ScrollContainer
 var _picker: FileDialog
+var _music_picker: FileDialog
 var _games: Array = []
 
 func _ready() -> void:
@@ -81,6 +84,8 @@ func _ready() -> void:
     _fetch.disabled = true
     column.add_child(HSeparator.new())
     _import = _button(column, "Import an offline metadata.json pack…", _pick_pack)
+    _music_import = _button(column, "Add local selection music…", _pick_music)
+    _label(column, "Optional OGG, MP3 or WAV · up to 32 MB. Game music is off until you enable it on the selection screen. ScreenScraper provides game previews, not soundtrack downloads.", 12)
     _status = _label(column, "No requests are made until you choose Search or Save.", 13)
     _button(column, "Done", _close)
     _client = ScreenScraper.new()
@@ -92,6 +97,12 @@ func _ready() -> void:
     _picker.filters = PackedStringArray(["*.json ; Presentation metadata"])
     _picker.file_selected.connect(_import_pack)
     add_child(_picker)
+    _music_picker = FileDialog.new()
+    _music_picker.access = FileDialog.ACCESS_FILESYSTEM
+    _music_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+    _music_picker.filters = PackedStringArray(["*.ogg,*.mp3,*.wav ; Game selection music"])
+    _music_picker.file_selected.connect(_import_music)
+    add_child(_music_picker)
     popup_hide.connect(_clear_session)
     close_requested.connect(_close)
 
@@ -99,6 +110,7 @@ func open_for_game(system: String, slug: String, game_title: String) -> void:
     _clear_session()
     _system = system
     _slug = slug
+    _game_title = game_title
     _heading.text = "Game media · " + game_title
     _query.text = game_title
     _status.text = "No requests are made until you choose Search or Save."
@@ -189,9 +201,23 @@ func _import_pack(path: String) -> void:
     if response.ok:
         presentation_changed.emit()
 
+func _pick_music() -> void:
+    if not _client.busy:
+        _music_picker.title = "Choose local music for " + _game_title
+        _music_picker.popup_centered_ratio(0.75)
+
+func _import_music(path: String) -> void:
+    if _client.busy:
+        return
+    var response := Packs.import_music(path, _system, _slug, _game_title)
+    _status.text = str(response.get("message", "Game music imported.")) if response.ok else str(response.error)
+    if response.ok:
+        presentation_changed.emit()
+
 func _set_busy(value: bool) -> void:
     _search.disabled = value
     _import.disabled = value
+    _music_import.disabled = value
     _query.editable = not value
     _background.disabled = value
     _video.disabled = value
@@ -212,6 +238,8 @@ func _clear_session() -> void:
         input.text = ""
     if is_instance_valid(_picker):
         _picker.hide()
+    if is_instance_valid(_music_picker):
+        _music_picker.hide()
 
 func _label(parent: Node, text: String, size: int) -> Label:
     var label := Label.new()

@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Make local game previews discoverable beside selection details and add optional per-game OGG, MP3 or WAV selection music with a separate saved volume. Stop collection audio before gameplay, during previews and when leaving game selection; preserve silence for games without media. Keep MP4 previews explicitly external and OGV previews inside RetroLife. Validate imported music and preserve existing assets when ScreenScraper reports missing media or offers an unsupported video.
+
 - Open Game settings during a session from the header, F9 or the pause menu. Pause automatically and keep controls, shader previews and existing RetroLife preferences under one pause state; closing restores the previous play state. Persist game audio volume, expose fullscreen and Journey visibility, and isolate held inputs while configuring or returning to play.
 - Prefer optional external PNG illustrations for custom Journey chapters and Rewards, retaining SVG compatibility and neutral fallbacks. Honor per-game pixel-art packs with nearest filtering and integer-scaled keepsakes. Keep game artwork in the private collection; changing presentation never unlocks a reward or enables unsupported games.
 
