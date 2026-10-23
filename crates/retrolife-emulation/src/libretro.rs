@@ -1,3 +1,5 @@
+use crate::checkpoints::{MAX_STATE_BYTES, StateIdentity, StateStore};
+use crate::core_identity::hash_core_file;
 use crate::persistence::atomic_write;
 use crate::transport::{
     AtomicInputs, AudioRing, INPUT_PORTS, MAX_AUDIO_BUFFER_FRAMES, MAX_VIDEO_BYTES,
@@ -12,7 +14,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -54,6 +56,7 @@ const ENV_GET_INPUT_MAX_USERS: u32 = 61;
 const ENV_SET_CORE_OPTIONS_DISPLAY: u32 = 55;
 const ENV_SET_PERFORMANCE_LEVEL: u32 = 8;
 const ENV_SET_VARIABLE: u32 = 70;
+const ENV_SET_SERIALIZATION_QUIRKS: u32 = 44;
 
 #[repr(C)]
 struct RetroSystemInfo {
@@ -137,6 +140,9 @@ type RetroLoadGame = unsafe extern "C" fn(*const RetroGameInfo) -> bool;
 type RetroUnloadGame = unsafe extern "C" fn();
 type RetroGetMemoryData = unsafe extern "C" fn(u32) -> *mut c_void;
 type RetroGetMemorySize = unsafe extern "C" fn(u32) -> usize;
+type RetroSerializeSize = unsafe extern "C" fn() -> usize;
+type RetroSerialize = unsafe extern "C" fn(*mut c_void, usize) -> bool;
+type RetroUnserialize = unsafe extern "C" fn(*const c_void, usize) -> bool;
 
 #[derive(Clone, Copy)]
 struct Functions {
@@ -157,6 +163,9 @@ struct Functions {
     unload_game: RetroUnloadGame,
     get_memory_data: Option<RetroGetMemoryData>,
     get_memory_size: Option<RetroGetMemorySize>,
+    serialize_size: Option<RetroSerializeSize>,
+    serialize: Option<RetroSerialize>,
+    unserialize: Option<RetroUnserialize>,
 }
 
 struct CallbackState {
@@ -169,6 +178,7 @@ struct CallbackState {
     save_directory: CString,
     content_directory: CString,
     shutdown_requested: AtomicBool,
+    serialization_quirks: AtomicU64,
     fps: Mutex<f64>,
     sample_rate: Mutex<f64>,
 }
@@ -205,6 +215,7 @@ impl CallbackState {
             save_directory: path_cstring(save_directory, "save directory")?,
             content_directory: path_cstring(content_directory, "content directory")?,
             shutdown_requested: AtomicBool::new(false),
+            serialization_quirks: AtomicU64::new(0),
             fps: Mutex::new(60.0),
             sample_rate: Mutex::new(48_000.0),
         })
@@ -252,6 +263,8 @@ pub(crate) struct CoreSession {
     callback: Arc<CallbackState>,
     battery_path: PathBuf,
     content_identity: ContentIdentity,
+    pub(crate) state_store: StateStore,
+    pub(crate) state_restore_safe: bool,
     initialized: bool,
     loaded: bool,
 }
@@ -269,6 +282,8 @@ impl CoreSession {
 
         let content_bytes = read_bounded_file(&request.content_path, MAX_CONTENT_BYTES)?;
         let content_identity = identify_content(&request.system_id, &content_bytes);
+        let core_sha256 = hash_core_file(&request.core_path)?;
+        let rom_sha256 = format!("{:x}", Sha256::digest(&content_bytes));
 
         let callback = Arc::new(CallbackState::new(
             &request,
@@ -295,6 +310,13 @@ impl CoreSession {
                 return Err(error);
             }
         };
+        // A replacement during loading must not receive the old core's identity.
+        if hash_core_file(&request.core_path).as_ref() != Ok(&core_sha256) {
+            clear_callbacks(&callback);
+            return Err(EmulationError::Checkpoint(
+                "The core changed while loading. Restart the game before using checkpoints.".into(),
+            ));
+        }
         let api_version = match unsafe { load_api_version(&library) } {
             Ok(version) => version,
             Err(error) => {
@@ -391,6 +413,32 @@ impl CoreSession {
             .lock()
             .map(|format| format.name())
             .unwrap_or("0rgb1555");
+        let state_store = StateStore::new(
+            save_directory,
+            StateIdentity {
+                system: request.system_id.clone(),
+                rom_sha256,
+                core_sha256,
+                core_name: core_name.clone(),
+                core_version: core_version.clone(),
+                options_sha256: format!(
+                    "{:x}",
+                    Sha256::digest(serde_json::to_vec(&request.core_options).map_err(|_| {
+                        EmulationError::Checkpoint("Invalid core settings.".into())
+                    })?)
+                ),
+                platform: format!(
+                    "{}-{}-{}",
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                    if cfg!(target_endian = "little") {
+                        "le"
+                    } else {
+                        "be"
+                    }
+                ),
+            },
+        );
         let info = SessionInfo {
             core_name,
             core_version,
@@ -418,6 +466,8 @@ impl CoreSession {
                 callback,
                 battery_path,
                 content_identity,
+                state_store,
+                state_restore_safe: true,
                 initialized: true,
                 loaded: true,
             },
@@ -426,6 +476,11 @@ impl CoreSession {
     }
 
     pub(crate) fn run_frame(&self) -> Result<(), EmulationError> {
+        if !self.state_restore_safe {
+            return Err(EmulationError::Checkpoint(
+                "The failed restore could not be rolled back. The game must remain paused.".into(),
+            ));
+        }
         unsafe { (self.functions.run)() };
         if self.callback.shutdown_requested.load(Ordering::Acquire) {
             return Err(EmulationError::Core(
@@ -443,6 +498,63 @@ impl CoreSession {
         &self.content_identity
     }
 
+    pub(crate) fn checkpoint_size(&self) -> Result<usize, EmulationError> {
+        let quirks = self.callback.serialization_quirks.load(Ordering::Acquire);
+        if quirks & (1 << 4) != 0 || quirks & !0x7f != 0 {
+            return Err(EmulationError::Checkpoint(
+                "This core does not support persistent checkpoints across sessions.".into(),
+            ));
+        }
+        let Some(size) = self.functions.serialize_size else {
+            return Err(EmulationError::Checkpoint(
+                "This core does not support checkpoints.".into(),
+            ));
+        };
+        if self.functions.serialize.is_none() || self.functions.unserialize.is_none() {
+            return Err(EmulationError::Checkpoint(
+                "This core does not support checkpoints.".into(),
+            ));
+        }
+        let size = unsafe { size() };
+        if size == 0 || size > MAX_STATE_BYTES {
+            return Err(EmulationError::Checkpoint(
+                "This core cannot create a supported checkpoint yet.".into(),
+            ));
+        }
+        Ok(size)
+    }
+
+    pub(crate) fn serialize_state(&self) -> Result<Vec<u8>, EmulationError> {
+        if !self.state_restore_safe {
+            return Err(EmulationError::Checkpoint(
+                "Cannot save an unsafe core after a failed rollback.".into(),
+            ));
+        }
+        let size = self.checkpoint_size()?;
+        let mut bytes = vec![0; size];
+        if !unsafe {
+            self.functions.serialize.expect("validated serializer")(
+                bytes.as_mut_ptr().cast(),
+                bytes.len(),
+            )
+        } {
+            return Err(EmulationError::Checkpoint(
+                "The core could not serialize this moment. Existing slots were retained.".into(),
+            ));
+        }
+        Ok(bytes)
+    }
+
+    pub(crate) fn unserialize_state(&mut self, bytes: &[u8]) -> bool {
+        let Some(unserialize) = self.functions.unserialize else {
+            return false;
+        };
+        if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
+            return false;
+        }
+        unsafe { unserialize(bytes.as_ptr().cast(), bytes.len()) }
+    }
+
     pub(crate) fn observe_frame(&self, observer: &mut dyn FrameObserver) {
         if !self.loaded || self.content_identity.system_id != "snes" {
             observer.frame_completed(None);
@@ -458,7 +570,13 @@ impl CoreSession {
     pub(crate) fn stop(&mut self) -> Result<usize, EmulationError> {
         // Keep the core loaded when persistence fails. The caller can repair
         // the save destination and retry without losing the in-memory RAM.
-        let battery_bytes = self.persist_battery()?;
+        // Failed rollback leaves potentially mutated RAM. Never overwrite the
+        // existing battery save with that state; recovery remains on disk.
+        let battery_bytes = if self.state_restore_safe {
+            self.persist_battery()?
+        } else {
+            0
+        };
         self.release_core();
         Ok(battery_bytes)
     }
@@ -519,7 +637,7 @@ impl Drop for CoreSession {
         // Battery memory belongs to a loaded core. `stop` releases the core
         // before this destructor runs, so never call a memory callback after
         // unload/deinit.
-        if self.loaded {
+        if self.loaded && self.state_restore_safe {
             let _ = self.persist_battery();
         }
         self.release_core();
@@ -602,6 +720,9 @@ unsafe fn load_functions(library: &Library) -> Result<Functions, EmulationError>
         unload_game: required!("retro_unload_game", RetroUnloadGame),
         get_memory_data: optional(library, "retro_get_memory_data"),
         get_memory_size: optional(library, "retro_get_memory_size"),
+        serialize_size: optional(library, "retro_serialize_size"),
+        serialize: optional(library, "retro_serialize"),
+        unserialize: optional(library, "retro_unserialize"),
     })
 }
 
@@ -789,6 +910,21 @@ unsafe extern "C" fn environment_callback(command: u32, data: *mut c_void) -> bo
         ENV_SET_VARIABLES => set_variables(&state, data),
         ENV_GET_VARIABLE_UPDATE => set_bool(data, false),
         ENV_SET_VARIABLE => set_variable(&state, data),
+        ENV_SET_SERIALIZATION_QUIRKS => {
+            if data.is_null() {
+                return false;
+            }
+            let requested = unsafe { *data.cast::<u64>() };
+            state
+                .serialization_quirks
+                .store(requested, Ordering::Release);
+            // Persisted states cannot satisfy SINGLE_SESSION. Platform/endian
+            // constraints are enforced through the exact checkpoint identity.
+            unsafe {
+                *data.cast::<u64>() = (requested & 0x6f) | (1 << 3);
+            }
+            true
+        }
         ENV_SET_SYSTEM_AV_INFO => set_system_av_info(&state, data),
         ENV_SET_GEOMETRY => true,
         ENV_GET_LANGUAGE => set_u32(data, 0),

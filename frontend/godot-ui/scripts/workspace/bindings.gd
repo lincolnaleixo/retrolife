@@ -46,6 +46,12 @@ static func _reserved_shortcut(event: InputEvent) -> String:
     if event is InputEventKey:
         for key in [event.keycode, event.physical_keycode]:
             match key:
+                KEY_F5:
+                    return "F5 is reserved for Quick save."
+                KEY_F6:
+                    return "F6 is reserved for Save states."
+                KEY_F7:
+                    return "F7 is reserved for Quick load."
                 KEY_F8:
                     return "F8 is reserved for Shaders."
                 KEY_F9:

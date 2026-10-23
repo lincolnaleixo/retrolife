@@ -624,6 +624,76 @@ impl RetroLifeBackend {
     }
 
     #[func]
+    fn save_states_json(&self) -> GString {
+        let result = (|| {
+            let mut state = self.state()?;
+            Self::poll_events(&mut state);
+            Ok(if state.session_id.is_empty() {
+                retrolife_emulation::SaveStatesSnapshot::default()
+            } else {
+                state
+                    .runtime
+                    .as_ref()
+                    .map(EmulationRuntime::save_states_snapshot)
+                    .unwrap_or_default()
+            })
+        })();
+        GString::from(response_json(result).as_str())
+    }
+
+    #[func]
+    fn save_state_json(&self, slot: i64) -> GString {
+        GString::from(self.checkpoint_operation(slot, false).as_str())
+    }
+
+    #[func]
+    fn load_state_json(&self, slot: i64) -> GString {
+        GString::from(self.checkpoint_operation(slot, true).as_str())
+    }
+
+    fn checkpoint_operation(&self, slot: i64, load: bool) -> String {
+        let result = (|| {
+            let slot = u8::try_from(slot).map_err(|_| "Invalid checkpoint slot.".to_owned())?;
+            let mut state = self.state()?;
+            Self::poll_events(&mut state);
+            if state.session_id.is_empty() {
+                return Err("No emulation session is active.".to_owned());
+            }
+            let runtime = state
+                .runtime
+                .as_ref()
+                .ok_or_else(|| "No emulation session is active.".to_owned())?;
+            let operation_id = if load {
+                runtime.load_state(slot)
+            } else {
+                runtime.save_state(slot)
+            }
+            .map_err(|error| error.to_string())?;
+            state.input_mask = 0;
+            Ok(StateOperationAck { operation_id })
+        })();
+        response_json(result)
+    }
+
+    #[func]
+    fn save_state_preview_rgba(&self, slot: i64) -> PackedByteArray {
+        let Ok(slot) = u8::try_from(slot) else {
+            return PackedByteArray::new();
+        };
+        let Ok(state) = self.state() else {
+            return PackedByteArray::new();
+        };
+        if state.session_id.is_empty() {
+            return PackedByteArray::new();
+        }
+        state
+            .runtime
+            .as_ref()
+            .map(|runtime| PackedByteArray::from(runtime.save_state_preview(slot)))
+            .unwrap_or_default()
+    }
+
+    #[func]
     fn emulation_status_json(&self) -> GString {
         let result = (|| {
             let mut state = self.state()?;
@@ -668,6 +738,12 @@ impl RetroLifeBackend {
 #[serde(rename_all = "camelCase")]
 struct SimpleAck {
     configured: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StateOperationAck {
+    operation_id: u64,
 }
 
 #[derive(Debug, Serialize)]

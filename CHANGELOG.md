@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add real SNES save states with six manual slots, a Quick save slot and an automatic pre-load Recovery point. Show saved-frame thumbnails and timestamps in a paused Saved moments browser, with overwrite/load confirmation and F5/F6/F7 shortcuts. Serialize and restore only on the emulation worker, atomically store bounded checksummed files, validate game/core compatibility, clear stale input/audio and reset Journey transition evidence on load. Preserve cartridge-save storage and reject unsafe or corrupt restores with recoverable status.
+
 - Make local game previews discoverable beside selection details and add optional per-game OGG, MP3 or WAV selection music with a separate saved volume. Stop collection audio before gameplay, during previews and when leaving game selection; preserve silence for games without media. Keep MP4 previews explicitly external and OGV previews inside RetroLife. Validate imported music and preserve existing assets when ScreenScraper reports missing media or offers an unsupported video.
 
 - Open Game settings during a session from the header, F9 or the pause menu. Pause automatically and keep controls, shader previews and existing RetroLife preferences under one pause state; closing restores the previous play state. Persist game audio volume, expose fullscreen and Journey visibility, and isolate held inputs while configuring or returning to play.

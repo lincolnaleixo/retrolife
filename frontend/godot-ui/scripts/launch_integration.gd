@@ -75,6 +75,17 @@ var _settings_button: Button
 var _controller_settings: PopupPanel
 var _library_settings_window: PopupPanel
 var _gameplay_volume := 1.0
+var _states_panel: Control
+var _states_button: Button
+var _states_direct := false
+var _states_operation_id := 0
+var _states_operation_kind := ""
+var _states_snapshot: Dictionary = {}
+var _states_poll_elapsed := 0.0
+var _states_preview_signature := ""
+var _states_previews: Dictionary = {}
+var _states_quick_action := ""
+var _states_session_id := ""
 
 var _background: ColorRect
 var _frame: TextureRect
@@ -142,6 +153,7 @@ func start_game(game_id: String, title := "") -> Dictionary:
     _shader_input_release_pending = false
     _dismiss_settings_views()
     _settings_button.disabled = false
+    _states_button.disabled = false
     _shader_panel.dismiss()
     _shader_button.disabled = false
     _pause_button.disabled = false
@@ -181,6 +193,10 @@ func _process(delta: float) -> void:
     if _stopping:
         return
     _sync_inputs()
+    if _settings_open and _settings_child == "states":
+        _states_poll_elapsed += maxf(delta, 0.0)
+        if _states_poll_elapsed >= 0.1:
+            _poll_save_states()
     if _shader_panel.visible or _settings_open:
         return
     if not _metadata_ready:
@@ -217,6 +233,22 @@ func _unhandled_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         return
 
+    if _states_busy():
+        get_viewport().set_input_as_handled()
+        return
+
+    if event is InputEventKey and event.keycode in [KEY_F5, KEY_F6, KEY_F7]:
+        if event.pressed and not event.echo:
+            if event.keycode == KEY_F6:
+                if _settings_open and _settings_child == "states":
+                    _states_panel.cancel_or_close()
+                else:
+                    _open_save_states()
+            elif not _settings_open:
+                _quick_state_action("save" if event.keycode == KEY_F5 else "load")
+        get_viewport().set_input_as_handled()
+        return
+
     if event is InputEventKey and event.keycode == KEY_F9:
         if event.pressed and not event.echo:
             _toggle_gameplay_settings()
@@ -231,7 +263,9 @@ func _unhandled_input(event: InputEvent) -> void:
                 elif _settings_child.is_empty():
                     _open_settings_section("shaders")
         elif event.is_action_pressed("ui_cancel") or event.is_action_pressed("game_pause"):
-            if _settings_child.is_empty():
+            if _settings_child == "states":
+                _states_panel.cancel_or_close()
+            elif _settings_child.is_empty():
                 _close_gameplay_settings()
             else:
                 _return_to_gameplay_settings()
@@ -355,6 +389,11 @@ func _build_gameplay_view() -> void:
     _shader_button.accessibility_name = "Super Nintendo shaders"
     _shader_button.pressed.connect(_toggle_shader_options)
     header.add_child(_shader_button)
+    _states_button = _header_button("Saves", "save", "Save states · F6 · Quick save F5 · Quick load F7")
+    _states_button.name = "GameplaySaveStates"
+    _states_button.accessibility_name = "Save and load game states"
+    _states_button.pressed.connect(_open_save_states)
+    header.add_child(_states_button)
     _settings_button = _header_button("Settings", "settings", "Game settings · F9")
     _settings_button.name = "GameplaySettings"
     _settings_button.accessibility_name = "Game settings"
@@ -430,6 +469,12 @@ func _build_gameplay_view() -> void:
     _controller_settings.name = "GameplayControllerSettings"
     add_child(_controller_settings)
     _controller_settings.popup_hide.connect(_settings_child_hidden.bind("controllers"))
+    _states_panel = preload("res://scripts/workspace/save_states_panel.gd").new()
+    _states_panel.name = "GameplaySaveStatesPanel"
+    add_child(_states_panel)
+    _states_panel.save_requested.connect(_request_save_state)
+    _states_panel.load_requested.connect(_request_load_state)
+    _states_panel.close_requested.connect(_close_save_states)
     SNESDisplay.apply(_frame, _shader_preset, _shader_strength)
     resized.connect(_update_journey_width)
     _update_journey_width()
@@ -476,7 +521,10 @@ func _update_journey_width() -> void:
 func _restore_play_focus() -> void:
     if not _session_id.is_empty() and not _shader_panel.visible and not _settings_open:
         if _paused:
-            _resume_button.grab_focus()
+            if _resume_button.disabled:
+                _exit_button.grab_focus()
+            else:
+                _resume_button.grab_focus()
         else:
             _frame.grab_focus()
 
@@ -590,7 +638,9 @@ func _refresh_gameplay_settings() -> void:
 func _open_settings_section(section: String) -> void:
     if not _settings_open or _stopping or _session_id.is_empty():
         return
-    if section not in ["controllers", "shaders", "library"]:
+    if _states_busy():
+        return
+    if section not in ["controllers", "shaders", "library", "states"]:
         return
     if section == "library" and not _library_preferences_available():
         _settings_panel.set_status("Library preferences are not available in this view.")
@@ -598,12 +648,21 @@ func _open_settings_section(section: String) -> void:
     # Hide any previous child without its close handler returning to the hub.
     _settings_child = ""
     _shader_panel.dismiss()
+    _states_panel.dismiss()
     _controller_settings.hide()
     if is_instance_valid(_library_settings_window):
         _library_settings_window.hide()
     _settings_panel.dismiss()
     _settings_child = section
-    if section == "shaders":
+    if section == "states":
+        _session_status.text = "Paused  •  Save states"
+        _states_session_id = _session_id
+        _states_preview_signature = ""
+        _states_snapshot = {}
+        _states_panel.configure(_game_title.text)
+        _states_panel.open_panel()
+        _poll_save_states(true)
+    elif section == "shaders":
         _session_status.text = "Paused  •  Previewing shaders"
         _shader_panel.show_options(_frame.texture, _shader_preset, _shader_strength)
     elif section == "controllers":
@@ -639,10 +698,14 @@ func _library_settings_hidden() -> void:
 
 
 func _return_to_gameplay_settings() -> void:
+    if _states_busy():
+        return
+    _states_direct = false
     if not _settings_open or _stopping or _session_id.is_empty():
         return
     _settings_child = ""
     _shader_panel.dismiss()
+    _states_panel.dismiss()
     _controller_settings.hide()
     if is_instance_valid(_library_settings_window):
         _library_settings_window.hide()
@@ -652,13 +715,28 @@ func _return_to_gameplay_settings() -> void:
 
 
 func _close_gameplay_settings() -> void:
+    if _states_busy():
+        return
     if not _settings_open:
         return
     var was_paused := _settings_was_paused
+    var can_resume := bool(_states_snapshot.get("canResume", true))
     _dismiss_settings_views()
     _shader_input_release_pending = true
     _pause_button.disabled = false
     if _session_id.is_empty() or _stopping:
+        return
+    if not can_resume:
+        _paused = true
+        _audio_player.stream_paused = true
+        _pause_overlay.visible = true
+        _pause_button.text = "Paused"
+        _pause_button.icon = UiIcons.icon("pause")
+        _pause_button.disabled = true
+        _resume_button.disabled = true
+        _exit_button.disabled = false
+        _session_status.text = "Exit to library to restart safely. Your Recovery state was retained."
+        _exit_button.grab_focus()
         return
     if not was_paused:
         var response := _call_optional_response(["resume_emulation_json", "emulation_resume_json", "resume_game_json"], [])
@@ -685,6 +763,16 @@ func _dismiss_settings_views() -> void:
     # reopen the hub or resume a game that is in the middle of saving.
     _settings_open = false
     _settings_child = ""
+    _states_direct = false
+    _states_operation_id = 0
+    _states_operation_kind = ""
+    _states_snapshot = {}
+    _states_previews = {}
+    _states_preview_signature = ""
+    _states_quick_action = ""
+    _states_session_id = ""
+    if is_instance_valid(_states_panel):
+        _states_panel.dismiss()
     if is_instance_valid(_settings_panel):
         _settings_panel.dismiss()
     if is_instance_valid(_controller_settings):
@@ -693,6 +781,159 @@ func _dismiss_settings_views() -> void:
         _library_settings_window.hide()
     if is_instance_valid(_shader_panel):
         _shader_panel.dismiss()
+
+
+func _states_busy() -> bool:
+    return _states_operation_id > 0 or bool(_states_snapshot.get("busy", false))
+
+
+func _open_save_states() -> void:
+    if _session_id.is_empty() or _stopping or _states_busy():
+        return
+    if _settings_open and _settings_child == "states":
+        return
+    var from_settings := _settings_open
+    if not _settings_open:
+        _open_gameplay_settings()
+    if not _settings_open:
+        return
+    _states_direct = not from_settings
+    _open_settings_section("states")
+
+
+func _close_save_states() -> void:
+    if _states_busy():
+        return
+    _states_quick_action = ""
+    if _states_direct:
+        _close_gameplay_settings()
+    else:
+        _return_to_gameplay_settings()
+
+
+func _quick_state_action(action: String) -> void:
+    if action not in ["save", "load"] or _settings_open or _states_busy():
+        return
+    _open_save_states()
+    if not _settings_open or _settings_child != "states":
+        return
+    _states_quick_action = action
+    _poll_save_states(true)
+
+
+func _request_save_state(slot: int) -> void:
+    _request_state_operation("save", slot)
+
+
+func _request_load_state(slot: int) -> void:
+    _request_state_operation("load", slot)
+
+
+func _request_state_operation(kind: String, slot: int) -> void:
+    if _session_id.is_empty() or _states_session_id != _session_id or not _settings_open or _settings_child != "states" or _stopping:
+        return
+    if _states_busy():
+        return
+    if not bool(_states_snapshot.get("supported", false)):
+        _states_panel.set_error("Save states are not available for this core yet.")
+        return
+    if slot < 0 or slot > (6 if kind == "save" else 7):
+        _states_panel.set_error("This save slot is not available.")
+        return
+    _release_game_inputs()
+    var response := _call_optional_response(["save_state_json" if kind == "save" else "load_state_json"], [slot])
+    if not bool(response.get("ok", false)):
+        _states_panel.set_error(str(response.get("error", "The state operation could not start.")))
+        return
+    var operation_id := int(response.get("data", {}).get("operationId", 0))
+    if operation_id <= 0:
+        _states_panel.set_error("The emulator did not acknowledge this operation. The game remains paused.")
+        return
+    _states_operation_id = operation_id
+    _states_operation_kind = kind
+    _states_panel.set_busy(true, "Saving this moment…" if kind == "save" else "Keeping a recovery point and loading…")
+    _states_poll_elapsed = 0.0
+
+
+func _poll_save_states(force := false) -> void:
+    if not _settings_open or _settings_child != "states" or _states_session_id != _session_id or _session_id.is_empty():
+        return
+    _states_poll_elapsed = 0.0
+    if not _has_any_method(["save_states_json"]):
+        _states_snapshot = {"supported": false, "slots": []}
+        _states_panel.set_snapshot(_states_snapshot, {})
+        _states_panel.set_status("This build does not support save states. Your cartridge save is unchanged.")
+        _states_quick_action = ""
+        return
+    var response := _call_optional_response(["save_states_json"], [])
+    if not bool(response.get("ok", false)):
+        if _states_operation_id > 0:
+            _states_panel.set_busy(true, "Waiting for the emulator to confirm the operation…")
+        else:
+            _states_panel.set_error(str(response.get("error", "Could not read saved states. Try again.")))
+        return
+    var data: Dictionary = response.get("data", {})
+    _states_snapshot = data
+    var slots: Variant = data.get("slots", [])
+    var operation: Dictionary = data.get("operation", {})
+    # A second overwrite within the same second can retain every display field.
+    # The operation identity still invalidates its cached screenshot.
+    var signature := JSON.stringify([slots, operation.get("id", 0), operation.get("status", "idle"), data.get("supported", false), data.get("canResume", true), data.get("busy", false)])
+    if force or signature != _states_preview_signature:
+        _states_preview_signature = signature
+        _states_previews.clear()
+        if slots is Array and _has_any_method(["save_state_preview_rgba"]):
+            for entry in slots:
+                if not entry is Dictionary or not bool(entry.get("occupied", false)):
+                    continue
+                var slot := int(entry.get("slot", -1))
+                var width := int(entry.get("previewWidth", 0))
+                var height := int(entry.get("previewHeight", 0))
+                if slot < 0 or slot > 7 or width <= 0 or height <= 0 or width > 2048 or height > 2048:
+                    continue
+                var bytes := _payload_bytes(_backend.call("save_state_preview_rgba", slot))
+                if bytes.size() != width * height * 4:
+                    continue
+                var image := Image.create_from_data(width, height, false, Image.FORMAT_RGBA8, bytes)
+                if image != null:
+                    _states_previews[slot] = ImageTexture.create_from_image(image)
+        _states_panel.set_snapshot(data, _states_previews)
+    if bool(data.get("busy", false)) and _states_operation_id <= 0:
+        _states_panel.set_busy(true, "Reading saved moments…")
+    if _states_operation_id > 0:
+        if int(operation.get("id", 0)) != _states_operation_id:
+            return
+        var status := str(operation.get("status", "pending"))
+        if status not in ["complete", "failed"]:
+            return
+        var kind := _states_operation_kind
+        _states_operation_id = 0
+        _states_operation_kind = ""
+        _states_panel.set_busy(false)
+        if status == "failed":
+            _states_panel.set_error(str(operation.get("error", "The operation failed. Your game remains paused.")))
+            return
+        if kind == "load":
+            _frame_accumulator = 0.0
+            _release_game_inputs()
+            _shader_input_release_pending = true
+            # Recreate the output generator: samples queued before the restored
+            # point must not be heard when the player resumes.
+            _audio_player.stop()
+            _audio_player.stream = null
+            _audio_playback = null
+            _configure_audio()
+            _audio_player.stream_paused = true
+            _poll_video()
+            _states_panel.set_status("State loaded. Recovery keeps the point you left. Close to continue.")
+        else:
+            _states_panel.set_status("Moment saved. Your cartridge save stays separate.")
+    elif not bool(data.get("busy", false)):
+        _states_panel.set_busy(false)
+    if not _states_quick_action.is_empty() and not _states_busy():
+        var action := _states_quick_action
+        _states_quick_action = ""
+        _states_panel.request_slot_action(action, 6)
 
 
 func _library_preferences_available() -> bool:
@@ -857,6 +1098,13 @@ func _build_pause_overlay() -> void:
     _resume_button.custom_minimum_size.y = 48
     _resume_button.pressed.connect(_resume_game)
     column.add_child(_resume_button)
+    var states := Button.new()
+    states.name = "PauseSaveStatesButton"
+    states.text = "Save & load states"
+    states.icon = UiIcons.icon("save")
+    states.custom_minimum_size.y = 44
+    states.pressed.connect(_open_save_states)
+    column.add_child(states)
     var settings := Button.new()
     settings.name = "PauseSettingsButton"
     settings.text = "Game settings"
@@ -1099,9 +1347,13 @@ func _resume_game() -> void:
 
 
 func _stop_session() -> void:
+    if _states_busy():
+        _states_panel.set_status("Please wait for the save-state operation to finish before leaving the game.")
+        return
     if _session_id.is_empty() or _stopping:
         return
     _stopping = true
+    _states_button.disabled = true
     _dismiss_settings_views()
     _settings_button.disabled = true
     _shader_panel.dismiss()
@@ -1118,6 +1370,7 @@ func _stop_session() -> void:
     if not bool(response.get("ok", false)):
         _stopping = false
         _settings_button.disabled = false
+        _states_button.disabled = false
         _shader_button.disabled = false
         _resume_button.disabled = false
         _exit_button.disabled = false
@@ -1147,6 +1400,7 @@ func _stop_session() -> void:
 func _stop_failed(message: String) -> void:
     _stopping = false
     _settings_button.disabled = false
+    _states_button.disabled = false
     _shader_button.disabled = false
     _resume_button.disabled = false
     _exit_button.disabled = false

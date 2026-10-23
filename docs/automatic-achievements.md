@@ -82,8 +82,11 @@ verified awards, so replaying an event cannot grant duplicate XP.
 
 Frame counting excludes menus, demos, the scripted intro, in-game pause, death,
 message boxes and input-frozen scenes. Play time is a statistic, not an
-achievement condition. Any future save-state loading or rewind implementation
-must explicitly reset detector evidence at its discontinuity.
+achievement condition. Save-state loading explicitly resets detector evidence
+before restoring core memory, including a failed restore and its rollback.
+Already earned rewards remain persisted; loading an ending or cleared-stage
+state cannot count as witnessing the event. Any future rewind implementation
+must likewise reset transitional evidence.
 
 Unit tests cover source-derived normal/secret/castle/bonus-game/Bowser sequences,
 repeat observations, title/demo/pause, death/side exit/Start+Select, existing saves,

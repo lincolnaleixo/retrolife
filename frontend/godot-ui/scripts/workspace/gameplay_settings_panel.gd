@@ -64,6 +64,7 @@ func _ready() -> void:
     body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     scroll.add_child(body)
     for definition in [
+        ["states", "Save & load states", "save", "Keep moments with screenshots, or return to a saved point."],
         ["controllers", "Controllers & keyboard", "controller", "Remap buttons with the original 3D SNES controller."],
         ["shaders", "Display shaders", "spark", "Compare Original, Smooth, Scanlines and CRT on the current frame."],
         ["library", "RetroLife preferences", "settings", "Open the existing library, motion and rendering preferences."],

@@ -259,7 +259,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 7. v0.7.0: save states, quick save/load and resume
 
-**Status:** planned. Extend [issue #3](https://github.com/lincolnaleixo/retrolife/issues/3) with local state evidence; cloud synchronization remains deferred.
+**Status:** in progress. The first local implementation provides six manual slots, a quick slot and a pre-load Recovery slot, with screenshots, confirmation, bounded worker operations and compatibility checks. See [save-state behavior and validation](docs/save-states.md). Automatic exit/resume history, configurable shortcuts and battery-backup rotation remain deferred; this does not claim complete milestone acceptance. Extend [issue #3](https://github.com/lincolnaleixo/retrolife/issues/3) with local state evidence; cloud synchronization remains deferred.
 
 **Deliverables**
 

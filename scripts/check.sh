@@ -30,3 +30,5 @@ python3 scripts/make-test-rom.py .cache/test.sfc
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/gameplay_shader_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/gameplay_settings_smoke.gd
 "${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/selection_media_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/save_states_smoke.gd
+"${GODOT:-godot}" --headless --path frontend/godot-ui --script res://scripts/save_states_native_smoke.gd

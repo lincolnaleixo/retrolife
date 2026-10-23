@@ -2,6 +2,8 @@ extends RefCounted
 
 ## Original RetroLife interface pictograms. No external marks or game artwork.
 const SHAPES := {
+    "save": '<path d="M4 3h13l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8M14 5v2"/>',
+    "restore": '<path d="M4 9a8 8 0 1 1 0 6M4 3v6h6M12 7v5l3 2"/>',
     "trophy": '<path d="M8 3h8v7a4 4 0 0 1-8 0zM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4M12 14v4m-4 3h8m-6-3h4v3"/>',
     "book": '<path d="M12 5C9 3 5 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1zM12 5v15M5 8h4m-4 4h4m6-4h4m-4 4h4"/>',
     "sidebar": '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16m3-11v6"/>',

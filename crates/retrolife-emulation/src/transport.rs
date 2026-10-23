@@ -148,6 +148,15 @@ impl VideoSlot {
         self.next_sequence = 1;
     }
 
+    pub(crate) fn restore_preview(&mut self, rgba: Vec<u8>, width: u32, height: u32) {
+        // Keep the sequence monotonic across a restore: frontend consumers may
+        // still hold the previous frame number while the worker is paused.
+        self.current = None;
+        if !rgba.is_empty() && width > 0 && height > 0 {
+            self.publish(rgba, width, height, "rgba8888", 0, false);
+        }
+    }
+
     pub(crate) fn latest(&self) -> Option<VideoFrame> {
         self.current.clone()
     }

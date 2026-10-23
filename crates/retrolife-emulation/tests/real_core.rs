@@ -23,6 +23,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+static REAL_CORE_GATE: Mutex<()> = Mutex::new(());
+
 const WAIT_STEPS: usize = 300;
 const WAIT_STEP: Duration = Duration::from_millis(5);
 
@@ -74,6 +76,7 @@ fn wait_for_observation(state: &Mutex<ObservedFrames>, ready: impl Fn(&ObservedF
 #[test]
 #[ignore = "requires RETROLIFE_TEST_CORE and RETROLIFE_TEST_ROM"]
 fn configured_core_delivers_video_and_round_trips_battery_ram() {
+    let _core_gate = REAL_CORE_GATE.lock().unwrap();
     let Some(core_path) = env::var_os("RETROLIFE_TEST_CORE") else {
         panic!("RETROLIFE_TEST_CORE is required for the ignored real_core test");
     };
@@ -349,4 +352,95 @@ impl SaveDirectoryForTest for StartRequest {
             .join(&self.game_id)
             .join("battery.srm")
     }
+}
+
+#[test]
+#[ignore = "requires RETROLIFE_TEST_CORE and original RETROLIFE_TEST_ROM"]
+fn configured_core_persists_and_restores_exact_checkpoint_bytes() {
+    let _core_gate = REAL_CORE_GATE.lock().unwrap();
+    let core = env::var_os("RETROLIFE_TEST_CORE").expect("test core");
+    let rom = env::var_os("RETROLIFE_TEST_ROM").expect("original test ROM");
+    // Always isolated: do not use an app save location, even if another real-core
+    // smoke test was configured with RETROLIFE_TEST_SAVE_ROOT.
+    let root = env::temp_dir().join(unique_name("retrolife-real-checkpoint"));
+    let request = StartRequest::new(
+        PathBuf::from(core),
+        PathBuf::from(&rom),
+        &root,
+        "snes",
+        "checkpoint-fixture",
+    );
+    let battery = request.save_directory_for_test();
+    let exact_rom_hash = format!("{:x}", Sha256::digest(fs::read(rom).unwrap()));
+    let directory = battery
+        .parent()
+        .unwrap()
+        .join("states")
+        .join(exact_rom_hash);
+    let observations = Arc::new(Mutex::new(ObservedFrames::default()));
+    let runtime =
+        EmulationRuntime::with_observer(Box::new(RecordingObserver(observations.clone()))).unwrap();
+    runtime.start(request.clone()).unwrap();
+    wait_for_started(&runtime);
+    for _ in 0..8 {
+        runtime.run_frame().unwrap();
+    }
+    let frame = wait_for_red_frame(&runtime);
+    wait_for_observation(&observations, |value| value.frames == 8);
+    assert!(runtime.save_states_snapshot().supported);
+    let wait_operation = |id| {
+        for _ in 0..WAIT_STEPS {
+            let snapshot = runtime.save_states_snapshot();
+            if snapshot.operation.id == id && !snapshot.busy {
+                assert_eq!(
+                    snapshot.operation.status, "complete",
+                    "{}",
+                    snapshot.operation.error
+                );
+                return;
+            }
+            thread::sleep(WAIT_STEP);
+        }
+        panic!("checkpoint operation timed out");
+    };
+    wait_operation(runtime.save_state(0).unwrap());
+    let first = fs::read(directory.join("slot-0.rts")).unwrap();
+    assert!(
+        !battery.exists(),
+        "saving a checkpoint must not write battery RAM"
+    );
+    for _ in 0..4 {
+        runtime.run_frame().unwrap();
+    }
+    wait_for_observation(&observations, |value| value.frames == 12);
+    runtime.set_paused(true).unwrap();
+    wait_operation(runtime.load_state(0).unwrap());
+    assert_eq!(runtime.snapshot().status, RuntimeStatus::Paused);
+    assert_eq!(observations.lock().unwrap().resets, 1);
+    let restored = runtime.latest_video_frame().expect("restored preview");
+    assert!(restored.info.sequence > frame.info.sequence);
+    assert_eq!(restored.rgba, frame.rgba);
+    assert!(runtime.drain_audio(256).is_empty());
+    wait_operation(runtime.save_state(1).unwrap());
+    let second = fs::read(directory.join("slot-1.rts")).unwrap();
+    let state_bytes = |bytes: &[u8]| {
+        let metadata = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+        let count = u32::from_le_bytes(bytes[16..20].try_into().unwrap()) as usize;
+        bytes[56 + metadata..56 + metadata + count].to_vec()
+    };
+    assert_eq!(
+        state_bytes(&first),
+        state_bytes(&second),
+        "real core's full machine state must round-trip without another frame"
+    );
+    runtime.stop().unwrap();
+    wait_for_stopped(&runtime);
+    runtime.start(request).unwrap();
+    wait_for_started(&runtime);
+    assert!(runtime.save_states_snapshot().slots[0].compatible);
+    wait_operation(runtime.load_state(0).unwrap());
+    runtime.stop().unwrap();
+    wait_for_stopped(&runtime);
+    runtime.shutdown().unwrap();
+    fs::remove_dir_all(root).unwrap();
 }
