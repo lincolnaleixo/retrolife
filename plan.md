@@ -537,3 +537,17 @@ Final runtime verification: the two-UV fixture, 10,000-entry library navigation,
 - [x] Load optional per-game hero/chapter/keepsake packs from the private collection; no box-art substitute or inherited image for unknown games. Keep progress IDs and persistence unchanged.
 
 Verification (2026-10-22): the 10,000-entry library, native cartridge-click/play/save/return, workspace and window-layout smokes passed. Native desktop interaction exercised the installed borderless app, console-art click, return navigation, integrated menu, pause and clean stop. Desktop/compact library and real box captures were inspected. The isolated Journey smoke covers PNG/SVG loading, title+console scoping, partial/malformed/missing art, stale image clearing, cached polling and reversible reward state. The bespoke Super Mario World artwork was published to the private source library before local consumption; proprietary images remain outside this application repository. The public CI/private-model dependency blocker remains unchanged.
+
+
+### Rewards hub, game presentation and gameplay window
+
+- [x] Add a read-only cross-game Rewards collection with filters, actual persisted totals and scoped optional art.
+- [x] Add shared typography and original vector interface icons, plus a RetroLife PNG boot splash.
+- [x] Keep gameplay window dragging available, persist Journey visibility and restore focus after toggling the sidebar.
+- [x] Support per-game local backgrounds, metadata and explicit preview playback, with neutral and stale-data fallbacks.
+- [x] Add explicit ScreenScraper lookup and offline import with session-only credentials, atomic metadata updates and bounded media validation.
+- [ ] Exercise an authenticated ScreenScraper account; no developer credentials were available during implementation.
+
+Verification (2026-10-23): focused fixtures cover Rewards at desktop/compact sizes, sidebar visibility persistence, fullscreen repeat handling, catalog-revision invalidation, game identity, neutral/stale presentation cleanup, metadata/media path and checksum validation, malformed provider responses, sanitized quota failures, cancellation and credential-field clearing. Six local video-conversion helper tests pass. Existing native play/save/return, 10,000-entry navigation, Journey artwork, workspace and window-layout suites passed. Interactive installed-app acceptance is recorded separately after installation. The public private-model dependency blocker remains unchanged; PR #43 stays draft.
+
+Rendered review (2026-10-23): the real Godot renderer produced inspected desktop and compact views of the new game showcase, Rewards and ScreenScraper setup. These use fixture progress, not acceptance evidence for a user's saved totals. The installed-app pointer/drag acceptance is pending because the macOS UI remained locked. The private original background and keepsake refinements were published before local consumption. No authenticated ScreenScraper call was made.

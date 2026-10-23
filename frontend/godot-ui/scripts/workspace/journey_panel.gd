@@ -74,7 +74,7 @@ func _ready() -> void:
     _cover_frame.add_child(_art)
     _cover_frame.hide()
     _chapter = _text(column, "Your next adventure", 24)
-    _description = _text(column, "A personal journal for this game.", 12, MUTED)
+    _description = _text(column, "A personal journal for this game.", 14, MUTED)
     var level_row := HBoxContainer.new()
     level_row.add_theme_constant_override("separation", 12)
     column.add_child(level_row)
@@ -157,8 +157,8 @@ func _build_chapter(index: int) -> void:
     copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     copy.add_theme_constant_override("separation", 4)
     row.add_child(copy)
-    _chapter_titles.append(_text(copy, PERSONAL_NAMES[index], 13))
-    _quest_notes.append(_text(copy, "", 11, MUTED))
+    _chapter_titles.append(_text(copy, PERSONAL_NAMES[index], 15))
+    _quest_notes.append(_text(copy, "", 13, MUTED))
     var button := CheckBox.new()
     # The live game keeps keyboard/gamepad focus while the journal is clicked.
     button.focus_mode = Control.FOCUS_NONE
@@ -330,10 +330,10 @@ func _build_reward(index: int, unlocked: bool) -> void:
     stamp.earned = unlocked
     stamp.symbol = index
     stamp.artwork = _reward_textures[index] if index < _reward_textures.size() else null
-    stamp.custom_minimum_size = Vector2(72, 82 if stamp.artwork != null else 38)
+    stamp.custom_minimum_size = Vector2(88, 106 if stamp.artwork != null else 38)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)
-    var caption := _text(column, str(_gift_names[index]), 12, INK if unlocked else MUTED)
+    var caption := _text(column, str(_gift_names[index]), 14, INK if unlocked else MUTED)
     caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     caption.custom_minimum_size.y = 34
     var status := _text(column, "COLLECTED" if unlocked else "LOCKED", 9, _accent if unlocked else Color("748696"))
@@ -344,7 +344,7 @@ func _build_reward(index: int, unlocked: bool) -> void:
 func _text(parent: Node, content: String, font_size: int, color := INK) -> Label:
     var label := Label.new()
     label.text = content
-    label.add_theme_font_size_override("font_size", font_size)
+    label.add_theme_font_size_override("font_size", maxi(12, font_size))
     label.add_theme_color_override("font_color", color)
     label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -358,7 +358,7 @@ func _tab(parent: Node, caption: String) -> Button:
     button.toggle_mode = true
     button.custom_minimum_size.y = 38
     button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    button.add_theme_font_size_override("font_size", 12)
+    button.add_theme_font_size_override("font_size", 14)
     for state in ["normal", "hover", "pressed", "focus"]:
         button.add_theme_stylebox_override(state, _panel_style(Color("263343") if state in ["pressed", "hover"] else Color("151f2b"), Color("a0bbce") if state == "focus" else Color("344251"), 9, 8))
     parent.add_child(button)

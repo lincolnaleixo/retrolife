@@ -16,6 +16,8 @@ const DEFAULT_VIDEO_HEIGHT := 224
 const DEFAULT_SAMPLE_RATE := 32_040
 const DEFAULT_CORE_FPS := 60.0
 const MAX_FRAME_CATCH_UP := 4
+const UiIcons = preload("res://scripts/workspace/ui_icons.gd")
+const PresentationTheme = preload("res://scripts/workspace/presentation_theme.gd")
 const FRAME_METHODS: Array[String] = [
     "emulation_frame_rgba",
     "poll_emulation_frame_rgba",
@@ -54,6 +56,9 @@ var _audio_method_missing := false
 var _metadata_ready := false
 var _advance_error_shown := false
 var _last_input_state := {}
+var preferences_path := "user://gameplay-ui.cfg"
+var persist_preferences := true
+var _journey_visible := true
 
 var _background: ColorRect
 var _frame: TextureRect
@@ -68,6 +73,9 @@ var _pause_title: Label
 var _resume_button: Button
 var _exit_button: Button
 var _journey: PanelContainer
+var _journey_toggle: Button
+var _gameplay_header: HBoxContainer
+var _pause_button: Button
 
 
 func _ready() -> void:
@@ -75,6 +83,7 @@ func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     set_process(false)
     set_process_unhandled_input(true)
+    _load_view_preferences()
     _build_gameplay_view()
 
 
@@ -105,6 +114,8 @@ func start_game(game_id: String, title := "") -> Dictionary:
     _core_fps = DEFAULT_CORE_FPS
     _paused = false
     _stopping = false
+    _pause_button.text = "Pause"
+    _pause_button.icon = UiIcons.icon("pause")
     _metadata_ready = false
     _frame_accumulator = 0.0
     _frame_method_missing = false
@@ -170,6 +181,11 @@ func _unhandled_input(event: InputEvent) -> void:
     if _session_id.is_empty() or _stopping or not visible:
         return
 
+    if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
+        _toggle_window_fullscreen()
+        get_viewport().set_input_as_handled()
+        return
+
     if event.is_action_pressed("game_pause"):
         _toggle_pause()
         get_viewport().set_input_as_handled()
@@ -196,6 +212,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_gameplay_view() -> void:
     set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     mouse_filter = Control.MOUSE_FILTER_STOP
+    theme = PresentationTheme.make_theme()
 
     _background = ColorRect.new()
     _background.name = "GameplayBackground"
@@ -207,10 +224,10 @@ func _build_gameplay_view() -> void:
     var margin := MarginContainer.new()
     margin.name = "GameplayMargin"
     margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    margin.add_theme_constant_override("margin_left", 44)
-    margin.add_theme_constant_override("margin_top", 30)
-    margin.add_theme_constant_override("margin_right", 44)
-    margin.add_theme_constant_override("margin_bottom", 30)
+    margin.add_theme_constant_override("margin_left", 28)
+    margin.add_theme_constant_override("margin_top", 18)
+    margin.add_theme_constant_override("margin_right", 28)
+    margin.add_theme_constant_override("margin_bottom", 24)
     add_child(margin)
 
     var column := VBoxContainer.new()
@@ -220,23 +237,58 @@ func _build_gameplay_view() -> void:
 
     var header := HBoxContainer.new()
     header.name = "GameplayHeader"
+    header.custom_minimum_size.y = 54
+    header.add_theme_constant_override("separation", 10)
+    _gameplay_header = header
     column.add_child(header)
 
+    var drag_region := HBoxContainer.new()
+    drag_region.name = "WindowDragRegion"
+    drag_region.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    drag_region.mouse_default_cursor_shape = Control.CURSOR_MOVE
+    drag_region.add_theme_constant_override("separation", 12)
+    drag_region.gui_input.connect(_gameplay_header_input)
+    header.add_child(drag_region)
+    var brand := TextureRect.new()
+    brand.texture = preload("res://assets/brand/retrolife-icon.png")
+    brand.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    brand.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    brand.custom_minimum_size = Vector2(38, 38)
+    brand.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    drag_region.add_child(brand)
     var title_column := VBoxContainer.new()
     title_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    title_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
     title_column.add_theme_constant_override("separation", 2)
-    header.add_child(title_column)
+    drag_region.add_child(title_column)
 
-    _game_title = _label("SNES game", 28, Color("#F5F7FB"))
+    _game_title = _label("RetroLife", 22, Color("#F5F7FB"))
     _game_title.name = "GameplayTitle"
+    _game_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+    _game_title.clip_text = true
+    _game_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
     title_column.add_child(_game_title)
-    _session_status = _label("Preparing session…", 14, Color("#9AA4B2"))
+    _session_status = _label("Preparing session…", 13, Color("#9AA4B2"))
     _session_status.name = "GameplayStatus"
+    _session_status.clip_text = true
+    _session_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
     title_column.add_child(_session_status)
 
-    var exit_hint := _label("Esc  Pause", 13, Color("#9AA4B2"))
-    exit_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-    header.add_child(exit_hint)
+    var fullscreen := _header_button("", "monitor", "Toggle fullscreen · F11")
+    fullscreen.name = "GameplayFullscreen"
+    fullscreen.accessibility_name = "Toggle fullscreen"
+    fullscreen.pressed.connect(func(): _toggle_window_fullscreen(); _restore_play_focus())
+    header.add_child(fullscreen)
+    _journey_toggle = _header_button("Hide Journey", "book", "Show or hide your game journal")
+    _journey_toggle.name = "JourneyToggle"
+    _journey_toggle.toggle_mode = true
+    _journey_toggle.button_pressed = _journey_visible
+    _journey_toggle.toggled.connect(set_journey_visible)
+    header.add_child(_journey_toggle)
+    _pause_button = _header_button("Pause", "pause", "Pause the game · Esc")
+    _pause_button.name = "PauseButton"
+    _pause_button.pressed.connect(_toggle_pause)
+    header.add_child(_pause_button)
 
     var play_row := HBoxContainer.new()
     play_row.name = "PlayAndJourney"
@@ -254,13 +306,9 @@ func _build_gameplay_view() -> void:
     play_row.add_child(frame_panel)
     _journey = preload("res://scripts/workspace/journey_panel.gd").new()
     play_row.add_child(_journey)
-    var journey_toggle := Button.new()
-    journey_toggle.text = "Journey"
-    journey_toggle.focus_mode = Control.FOCUS_NONE
-    journey_toggle.toggle_mode = true
-    journey_toggle.button_pressed = true
-    journey_toggle.toggled.connect(func(show_panel: bool): _journey.visible = show_panel; _frame.grab_focus())
-    header.add_child(journey_toggle)
+    _journey.visible = _journey_visible
+    _journey_toggle.text = "Hide Journey" if _journey_visible else "Show Journey"
+    _journey_toggle.accessibility_name = _journey_toggle.text
 
     _frame_aspect = AspectRatioContainer.new()
     _frame_aspect.name = "GameplayFrameAspect"
@@ -281,28 +329,91 @@ func _build_gameplay_view() -> void:
     _frame.mouse_filter = Control.MOUSE_FILTER_STOP
     _frame_aspect.add_child(_frame)
 
-    var footer := HBoxContainer.new()
-    footer.name = "GameplayFooter"
-    footer.add_theme_constant_override("separation", 18)
-    column.add_child(footer)
-    var controls := _label(
-        "Your saved controller bindings are active · Esc pauses the game",
-        13,
-        Color("#9AA4B2")
-    )
-    controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    footer.add_child(controls)
-    var pause_button := Button.new()
-    pause_button.name = "PauseButton"
-    pause_button.text = "Pause"
-    pause_button.custom_minimum_size = Vector2(130, 42)
-    pause_button.pressed.connect(_toggle_pause)
-    footer.add_child(pause_button)
-
     _audio_player = AudioStreamPlayer.new()
     _audio_player.name = "GameplayAudio"
     add_child(_audio_player)
     _build_pause_overlay()
+    resized.connect(_update_journey_width)
+    _update_journey_width()
+
+
+func _header_button(caption: String, symbol: String, hint: String) -> Button:
+    var button := Button.new()
+    button.text = caption
+    button.icon = UiIcons.icon(symbol)
+    button.tooltip_text = hint
+    button.custom_minimum_size = Vector2(42, 42)
+    button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    button.focus_mode = Control.FOCUS_ALL
+    button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+    button.flat = true
+    return button
+
+
+func _gameplay_header_input(event: InputEvent) -> void:
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+        if event.double_click:
+            _toggle_window_fullscreen()
+        else:
+            _begin_window_drag()
+        accept_event()
+
+
+func _begin_window_drag() -> void:
+    if get_window().mode == Window.MODE_WINDOWED and DisplayServer.has_feature(DisplayServer.FEATURE_WINDOW_DRAG):
+        DisplayServer.window_start_drag()
+
+
+func _toggle_window_fullscreen() -> void:
+    var full := get_window().mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]
+    get_window().mode = Window.MODE_WINDOWED if full else Window.MODE_FULLSCREEN
+
+
+func _update_journey_width() -> void:
+    if _journey != null:
+        _journey.custom_minimum_size.x = 400 if size.x > 1280 else 340
+
+
+func _restore_play_focus() -> void:
+    if not _session_id.is_empty():
+        if _paused:
+            _resume_button.grab_focus()
+        else:
+            _frame.grab_focus()
+
+
+func set_journey_visible(show_panel: bool) -> void:
+    _journey_visible = show_panel
+    _journey.visible = show_panel
+    _journey_toggle.set_pressed_no_signal(show_panel)
+    _journey_toggle.text = "Hide Journey" if show_panel else "Show Journey"
+    _journey_toggle.accessibility_name = _journey_toggle.text
+    var error := _save_view_preferences()
+    if error != OK:
+        _session_status.text = "Journey visibility changed, but its preference could not be saved."
+    _restore_play_focus()
+
+
+func _load_view_preferences() -> void:
+    if not persist_preferences:
+        return
+    var config := ConfigFile.new()
+    if config.load(preferences_path) == OK:
+        _journey_visible = bool(config.get_value("view", "journey_visible", true))
+
+
+func _save_view_preferences() -> Error:
+    if not persist_preferences:
+        return OK
+    var config := ConfigFile.new()
+    var loaded := config.load(preferences_path)
+    if loaded != OK and loaded != ERR_FILE_NOT_FOUND:
+        return loaded
+    config.set_value("view", "journey_visible", _journey_visible)
+    var error := config.save(preferences_path + ".tmp")
+    if error != OK:
+        return error
+    return DirAccess.rename_absolute(ProjectSettings.globalize_path(preferences_path + ".tmp"), ProjectSettings.globalize_path(preferences_path))
 
 
 func _build_pause_overlay() -> void:
@@ -310,6 +421,8 @@ func _build_pause_overlay() -> void:
     _pause_overlay.name = "PauseOverlay"
     _pause_overlay.color = Color(0.02, 0.025, 0.05, 0.92)
     _pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    # Keep the integrated window controls usable while the game is paused.
+    _pause_overlay.offset_top = 80
     _pause_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
     _pause_overlay.visible = false
     add_child(_pause_overlay)
@@ -545,6 +658,8 @@ func _toggle_pause() -> void:
         _resume_game()
         return
     _paused = true
+    _pause_button.text = "Resume"
+    _pause_button.icon = UiIcons.icon("play")
     _pause_overlay.visible = true
     _session_status.text = "Paused"
     _call_optional(["pause_emulation_json", "emulation_pause_json", "pause_game_json"], [])
@@ -555,6 +670,8 @@ func _resume_game() -> void:
     if _session_id.is_empty() or _stopping:
         return
     _paused = false
+    _pause_button.text = "Pause"
+    _pause_button.icon = UiIcons.icon("pause")
     _pause_overlay.visible = false
     _session_status.text = "Playing  •  %s × %s" % [_video_width, _video_height]
     _call_optional(["resume_emulation_json", "emulation_resume_json", "resume_game_json"], [])

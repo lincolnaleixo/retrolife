@@ -4,6 +4,11 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add a library-wide Rewards collection with global XP and per-game keepsakes, shared custom interface icons, a readable typography theme and an original RetroLife boot splash. Preserve reward IDs and saved progress.
+- Keep the integrated gameplay header draggable, support fullscreen without key-repeat flicker, and persist the Show/Hide Journey preference while returning space and focus to the game.
+- Give game selections an optional local scenic background, description, release details and explicit video preview. Clear unavailable or stale presentation data and keep games without artwork neutral.
+- Add in-app ScreenScraper configuration with session-only credentials, console-scoped explicit search/selection, bounded local media downloads, offline pack import and sanitized provenance. Keep artwork external and support explicit local MP4-to-OGV conversion for inline playback. Live authenticated service acceptance is pending.
+
 - Add optional per-game Journey art packs with a landscape hero, illustrated chapter cards and a two-column keepsake collection. Keep artwork external, cache it per selection, scope matching by console, clear stale textures and show neutral text when custom art is missing. Preserve existing milestone IDs, XP, paused time, confirmation rollback and reversible rewards.
 
 - Integrate the library into a borderless game-style window with a compact contextual header, static studio background, window dragging, fullscreen, minimize and safe quit. Remove bottom command and storage bars. Click console art to enter its collection and playable cartridge art to start; preserve drag/zoom inspection, keyboard/gamepad access and a missing-model fallback. Keep Search available after empty results and test vertical drag rejection.

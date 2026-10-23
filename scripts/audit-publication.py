@@ -12,6 +12,8 @@ failures = []
 # Original RetroLife branding, visually reviewed with provenance beside the PNG.
 # Pin the exact bytes; this is not a general artwork or binary exemption.
 reviewed_binaries = {
+    'frontend/godot-ui/assets/brand/retrolife-splash.png':
+        'f47245f8090b629eaed7096a442d2cb226bb7f7ec6ff10122ad77d5824e5c638',
     'frontend/godot-ui/assets/brand/retrolife-icon.png':
         'a0335861de77449e38a324728ea625e76e72a0a5033233735d8da59aa75d8688',
 }

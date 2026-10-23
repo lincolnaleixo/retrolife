@@ -21,7 +21,7 @@ var _attempted := false
 func _ready() -> void:
     size_flags_vertical = Control.SIZE_EXPAND_FILL
     add_theme_constant_override("separation", 10)
-    var eyebrow := _label("YOUR CONSOLES", 12, Color("78dbba"))
+    var eyebrow := _label("YOUR CONSOLES", 14, Color("78dbba"))
     add_child(eyebrow)
     var hero := HBoxContainer.new()
     hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -56,9 +56,9 @@ func _ready() -> void:
     _next = _button("›", func(): navigate(1))
     _next.tooltip_text = "Next console · Right arrow"
     hero.add_child(_next)
-    _title = _label("Your collection starts here", 32)
+    _title = _label("Your collection starts here", 40)
     add_child(_title)
-    _detail = _label("Import a ROM to add its console to your collection.", 14, Color("9aa8b8"))
+    _detail = _label("Import a ROM to add its console to your collection.", 16, Color("9aa8b8"))
     add_child(_detail)
     _position = _label("", 12, Color("78dbba"))
     add_child(_position)

@@ -10,6 +10,20 @@ var _box_view: SubViewportContainer
 var _box_title: Label
 var _box_hint: Label
 var _box_path := ""
+var _game_info: VBoxContainer
+var _game_description: Label
+var _game_facts: Label
+var _game_source: Label
+var _game_backdrop: TextureRect
+var _media_button: Button
+var _video_panel: PopupPanel
+var _video_player: VideoStreamPlayer
+var _presentation: Dictionary = {}
+var _presentation_key := ""
+var _presentation_revision: Variant = null
+var _presentation_cache: Dictionary = {}
+var _rewards_panel: PopupPanel
+var _media_settings: Window
 const Carousel = preload("res://scripts/library/carousel.gd")
 const UpdatePanel = preload("res://scripts/updates/update_panel.gd")
 const WorkspacePreferences = preload("res://scripts/workspace/preferences.gd")
@@ -73,6 +87,18 @@ func _build_shell() -> void:
     material.shader = preload("res://shaders/showcase.gdshader")
     background.material = material
     add_child(background)
+    _game_backdrop = TextureRect.new()
+    _game_backdrop.name = "GameBackdrop"
+    _game_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    _game_backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    _game_backdrop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+    _game_backdrop.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    _game_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var backdrop_material := ShaderMaterial.new()
+    backdrop_material.shader = preload("res://shaders/game_backdrop.gdshader")
+    _game_backdrop.material = backdrop_material
+    _game_backdrop.hide()
+    add_child(_game_backdrop)
     theme = _make_theme()
     var margin := MarginContainer.new()
     margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -117,9 +143,22 @@ func _build_shell() -> void:
     _carousel.game_activated.connect(_activate_game_art)
     var showcase := HBoxContainer.new()
     showcase.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    showcase.name = "GameShowcase"
     showcase.add_theme_constant_override("separation", 20)
     column.add_child(showcase)
+    var info_margin := MarginContainer.new()
+    info_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    info_margin.size_flags_stretch_ratio = 0.85
+    info_margin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    info_margin.add_theme_constant_override("margin_left", 28)
+    info_margin.add_theme_constant_override("margin_right", 24)
+    showcase.add_child(info_margin)
+    _game_info = VBoxContainer.new()
+    _game_info.name = "GameInformation"
+    _game_info.add_theme_constant_override("separation", 20)
+    info_margin.add_child(_game_info)
     _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _carousel.size_flags_stretch_ratio = 1.45
     showcase.add_child(_carousel)
     _previous_game = _button("‹", _navigate.bind(-1))
     _next_game = _button("›", _navigate.bind(1))
@@ -140,14 +179,33 @@ func _build_shell() -> void:
     _empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(_empty_label)
     _hero_title = _label("Your next adventure starts here", 30, TEXT_COLOR)
-    _hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _hero_title.add_theme_font_override("font", preload("res://scripts/workspace/presentation_theme.gd").heading_font())
+    _hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
     _hero_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
     _hero_title.max_lines_visible = 2
     _hero_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    column.add_child(_hero_title)
+    _game_info.add_child(_hero_title)
     _hero_meta = _label("A collection worth coming back to", 14, MUTED_COLOR)
-    _hero_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    column.add_child(_hero_meta)
+    _hero_meta.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    _hero_meta.add_theme_color_override("font_color", Color("a7e7ce"))
+    _game_info.add_child(_hero_meta)
+    _game_info.move_child(_hero_meta, 0)
+    _game_facts = _label("", 16, Color("cbd8dc"))
+    _game_facts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _game_info.add_child(_game_facts)
+    _game_description = _label("", 19, Color("c5d1d8"))
+    _game_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _game_description.max_lines_visible = 5
+    _game_description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+    _game_info.add_child(_game_description)
+    _media_button = _button("Watch preview", _show_game_video)
+    _media_button.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play")
+    _media_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+    _media_button.hide()
+    _game_info.add_child(_media_button)
+    _game_source = _label("", 12, MUTED_COLOR)
+    _game_source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _game_info.add_child(_game_source)
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -175,7 +233,15 @@ func _build_shell() -> void:
     _storage_panel.changed.connect(_refresh_workspace_assets)
     add_child(_storage_panel)
     _build_box_inspector()
-    _game_sections = [filter_scroll, _count_label, showcase, _empty_label, _hero_title, _hero_meta]
+    _build_game_video()
+    _rewards_panel = preload("res://scripts/workspace/rewards_center.gd").new()
+    _rewards_panel.popup_hide.connect(_restore_carousel_focus)
+    add_child(_rewards_panel)
+    _media_settings = preload("res://scripts/workspace/media_settings_panel.gd").new()
+    _media_settings.presentation_changed.connect(_refresh_game_presentation)
+    _media_settings.popup_hide.connect(_restore_carousel_focus)
+    add_child(_media_settings)
+    _game_sections = [filter_scroll, _count_label, showcase, _empty_label]
     _refresh_workspace_assets()
     _apply_library_page()
     resized.connect(_update_layout_density)
@@ -186,10 +252,13 @@ func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
-    _hero_title.add_theme_font_size_override("font_size", 24 if size.x < 900 else 30)
+    _hero_title.add_theme_font_size_override("font_size", 32 if size.x < 1300 else 52)
+    _game_description.add_theme_font_size_override("font_size", 16 if size.x < 1300 else 20)
+    _game_info.add_theme_constant_override("separation", 12 if size.y < 720 else 22)
+    _game_description.max_lines_visible = 4 if size.y < 720 else 6
     var compact := size.y < 660
     _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
-    _hero_title.max_lines_visible = 1 if compact else 2
+    _hero_title.max_lines_visible = 2 if compact else 3
     _warning_label.max_lines_visible = 1 if compact else 2
     _apply_library_page()
 
@@ -387,6 +456,10 @@ func _refresh_library(preferred_game_id := "", preserve_control_focus := false) 
         if generation != _refresh_generation or not is_inside_tree():
             return
     _refreshing = false
+    if _presentation_revision != revision:
+        _presentation_cache.clear()
+        _presentation_key = ""
+        _presentation_revision = revision
     _current_games = entries
     _systems = data.get("systems", [])
     _source_label.text = str(data.get("sourceLabel", "Local library"))
@@ -440,6 +513,7 @@ func _on_cartridge_selected(game: Dictionary, index: int) -> void:
     _previous_game.disabled = index <= 0
     _next_game.disabled = index >= _current_games.size() - 1
     _header.configure_page(_at_console_home, not game.is_empty(), not _box_path.is_empty())
+    _update_game_presentation(game, profile)
     _remember_selection()
     if _settings_timer != null:
         _settings_timer.start()
@@ -578,7 +652,7 @@ func _game_is_active() -> bool:
 
 func _process(_delta: float) -> void:
     if _carousel != null:
-        _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible)
+        _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible and not _rewards_panel.visible and not _media_settings.visible and not _video_panel.visible)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -594,6 +668,8 @@ func _unhandled_input(event: InputEvent) -> void:
             get_viewport().set_input_as_handled()
         return
     if (_controller_panel != null and _controller_panel.visible) or (_storage_panel != null and _storage_panel.visible):
+        return
+    if _rewards_panel.visible or _media_settings.visible or _video_panel.visible:
         return
     if _updates_panel != null and _updates_panel.visible:
         return
@@ -640,25 +716,7 @@ func _button(text: String, callback: Callable) -> Button:
 
 
 func _make_theme() -> Theme:
-    var result := Theme.new()
-    result.default_font_size = 14
-    for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-        var box := StyleBoxFlat.new()
-        box.bg_color = Color("202332") if state == "normal" else Color("303449")
-        if state == "focus":
-            box.bg_color = Color.TRANSPARENT
-        box.border_color = Color("b9a8e2") if state == "focus" else Color("404458")
-        box.set_border_width_all(2 if state == "focus" else 1)
-        box.set_corner_radius_all(10)
-        box.content_margin_left = 14
-        box.content_margin_right = 14
-        box.content_margin_top = 9
-        box.content_margin_bottom = 9
-        result.set_stylebox(state, "Button", box)
-    result.set_color("font_color", "Button", TEXT_COLOR)
-    result.set_color("font_hover_color", "Button", TEXT_COLOR)
-    result.set_color("font_focus_color", "Button", TEXT_COLOR)
-    return result
+    return preload("res://scripts/workspace/presentation_theme.gd").make_theme()
 
 
 func _show_updates() -> void:
@@ -681,6 +739,8 @@ func _update_command(command: String) -> Dictionary:
 
 
 func _refresh_workspace_assets() -> void:
+    _presentation_cache.clear()
+    _presentation_key = ""
     if persist_preferences and _catalog != null:
         _refresh_library()
 
@@ -728,6 +788,8 @@ func _on_header_action(action: String) -> void:
             if not _importing: _open_import_dialog()
         "controllers": _show_controllers()
         "storage": _show_storage()
+        "rewards": _show_rewards()
+        "media": _show_media_settings()
         "settings": _show_settings()
         "fullscreen":
             var full := get_window().mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]
@@ -763,13 +825,15 @@ func _apply_library_page() -> void:
     if _console_home == null:
         return
     _console_home.visible = _at_console_home
+    if _game_backdrop != null:
+        _game_backdrop.visible = not _at_console_home and not _current_games.is_empty() and _game_backdrop.texture != null
     for section in _game_sections:
         section.visible = not _at_console_home
     if not _at_console_home:
         _empty_label.visible = _current_games.is_empty()
         _hero_title.visible = not _current_games.is_empty()
         _workspace_filters.hide()
-        _hero_meta.visible = size.y >= 660
+        _hero_meta.visible = true
         _count_label.visible = size.y >= 660
     _header.configure_page(_at_console_home, not _current_games.is_empty(), not _box_path.is_empty())
 
@@ -822,3 +886,132 @@ func _show_box() -> void:
     if _box_panel.visible:
         _box_panel.size = target
         _box_panel.position = (get_window().size - _box_panel.size) / 2
+
+
+func _presentation_identity() -> Dictionary:
+    for game in _current_games:
+        if str(game.get("id", "")) == _last_game_id:
+            var profile := CollectionProfiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
+            return {"system": str(game.get("systemId", "")), "slug": str(profile.get("slug", _last_game_id)), "title": str(profile.get("title", game.get("title", "")))}
+    return {}
+
+
+func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
+    var key := str(game.get("id", ""))
+    if key == _presentation_key:
+        return
+    _presentation_key = key
+    _presentation = {}
+    _game_backdrop.texture = null
+    _game_backdrop.hide()
+    _game_facts.text = ""
+    _game_description.text = ""
+    _game_source.text = ""
+    _media_button.hide()
+    if key.is_empty():
+        return
+    if _presentation_cache.has(key):
+        _presentation = _presentation_cache[key]
+    else:
+        var fields := game.duplicate(true)
+        if _catalog != null:
+            var response: Dictionary = _catalog.details(key)
+            if bool(response.get("ok", false)):
+                fields.merge(response.get("data", {}), true)
+        var media: Dictionary = {}
+        if persist_preferences:
+            media = preload("res://scripts/workspace/game_presentation.gd").load_for_game(str(game.get("systemId", "")), str(profile.get("slug", key)))
+        fields.merge(media, true)
+        _presentation = fields
+        if _presentation_cache.size() >= 16:
+            _presentation_cache.erase(_presentation_cache.keys()[0])
+        _presentation_cache[key] = fields
+    var facts: Array[String] = []
+    var year := str(_presentation.get("year", _presentation.get("releaseYear", "")))
+    if year not in ["", "<null>", "0"]: facts.append(year)
+    var genre: Variant = _presentation.get("genre", _presentation.get("genres", []))
+    if genre is Array:
+        if not genre.is_empty(): facts.append(" / ".join(genre))
+    elif str(genre) not in ["", "<null>"]:
+        facts.append(str(genre))
+    var players := str(_presentation.get("players", ""))
+    if players not in ["", "<null>"]:
+        facts.append(players + (" players" if players != "1" else " player") if players.is_valid_int() else players)
+    _game_facts.text = "  ·  ".join(facts)
+    _game_description.text = str(_presentation.get("description", ""))
+    if _game_description.text == "<null>": _game_description.text = ""
+    _game_description.visible = not _game_description.text.is_empty()
+    var maker := str(_presentation.get("developer", ""))
+    _game_source.text = maker if maker not in ["", "<null>"] else ""
+    var background := str(_presentation.get("background_path", ""))
+    if background.is_empty() and persist_preferences and not profile.is_empty():
+        background = WorkspacePreferences.asset(CollectionProfiles.asset_base(profile) + "/journey/cover.png")
+    if not background.is_empty():
+        var file := FileAccess.open(background, FileAccess.READ)
+        if file != null and file.get_length() <= 24 * 1024 * 1024:
+            var art := Image.load_from_file(background)
+            if art != null and not art.is_empty() and art.get_width() <= 8192 and art.get_height() <= 8192:
+                art.generate_mipmaps()
+                _game_backdrop.texture = ImageTexture.create_from_image(art)
+                _game_backdrop.visible = not _at_console_home
+    _media_button.visible = not str(_presentation.get("video_path", "")).is_empty()
+    _media_button.tooltip_text = "Play the local game preview" if str(_presentation.get("video_path", "")).get_extension().to_lower() == "ogv" else "Open the local video in your default player"
+
+
+func _refresh_game_presentation() -> void:
+    _presentation_cache.clear()
+    _presentation_key = ""
+    for game in _current_games:
+        if str(game.get("id", "")) == _last_game_id:
+            _on_cartridge_selected(game, _carousel.selected_index)
+            return
+
+
+func _show_rewards() -> void:
+    if _game_is_active():
+        return
+    _rewards_panel.configure(_backend, _catalog)
+    _rewards_panel.open_centered(Vector2i(mini(1100, int(size.x) - 56), mini(820, int(size.y) - 56)))
+
+
+func _show_media_settings() -> void:
+    if _game_is_active():
+        return
+    var identity := _presentation_identity()
+    if identity.is_empty():
+        _show_nonfatal_error("Choose a console and a game before adding game media.")
+        return
+    _media_settings.open_for_game(identity.system, identity.slug, identity.title)
+
+
+func _build_game_video() -> void:
+    _video_panel = PopupPanel.new()
+    add_child(_video_panel)
+    var column := VBoxContainer.new()
+    column.add_theme_constant_override("separation", 16)
+    _video_panel.add_child(column)
+    _video_player = VideoStreamPlayer.new()
+    _video_player.expand = true
+    _video_player.custom_minimum_size = Vector2(640, 360)
+    _video_player.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    _video_player.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    column.add_child(_video_player)
+    column.add_child(_button("Close preview", _video_panel.hide))
+    _video_panel.popup_hide.connect(func():
+        _video_player.stop()
+        _video_player.stream = null
+        _restore_carousel_focus())
+
+
+func _show_game_video() -> void:
+    var path := str(_presentation.get("video_path", ""))
+    if path.is_empty() or not FileAccess.file_exists(path):
+        return
+    if path.get_extension().to_lower() != "ogv":
+        OS.shell_open(path)
+        return
+    var stream := VideoStreamTheora.new()
+    stream.file = path
+    _video_player.stream = stream
+    _video_panel.popup_centered(Vector2i(mini(1000, int(size.x) - 60), mini(650, int(size.y) - 60)))
+    _video_player.play()

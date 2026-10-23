@@ -1,5 +1,9 @@
 # RetroLife icon
 
+## Boot splash
+
+`retrolife-splash.svg` is original RetroLife interface artwork drawn as vector paths on 2026-10-23. It contains a cartridge with a pixel heart and an original outlined wordmark, with no game artwork or manufacturer marks. `retrolife-splash.png` is its matching raster version because Godot's early boot splash accepts PNG only. It can be reproduced with Godot's `Image.load_from_file(svg_path).save_png(png_path)`. Both are licensed with the original application code. The splash uses the application's dark background and introduces no loading-progress claims.
+
 Original RetroLife app branding generated with the built-in image generator on 2026-10-22. No console manufacturer marks or game artwork are included. The PNG is used by the app header, Godot project and macOS export preset.
 
 ## Generation prompt

@@ -16,11 +16,10 @@ func _draw() -> void:
         var dimensions := Vector2(artwork.get_width(), artwork.get_height())
         var ratio := minf(available.x / dimensions.x, available.y / dimensions.y)
         var target := dimensions * ratio
-        draw_circle(size * 0.5, minf(size.x, size.y) * 0.44, Color(ink, 0.10))
-        draw_texture_rect(artwork, Rect2((size - target) * 0.5, target), false, Color.WHITE if earned else Color(0.65, 0.72, 0.79, 0.34))
+        draw_texture_rect(artwork, Rect2((size - target) * 0.5, target), false, Color.WHITE if earned else Color(0.73, 0.79, 0.83, 0.62))
         return
     # A missing game-specific illustration stays typographic and neutral.
-    var font := ThemeDB.fallback_font
+    var font := get_theme_default_font()
     var caption := "%02d" % [symbol + 1]
     var extent := font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 20)
     draw_string(font, Vector2((size.x - extent.x) * 0.5, (size.y + font.get_ascent(20)) * 0.5 - 3), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ink)

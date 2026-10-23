@@ -5,13 +5,14 @@ signal drag_requested()
 
 const INK := Color("eaf0fa")
 const MUTED := Color("a7aec4")
-const MENU_ACTIONS := ["import", "controllers", "storage", "settings", "fullscreen", "minimize", "quit"]
+const MENU_ACTIONS := ["import", "controllers", "storage", "settings", "fullscreen", "minimize", "quit", "media"]
 
 var _back: Button
 var _box: Button
 var _details: Button
 var _search: Button
 var _menu: MenuButton
+var _rewards: Button
 var _busy := false
 var _at_console_home := true
 
@@ -40,21 +41,27 @@ func _ready() -> void:
     brand.add_child(icon)
     var wordmark := Label.new()
     wordmark.text = "RetroLife"
+    wordmark.add_theme_font_override("font", preload("res://scripts/workspace/presentation_theme.gd").heading_font())
     wordmark.add_theme_font_size_override("font_size", 22)
     wordmark.add_theme_color_override("font_color", INK)
     wordmark.mouse_filter = Control.MOUSE_FILTER_IGNORE
     brand.add_child(wordmark)
 
+    _rewards = _action_button("Rewards", "rewards", "Your rewards across every game")
+    _rewards.icon = preload("res://scripts/workspace/ui_icons.gd").icon("trophy")
+    add_child(_rewards)
     _box = _action_button("Box", "box", "Inspect this game's box in 3D")
     _details = _action_button("Details", "details", "Game details and journey")
     _search = _action_button("Search", "search", "Search this collection  ·  /")
+    _box.icon = preload("res://scripts/workspace/ui_icons.gd").icon("box")
+    _search.icon = preload("res://scripts/workspace/ui_icons.gd").icon("search")
     add_child(_box)
     add_child(_details)
     add_child(_search)
     _menu = MenuButton.new()
     _menu.focus_mode = Control.FOCUS_ALL
-    _menu.focus_mode = Control.FOCUS_ALL
-    _menu.text = "Menu  ···"
+    _menu.text = "Menu"
+    _menu.icon = preload("res://scripts/workspace/ui_icons.gd").icon("menu")
     _menu.name = "CollectionMenu"
     _menu.tooltip_text = "Library, controllers and display options"
     _style_button(_menu)
@@ -78,7 +85,7 @@ func set_busy(busy: bool) -> void:
     _busy = busy
     if not is_instance_valid(_back):
         return
-    for button in [_back, _box, _details, _search]:
+    for button in [_back, _box, _details, _search, _rewards]:
         button.disabled = busy
     var popup := _menu.get_popup()
     for action_id in MENU_ACTIONS.size():
@@ -87,7 +94,8 @@ func set_busy(busy: bool) -> void:
 
 func set_search_query(query: String) -> void:
     if is_instance_valid(_search):
-        _search.text = "Search" if query.is_empty() else "Search · " + query.left(16)
+        _search.text = "Search" if query.is_empty() else "Filtered"
+        _search.tooltip_text = "Search this collection  ·  /" if query.is_empty() else "Current search: " + query
 
 
 func focus_back_if_visible() -> void:
@@ -109,6 +117,7 @@ func _build_menu() -> void:
     popup.add_item("Import ROM…", 0)
     popup.add_item("Controllers", 1)
     popup.add_item("Storage & assets", 2)
+    popup.add_item("Game media · ScreenScraper", 7)
     popup.add_separator()
     popup.add_item("Display settings", 3)
     popup.add_item("Enter fullscreen", 4)
@@ -118,7 +127,7 @@ func _build_menu() -> void:
     popup.add_theme_color_override("font_color", INK)
     popup.add_theme_color_override("font_hover_color", Color.WHITE)
     popup.add_theme_color_override("font_disabled_color", Color("596078"))
-    popup.add_theme_font_size_override("font_size", 15)
+    popup.add_theme_font_size_override("font_size", 16)
     popup.add_theme_constant_override("v_separation", 14)
     popup.add_theme_constant_override("h_separation", 16)
     var panel := StyleBoxFlat.new()
@@ -160,9 +169,9 @@ func _action_button(caption: String, action: String, hint: String) -> Button:
 
 
 func _style_button(button: Button) -> void:
-    button.custom_minimum_size.y = 42
+    button.custom_minimum_size.y = 46
     button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-    button.add_theme_font_size_override("font_size", 14)
+    button.add_theme_font_size_override("font_size", 16)
     button.add_theme_color_override("font_color", MUTED)
     button.add_theme_color_override("font_hover_color", INK)
     button.add_theme_color_override("font_focus_color", INK)

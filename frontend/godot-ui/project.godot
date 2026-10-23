@@ -11,6 +11,11 @@ config/version="0.1.0"
 run/main_scene="res://scenes/Main.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="io.github.lincolnaleixo.retrolife"
+boot_splash/image="res://assets/brand/retrolife-splash.png"
+boot_splash/bg_color=Color(0.028, 0.034, 0.061, 1)
+boot_splash/stretch_mode=0
+boot_splash/minimum_display_time=350
+boot_splash/use_filter=true
 
 [display]
 
