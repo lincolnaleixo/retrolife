@@ -18,6 +18,7 @@ const DEFAULT_CORE_FPS := 60.0
 const MAX_FRAME_CATCH_UP := 4
 const UiIcons = preload("res://scripts/workspace/ui_icons.gd")
 const PresentationTheme = preload("res://scripts/workspace/presentation_theme.gd")
+const SNESDisplay = preload("res://scripts/workspace/snes_display.gd")
 const FRAME_METHODS: Array[String] = [
     "emulation_frame_rgba",
     "poll_emulation_frame_rgba",
@@ -60,6 +61,12 @@ var preferences_path := "user://gameplay-ui.cfg"
 var persist_preferences := true
 var _journey_visible := true
 var _journey_supported := false
+var _shader_preset := "original"
+var _shader_strength := 0.65
+var _shader_was_paused := false
+var _shader_input_release_pending := false
+var _shader_panel: Control
+var _shader_button: Button
 
 var _background: ColorRect
 var _frame: TextureRect
@@ -124,6 +131,12 @@ func start_game(game_id: String, title := "") -> Dictionary:
     _audio_method_missing = false
     _advance_error_shown = false
     _last_input_state.clear()
+    _shader_input_release_pending = false
+    _shader_panel.dismiss()
+    _shader_button.disabled = false
+    _pause_button.disabled = false
+    _audio_player.stream_paused = false
+    SNESDisplay.apply(_frame, _shader_preset, _shader_strength)
     var profile := preload("res://scripts/workspace/collection_profiles.gd").for_game(title, "snes")
     _game_title.text = str(profile.get("title", title)) if not title.is_empty() else game_id
     # This launch bridge supports the SNES core only. Keep artwork platform-scoped.
@@ -157,6 +170,8 @@ func _process(delta: float) -> void:
     if _stopping:
         return
     _sync_inputs()
+    if _shader_panel.visible:
+        return
     if not _metadata_ready:
         if not _refresh_session_metadata():
             return
@@ -187,6 +202,19 @@ func _unhandled_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         return
 
+    if event is InputEventKey and event.keycode == KEY_F8:
+        if event.pressed and not event.echo:
+            _toggle_shader_options()
+        get_viewport().set_input_as_handled()
+        return
+
+    if _shader_panel.visible:
+        if event.is_action_pressed("ui_cancel") or event.is_action_pressed("game_pause"):
+            _close_shader_options()
+        # A preview is a UI operation, never an input to the emulated game.
+        get_viewport().set_input_as_handled()
+        return
+
     if event.is_action_pressed("game_pause"):
         _toggle_pause()
         get_viewport().set_input_as_handled()
@@ -202,6 +230,10 @@ func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("ui_cancel"):
         _toggle_pause()
         get_viewport().set_input_as_handled()
+
+    if _shader_input_release_pending and not _event_logical_action(event).is_empty():
+        get_viewport().set_input_as_handled()
+        return
 
     # Poll the configured InputMap as a whole: releasing one device must not
     # cancel another device holding the same action.
@@ -280,6 +312,11 @@ func _build_gameplay_view() -> void:
     fullscreen.accessibility_name = "Toggle fullscreen"
     fullscreen.pressed.connect(func(): _toggle_window_fullscreen(); _restore_play_focus())
     header.add_child(fullscreen)
+    _shader_button = _header_button("Shaders", "spark", "Super Nintendo display shaders · F8")
+    _shader_button.name = "GameplayShaders"
+    _shader_button.accessibility_name = "Super Nintendo shaders"
+    _shader_button.pressed.connect(_toggle_shader_options)
+    header.add_child(_shader_button)
     _journey_toggle = _header_button("Hide Journey", "book", "Show or hide your game journal")
     _journey_toggle.name = "JourneyToggle"
     _journey_toggle.toggle_mode = true
@@ -333,6 +370,12 @@ func _build_gameplay_view() -> void:
     _audio_player.name = "GameplayAudio"
     add_child(_audio_player)
     _build_pause_overlay()
+    _shader_panel = preload("res://scripts/workspace/shader_panel.gd").new()
+    _shader_panel.name = "GameplayShaderPanel"
+    add_child(_shader_panel)
+    _shader_panel.preset_changed.connect(_set_shader_preset)
+    _shader_panel.closed.connect(_close_shader_options)
+    SNESDisplay.apply(_frame, _shader_preset, _shader_strength)
     resized.connect(_update_journey_width)
     _update_journey_width()
 
@@ -375,7 +418,7 @@ func _update_journey_width() -> void:
 
 
 func _restore_play_focus() -> void:
-    if not _session_id.is_empty():
+    if not _session_id.is_empty() and not _shader_panel.visible:
         if _paused:
             _resume_button.grab_focus()
         else:
@@ -415,6 +458,8 @@ func _load_view_preferences() -> void:
     var config := ConfigFile.new()
     if config.load(preferences_path) == OK:
         _journey_visible = bool(config.get_value("view", "journey_visible", true))
+        _shader_preset = SNESDisplay.normalize_id(config.get_value("display_snes", "preset", "original"))
+        _shader_strength = _valid_shader_strength(config.get_value("display_snes", "strength", 0.65))
 
 
 func _save_view_preferences() -> Error:
@@ -425,10 +470,88 @@ func _save_view_preferences() -> Error:
     if loaded != OK and loaded != ERR_FILE_NOT_FOUND:
         return loaded
     config.set_value("view", "journey_visible", _journey_visible)
+    config.set_value("display_snes", "preset", _shader_preset)
+    config.set_value("display_snes", "strength", _shader_strength)
     var error := config.save(preferences_path + ".tmp")
     if error != OK:
         return error
     return DirAccess.rename_absolute(ProjectSettings.globalize_path(preferences_path + ".tmp"), ProjectSettings.globalize_path(preferences_path))
+
+
+func _valid_shader_strength(value: Variant) -> float:
+    if (value is float or value is int) and is_finite(float(value)):
+        return clampf(float(value), 0.0, 1.0)
+    return 0.65
+
+
+func _toggle_shader_options() -> void:
+    if _shader_panel.visible:
+        _close_shader_options()
+    else:
+        _open_shader_options()
+
+
+func _open_shader_options() -> void:
+    if _session_id.is_empty() or _stopping or _shader_panel.visible:
+        return
+    _shader_was_paused = _paused
+    if not _paused:
+        var response := _call_optional_response(["pause_emulation_json", "emulation_pause_json", "pause_game_json"], [])
+        if not bool(response.get("ok", false)):
+            _session_status.text = "Unable to preview shaders  •  Could not pause the game."
+            return
+    _release_game_inputs()
+    _paused = true
+    _audio_player.stream_paused = true
+    _pause_overlay.visible = false
+    _pause_button.disabled = true
+    _session_status.text = "Paused  •  Previewing shaders"
+    _shader_panel.show_options(_frame.texture, _shader_preset, _shader_strength)
+
+
+func _close_shader_options() -> void:
+    if not _shader_panel.visible:
+        return
+    _shader_panel.dismiss()
+    _shader_input_release_pending = true
+    _pause_button.disabled = false
+    if _session_id.is_empty() or _stopping:
+        return
+    if not _shader_was_paused:
+        var response := _call_optional_response(["resume_emulation_json", "emulation_resume_json", "resume_game_json"], [])
+        if bool(response.get("ok", false)):
+            _paused = false
+            _audio_player.stream_paused = false
+            _pause_button.text = "Pause"
+            _pause_button.icon = UiIcons.icon("pause")
+            _session_status.text = "Playing  •  %s × %s" % [_video_width, _video_height]
+            _frame.grab_focus()
+            return
+        _session_status.text = "Paused  •  Could not resume. Try Resume again."
+    else:
+        _session_status.text = "Paused"
+    _paused = true
+    _pause_overlay.visible = true
+    _pause_button.text = "Resume"
+    _pause_button.icon = UiIcons.icon("play")
+    _resume_button.grab_focus()
+
+
+func _set_shader_preset(preset_id: String, strength: float) -> void:
+    _shader_preset = SNESDisplay.normalize_id(preset_id)
+    _shader_strength = _valid_shader_strength(strength)
+    SNESDisplay.apply(_frame, _shader_preset, _shader_strength)
+    var error := _save_view_preferences()
+    if error != OK:
+        _shader_panel.set_status("Preview applied, but the preference could not be saved.")
+    else:
+        _shader_panel.set_status("Game paused while you preview. Saved for Super Nintendo.")
+
+
+func _release_game_inputs() -> void:
+    for action in _last_input_state.keys():
+        if bool(_last_input_state[action]):
+            _set_logical_input(str(action), false)
 
 
 func _build_pause_overlay() -> void:
@@ -640,10 +763,19 @@ func _update_video_metadata(
 
 
 func _sync_inputs() -> void:
+    if _shader_panel.visible:
+        _release_game_inputs()
+        return
     var actions := [
         "up", "down", "left", "right", "south", "east", "west", "north",
         "left_shoulder", "right_shoulder", "start", "select",
     ]
+    if _shader_input_release_pending:
+        for action in actions:
+            if InputMap.has_action("game_" + action) and Input.is_action_pressed("game_" + action):
+                return
+        _shader_input_release_pending = false
+        return
     for action in actions:
         var input_action := StringName("game_" + action)
         if not InputMap.has_action(input_action):
@@ -667,12 +799,13 @@ func _set_logical_input(action: String, pressed: bool) -> void:
 
 
 func _toggle_pause() -> void:
-    if _session_id.is_empty() or _stopping:
+    if _session_id.is_empty() or _stopping or _shader_panel.visible:
         return
     if _paused:
         _resume_game()
         return
     _paused = true
+    _audio_player.stream_paused = true
     _pause_button.text = "Resume"
     _pause_button.icon = UiIcons.icon("play")
     _pause_overlay.visible = true
@@ -682,9 +815,10 @@ func _toggle_pause() -> void:
 
 
 func _resume_game() -> void:
-    if _session_id.is_empty() or _stopping:
+    if _session_id.is_empty() or _stopping or _shader_panel.visible:
         return
     _paused = false
+    _audio_player.stream_paused = false
     _pause_button.text = "Pause"
     _pause_button.icon = UiIcons.icon("pause")
     _pause_overlay.visible = false
@@ -697,6 +831,9 @@ func _stop_session() -> void:
     if _session_id.is_empty() or _stopping:
         return
     _stopping = true
+    _shader_panel.dismiss()
+    _shader_button.disabled = true
+    _pause_button.disabled = false
     var ended_game_id := _game_id
     _session_status.text = "Saving…"
     _resume_button.disabled = true
@@ -707,6 +844,7 @@ func _stop_session() -> void:
     )
     if not bool(response.get("ok", false)):
         _stopping = false
+        _shader_button.disabled = false
         _resume_button.disabled = false
         _exit_button.disabled = false
         _session_status.text = "Unable to save  •  %s" % str(response.get("error", "Stop failed."))
@@ -733,6 +871,7 @@ func _stop_session() -> void:
 
 func _stop_failed(message: String) -> void:
     _stopping = false
+    _shader_button.disabled = false
     _resume_button.disabled = false
     _exit_button.disabled = false
     _session_status.text = "Save incomplete  •  %s" % message
@@ -742,6 +881,11 @@ func _complete_stop(ended_game_id: String) -> void:
     _session_id = ""
     _game_id = ""
     _journey.game_id = ""
+    _shader_panel.dismiss()
+    _shader_button.disabled = false
+    _pause_button.disabled = false
+    _frame.texture = null
+    _frame_texture = null
     _journey_support_changed(false)
     _paused = false
     _stopping = false

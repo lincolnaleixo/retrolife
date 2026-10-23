@@ -63,3 +63,7 @@ Journey presentation profiles cover the seven current collection games, with opt
 Game selection can show a bespoke background, description, year, genre, player count and a local preview video. **Menu → Game media · ScreenScraper** configures an explicit lookup for the selected game. Developer credentials and optional user credentials stay in the current session and are cleared when the panel closes. No request runs just from browsing the library. Games without a presentation pack keep their neutral background.
 
 See [game presentation and ScreenScraper](docs/game-presentation.md) for configuration, offline imports, provenance, supported video formats and verification limits. ScreenScraper MP4 previews open in the system player; local Theora OGV previews play inside RetroLife. No downloaded game media or account credentials are bundled with the app.
+
+### Super Nintendo display shaders
+
+During a SNES game, choose **Shaders** in the integrated header or press **F8**. Compare Original, Smooth, Scanlines and CRT on the current frame, adjust intensity, then choose Done (or Escape). The game pauses during the preview and returns to its previous play/pause state when the panel closes. Your display preference is saved for Super Nintendo. Original keeps the unfiltered nearest-neighbor image. Display effects do not change the emulated game, saves, input mapping or achievement detection.

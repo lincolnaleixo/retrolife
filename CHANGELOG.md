@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add in-game Super Nintendo display presets: Original, Smooth, Scanlines and CRT, with frozen-frame previews, adjustable intensity and persisted system preferences. Opening the shader panel pauses gameplay and releases inputs; closing restores the prior play/pause state. Effects apply only to the game image and adapt to frame resolution and window size.
+
 - Give supported custom Journeys larger illustrated chapters and full-color collectible artwork, with per-event colors, region captions and keepsake names from an optional bounded external theme. Supported games without art keep a neutral presentation; missing reward illustrations in partial packs consistently ignore per-card custom names and colors in Journey and Rewards. Hide the gameplay Journey column and toggle for unsupported games, omit them from Rewards, and retry temporary support failures without losing the visibility preference. Themes never enable detection or change progress.
 
 - Preserve macOS privacy permission continuity across local app updates with a pinned Apple Development signing identity. Add a dedicated installer that verifies signatures and designated requirements, refuses running-app replacement and ad-hoc fallback, and backs up the previous application with rollback. Keep ROM locations, saves, artwork and existing privacy settings unchanged. The first migration from an ad-hoc build can require one new authorization.
