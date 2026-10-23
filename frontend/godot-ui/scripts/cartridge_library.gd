@@ -21,6 +21,7 @@ var _game_description: Label
 var _game_facts: Label
 var _game_source: Label
 var _publisher_logo: TextureRect
+var _publisher_plate: PanelContainer
 var _music_percent: Label
 var _game_backdrop: TextureRect
 var _media_button: Button
@@ -360,7 +361,21 @@ func _build_shell() -> void:
     _publisher_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     _publisher_logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _publisher_logo.hide()
-    _publisher_row.add_child(_publisher_logo)
+    _publisher_plate = PanelContainer.new()
+    _publisher_plate.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    _publisher_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var publisher_style := StyleBoxFlat.new()
+    publisher_style.bg_color = Color("f4f2ed")
+    publisher_style.set_corner_radius_all(5)
+    publisher_style.content_margin_left = 12
+    publisher_style.content_margin_right = 12
+    publisher_style.content_margin_top = 8
+    publisher_style.content_margin_bottom = 8
+    _publisher_plate.add_theme_stylebox_override("panel", publisher_style)
+    _publisher_plate.add_child(_publisher_logo)
+    _publisher_plate.hide()
+    _publisher_row.add_child(_publisher_plate)
+    _publisher_row.move_child(_publisher_plate, 0)
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -439,7 +454,7 @@ func _update_layout_density() -> void:
     _game_info.add_theme_constant_override("separation", 14 if compact else (24 if wide else 18))
     _game_description.max_lines_visible = 3
     _game_description.visible = not compact and not _game_description.text.is_empty()
-    _publisher_logo.custom_minimum_size = Vector2(116, 29) if compact else (Vector2(164, 41) if wide else Vector2(136, 34))
+    _publisher_logo.custom_minimum_size = Vector2(140, 35) if compact else Vector2(156, 39)
     if is_instance_valid(_inline_preview):
         var preview_width := minf(sidebar_width, minf(420.0, size.y * (0.36 if compact else 0.40)))
         _inline_preview.custom_minimum_size = Vector2(preview_width, preview_width * 0.75)
@@ -1137,6 +1152,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     _game_source.text = ""
     _publisher_logo.texture = null
     _publisher_logo.hide()
+    _publisher_plate.hide()
     _media_group.hide()
     _music_controls.hide()
     if key.is_empty():
@@ -1183,6 +1199,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
             logo_image.generate_mipmaps()
             _publisher_logo.texture = ImageTexture.create_from_image(logo_image)
     _publisher_logo.visible = _publisher_logo.texture != null
+    _publisher_plate.visible = _publisher_logo.visible
     _publisher_logo.tooltip_text = str(_presentation.get("publisher", maker))
     _game_source.visible = not _publisher_logo.visible and not _game_source.text.is_empty()
     var background := str(_presentation.get("background_path", ""))

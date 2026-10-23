@@ -74,7 +74,11 @@ func _run() -> void:
     carousel._gui_input(release)
     carousel._step_inspection(1.0)
     _check(activations.size() == 1, "Dragging the box inspects without launching")
-    _check(absf(carousel._selected_box.get("_pivot").rotation.y) > 0.1, "Box inspection follows the shared carousel interaction")
+    _check(absf(carousel._pair_transform.basis.get_euler().y) > 0.1, "Dragging rotates the complete shared assembly")
+    _check(carousel._selected_box.get("_pivot").transform.is_equal_approx(Transform3D.IDENTITY), "Box geometry must not rotate independently inside the assembly")
+    _check((carousel._hero.call("inspection_state") as Vector3).is_equal_approx(Vector3(0, 0, 1)), "Cartridge geometry must not rotate independently inside the assembly")
+    _verify_rigid_inspection(carousel)
+
 
     carousel.select_id("bare")
     _check(carousel.selected_box_count() == 0 and not is_instance_valid(box_model), "Changing to a game without a box releases the previous model")
@@ -94,13 +98,77 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(path)
     if _errors.is_empty():
-        print("Collectible pair smoke passed: bounded loading, composition, box click, drag inspection, selection clearing, text and neutral fallbacks.")
+        print("Collectible pair smoke passed: 405 rigid poses without intersection, geometric clearance, common ground, camera fit, contact shadow, click/drag, bounded resources and fallbacks.")
         quit(0)
     else:
         for error in _errors:
             push_error(error)
         quit(1)
 
+func _verify_rigid_inspection(carousel: Control) -> void:
+    carousel._inspect_yaw = 0.0
+    carousel._inspect_pitch = 0.0
+    carousel._inspect_zoom = 1.0
+    carousel._apply_inspection()
+    var box: Node3D = carousel._selected_box
+    var media: Node3D = carousel._hero
+    var rest_relative := box.global_transform.affine_inverse() * media.global_transform
+    var rest_distance := box.global_position.distance_to(media.global_position)
+    var box_bounds: AABB = box.call("world_bounds")
+    var media_bounds: AABB = media.call("world_bounds")
+    _check(is_equal_approx(box_bounds.position.y, media_bounds.position.y), "Both objects must stand on the same resting ground")
+    _check(media_bounds.position.z - box_bounds.end.z >= Carousel.PAIR_CLEARANCE - 0.0001, "The entire cartridge must begin ahead of the box's foremost resting geometry")
+    carousel.reduced_motion = false
+    var pose_count := 0
+    for dimensions in [Vector2(1000, 800), Vector2(1600, 900), Vector2(600, 800)]:
+        carousel.size = dimensions
+        carousel._resize_view()
+        for yaw in [-PI, -PI * 0.75, -PI * 0.5, -PI * 0.25, 0.0, PI * 0.25, PI * 0.5, PI * 0.75, PI]:
+            for pitch in [-Carousel.PITCH_LIMIT, -0.5, 0.0, 0.5, Carousel.PITCH_LIMIT]:
+                for zoom in [Carousel.ZOOM_MINIMUM, 1.0, Carousel.ZOOM_MAXIMUM]:
+                    carousel._inspect_yaw = yaw
+                    carousel._inspect_pitch = pitch
+                    carousel._inspect_zoom = zoom
+                    carousel._idle_time = float(pose_count) * 1.7
+                    carousel._apply_inspection()
+                    carousel._update_contact_shadow()
+                    var relative := box.global_transform.affine_inverse() * media.global_transform
+                    _check(relative.is_equal_approx(rest_relative), "Relative object poses must remain rigid at every rotation and zoom")
+                    _check(is_equal_approx(box.global_position.distance_to(media.global_position) / zoom, rest_distance), "Rotating or zooming must preserve normalized separation")
+                    var separating_axis: Vector3 = carousel._pair_transform.basis.z.normalized()
+                    var box_projection := _project_geometry(box, separating_axis)
+                    var media_projection := _project_geometry(media, separating_axis)
+                    _check(media_projection.x - box_projection.y >= Carousel.PAIR_CLEARANCE * zoom - 0.0001, "Actual mesh bounding volumes must remain separated throughout inspection")
+                    box_bounds = box.call("world_bounds")
+                    media_bounds = media.call("world_bounds")
+                    var bounds := box_bounds.merge(media_bounds)
+                    _check(is_equal_approx(bounds.position.y, Carousel.PAIR_GROUND_Y), "The assembly must stay grounded without idle floating")
+                    _check(is_equal_approx(carousel._shadow.position.y, bounds.position.y - 0.015), "Contact shadow must sit immediately below the actual assembly")
+                    for corner in range(8):
+                        var point := bounds.get_endpoint(corner)
+                        var screen: Vector2 = carousel._camera.unproject_position(point)
+                        var viewport_size := Vector2(carousel._viewport.size)
+                        _check(not carousel._camera.is_position_behind(point) and Rect2(Vector2.ZERO, viewport_size).has_point(screen), "Every pair corner must stay inside the camera at all supported inspection poses")
+                    pose_count += 1
+    _check(pose_count == 405, "Exercise all 405 angle, zoom and viewport combinations")
+    carousel.size = Vector2(1000, 800)
+    carousel.set_presentation(true, false, false)
+
+
+func _project_geometry(node: Node3D, axis: Vector3) -> Vector2:
+    var projection := Vector2(INF, -INF)
+    for child in node.find_children("*", "MeshInstance3D", true, false):
+        var mesh := child as MeshInstance3D
+        if mesh.mesh == null:
+            continue
+        for corner in range(8):
+            var point := mesh.global_transform * mesh.get_aabb().get_endpoint(corner)
+            var projected := axis.dot(point)
+            projection.x = minf(projection.x, projected)
+            projection.y = maxf(projection.y, projected)
+    return projection
+
+
 func _check(condition: bool, message: String) -> void:
-    if not condition:
+    if not condition and not _errors.has(message):
         _errors.append(message)

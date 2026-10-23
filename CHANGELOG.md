@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Rotate and zoom the selected box and cartridge as one rigid, physically separated assembly. Align their resting bases, fit the camera at every inspection angle and ground the contact shadow; remove independent hover and bob that could make the models intersect. Exercise 405 rotation/zoom/aspect combinations and retain click-to-play and missing-model fallbacks.
+- Turn selection backdrop artwork into a subdued per-game color wash so characters do not repeat behind the box. Give the optional official publisher mark a compact, contrasting plate beside the system name, retaining private asset loading and neutral missing-logo behavior.
+
 - Keep short selection layouts at 1024×720 and similar narrow windows compact, preventing the synopsis and preview from pushing soundtrack controls or navigation below the window.
 
 - Show the selected game’s external 3D box and cartridge together as one collectible composition. Reuse the existing validated box loader, retain only one selected box, and preserve click-to-play, shared drag/zoom inspection, keyboard/gamepad navigation and cartridge-only/text fallbacks.

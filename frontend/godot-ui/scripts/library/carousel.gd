@@ -24,6 +24,8 @@ const IDLE_YAW_AMPLITUDE := 0.1
 const IDLE_PITCH_AMPLITUDE := 0.02
 const IDLE_BOB_AMPLITUDE := 0.06
 const IDLE_SPEED := 1.05
+const PAIR_GROUND_Y := -1.05
+const PAIR_CLEARANCE := 0.08
 
 var games: Array = []
 var selected_index := -1
@@ -53,6 +55,12 @@ var _repeat_remaining := REPEAT_DELAY
 var _hero: Node3D
 var _selected_box: Node3D
 var _box_game_id := ""
+var _pair_ready := false
+var _pair_box_pose := Transform3D.IDENTITY
+var _pair_media_pose := Transform3D.IDENTITY
+var _pair_base_bounds := AABB()
+var _pair_center := Vector3.ZERO
+var _pair_transform := Transform3D.IDENTITY
 var _inspecting := false
 var _inspect_yaw := 0.0
 var _inspect_pitch := 0.0
@@ -332,6 +340,7 @@ func _emit_selection() -> void:
 func _layout(animate: bool, refresh := false) -> void:
     if _world == null or _fallback == null:
         return
+    _pair_ready = false
     _update_selected_box()
     _shadow.visible = not textual_view and not games.is_empty()
     _container.visible = not textual_view
@@ -390,14 +399,19 @@ func _layout(animate: bool, refresh := false) -> void:
         var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-18.0 if distance == 0 else -signi(distance) * 23.0), 0)
         var scale_factor := 0.68 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
         if distance == 0 and _selected_box.visible:
-            target = Vector3(1.16, -0.39, 0.54)
-            angle = Vector3(deg_to_rad(-3.0), deg_to_rad(-12.0), 0)
+            target = Vector3(1.05, 0.0, 0.40)
+            angle = Vector3(deg_to_rad(4.0), deg_to_rad(-10.0), 0)
             scale_factor = 0.50
-        item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound)
-        item.call("set_motion_enabled", not reduced_motion)
+        var paired := distance == 0 and _selected_box.visible
+        item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound and not paired)
+        item.call("set_motion_enabled", not reduced_motion and not paired)
         item.call("set_pointer", Vector2.ZERO)
         if distance == 0:
             _hero = item
+    if _selected_box.visible:
+        _prepare_pair_pose()
+    else:
+        _frame_single_stage()
     _apply_inspection()
 
 
@@ -424,8 +438,8 @@ func _update_selected_box() -> void:
         _box_game_id = selected_id()
         _selected_box.call("load_model", path)
     if _selected_box.visible:
-        _selected_box.position = Vector3(-0.36, 0.20, -0.28)
-        _selected_box.rotation = Vector3(deg_to_rad(-3.0), deg_to_rad(-19.0), 0)
+        _selected_box.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(4.0), deg_to_rad(-16.0), 0)), Vector3(-0.42, 0.0, -0.35))
+        _selected_box.call("set_inspection", 0.0, 0.0, 1.0, 0.0)
 
 
 func selected_box_count() -> int:
@@ -554,6 +568,9 @@ func _step_inspection(delta: float) -> void:
 func _apply_inspection() -> void:
     if _hero == null or not is_instance_valid(_hero) or not _hero.visible:
         return
+    if _pair_ready and _selected_box.visible:
+        _apply_pair_inspection()
+        return
     var yaw := _inspect_yaw
     var pitch := _inspect_pitch
     var float_offset := 0.0
@@ -563,8 +580,6 @@ func _apply_inspection() -> void:
         float_offset = sin(_idle_time * IDLE_SPEED * 1.37) * IDLE_BOB_AMPLITUDE
     pitch = clampf(pitch, -PITCH_LIMIT, PITCH_LIMIT)
     _hero.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
-    if _selected_box != null and _selected_box.visible:
-        _selected_box.call("set_inspection", yaw, pitch, _inspect_zoom, float_offset)
 
 
 func _zoom_by(step: float) -> void:
@@ -629,14 +644,67 @@ func _activate_text_button(button: Button) -> void:
 func _resize_view() -> void:
     if _camera == null:
         return
-    var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
-    _camera.position = Vector3(0, 0.55, maxf(7.5, 7.0 / ratio))
-    _camera.look_at(Vector3(0, -0.05, 0), Vector3.UP)
     var budget_shrink := maxi(1, ceili(maxf(size.x / 2560.0, size.y / 1440.0)))
     _container.stretch_shrink = maxi(2 if low_quality else 1, budget_shrink)
     _viewport.msaa_3d = Viewport.MSAA_DISABLED if low_quality else Viewport.MSAA_2X
     _layout(false)
     queue_redraw()
+
+
+func _frame_single_stage() -> void:
+    var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
+    _camera.position = Vector3(0, 0.55, maxf(7.5, 7.0 / ratio))
+    _camera.look_at(Vector3(0, -0.05, 0), Vector3.UP)
+
+
+func _prepare_pair_pose() -> void:
+    # Establish disjoint solids once, before any inspection transform. Their
+    # complete transforms are then moved together, never about separate pivots.
+    _hero.call("set_pointer", Vector2.ZERO)
+    _hero.call("set_inspection", 0.0, 0.0, 1.0, 0.0)
+    var box_bounds: AABB = _selected_box.call("world_bounds")
+    _selected_box.position.y += PAIR_GROUND_Y - box_bounds.position.y
+    box_bounds = _selected_box.call("world_bounds")
+    var media_bounds: AABB = _hero.call("world_bounds")
+    _hero.position.y += PAIR_GROUND_Y - media_bounds.position.y
+    # Even at their resting yaw, the cartridge's back is ahead of the box's
+    # foremost geometry. A common rigid transform preserves this separating plane.
+    _hero.position.z += maxf(0.0, box_bounds.end.z + PAIR_CLEARANCE - media_bounds.position.z)
+    media_bounds = _hero.call("world_bounds")
+    _pair_box_pose = _selected_box.transform
+    _pair_media_pose = _hero.transform
+    _pair_base_bounds = box_bounds.merge(media_bounds)
+    _pair_center = _pair_base_bounds.get_center()
+    _pair_ready = true
+
+
+func _apply_pair_inspection() -> void:
+    var orientation := Basis.from_euler(Vector3(clampf(_inspect_pitch, -PITCH_LIMIT, PITCH_LIMIT), _inspect_yaw, 0))
+    var basis_value := orientation.scaled(Vector3.ONE * _inspect_zoom)
+    _pair_transform = Transform3D(basis_value, _pair_center - basis_value * _pair_center)
+    _selected_box.transform = _pair_transform * _pair_box_pose
+    _hero.transform = _pair_transform * _pair_media_pose
+    var bounds: AABB = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
+    # Ground the rotated assembly without relative movement or floating idle bob.
+    _pair_transform.origin.y += PAIR_GROUND_Y - bounds.position.y
+    _selected_box.transform = _pair_transform * _pair_box_pose
+    _hero.transform = _pair_transform * _pair_media_pose
+    bounds = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
+    _frame_pair(bounds)
+
+
+func _frame_pair(bounds: AABB) -> void:
+    var target := _pair_transform * _pair_center
+    var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
+    var half_fov := tan(deg_to_rad(_camera.fov * 0.5))
+    var distance := 7.8
+    # Fit the complete assembly at every inspection angle. Zoom can approach
+    # the viewport edge, but cannot crop the other half of the collection.
+    for corner in range(8):
+        var point := bounds.get_endpoint(corner) - target
+        distance = maxf(distance, point.z + maxf(absf(point.y) / half_fov, absf(point.x) / (half_fov * ratio)) * 1.12)
+    _camera.position = target + Vector3(0, 0, distance)
+    _camera.look_at(target, Vector3.UP)
 
 
 func _light(angles: Vector3, color: Color, energy: float) -> void:
@@ -672,6 +740,16 @@ func _build_shadow() -> void:
 func _update_contact_shadow() -> void:
     if _shadow == null or not _shadow.visible:
         return
+    if _pair_ready and _selected_box.visible:
+        var bounds: AABB = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
+        _shadow.position = Vector3(bounds.get_center().x, bounds.position.y - 0.015, bounds.get_center().z)
+        (_shadow.mesh as QuadMesh).size = Vector2(maxf(bounds.size.x * 1.03, 0.3), maxf(bounds.size.z * 1.15, 0.55))
+        _shadow.transparency = 0.4
+        return
+    _shadow.position.x = 0.0
+    _shadow.position.z = 0.2
+    (_shadow.mesh as QuadMesh).size = Vector2(7, 2.5)
+    _shadow.transparency = 0.0
     var floor_y := -1.5
     for item in _pool:
         if item.visible:
