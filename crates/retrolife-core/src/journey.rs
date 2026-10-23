@@ -6,7 +6,89 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-pub const MILESTONES: [&str; 4] = ["first_stage", "secret", "boss", "finale"];
+pub const MILESTONES: [&str; 13] = [
+    "first_stage",
+    "secret",
+    "boss",
+    "finale",
+    "power_up",
+    "yoshi",
+    "dragon_coins",
+    "castle_2",
+    "castle_3",
+    "castle_4",
+    "castle_5",
+    "castle_6",
+    "castle_7",
+];
+const TITLES: [&str; 13] = [
+    "Your first finish",
+    "A hidden way out",
+    "Your first castle",
+    "The final rescue",
+    "A little bigger",
+    "Meet your travelling companion",
+    "Five in one run",
+    "Through Donut Plains",
+    "Beyond Vanilla Dome",
+    "Across the bridges",
+    "Out of the forest",
+    "Through Chocolate Island",
+    "The last Koopaling",
+];
+const NOTES: [&str; 13] = [
+    "Finish a regular stage on Yoshi's Island.",
+    "Complete a stage through a secret exit.",
+    "Defeat a Koopaling and clear their castle.",
+    "Defeat Bowser and reach the rescue scene.",
+    "Collect a power-up while Mario or Luigi is small.",
+    "Climb onto Yoshi during a stage.",
+    "Collect five Dragon Coins in one stage run.",
+    "Clear Morton's castle.",
+    "Clear Lemmy's castle.",
+    "Clear Ludwig's castle.",
+    "Clear Roy's castle.",
+    "Clear Wendy's castle.",
+    "Clear Larry's castle.",
+];
+const REWARDS: [&str; 13] = [
+    "Goal Star",
+    "Secret key",
+    "Castle Star",
+    "Peach's thank-you",
+    "Super Mushroom",
+    "Yoshi companion",
+    "Dragon Coin medallion",
+    "Morton keepsake",
+    "Lemmy keepsake",
+    "Ludwig keepsake",
+    "Roy keepsake",
+    "Wendy keepsake",
+    "Larry keepsake",
+];
+
+/// Reveal the next region, without restricting detection of out-of-order play.
+fn revealed(id: &str, earned: &BTreeSet<String>) -> bool {
+    if earned.contains(id) {
+        return true;
+    }
+    let furthest = (2..=7)
+        .filter(|n| earned.contains(&format!("castle_{n}")))
+        .max()
+        .unwrap_or(if earned.contains("boss") { 1 } else { 0 });
+    match id {
+        "power_up" | "yoshi" | "first_stage" => true,
+        "dragon_coins" | "boss" => earned.contains("first_stage") || furthest > 0,
+        "secret" | "castle_2" => furthest >= 1,
+        "castle_3" => furthest >= 2,
+        "castle_4" => furthest >= 3,
+        "castle_5" => furthest >= 4,
+        "castle_6" => furthest >= 5,
+        "castle_7" => furthest >= 6,
+        "finale" => furthest >= 7,
+        _ => false,
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +141,8 @@ pub struct Achievement {
     pub xp: u64,
     pub earned: bool,
     pub art_index: usize,
+    pub revealed: bool,
+    pub reward_title: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -264,29 +348,19 @@ impl Journey {
             .values()
             .map(|game| game.verified.len() as u64 * 100)
             .sum();
-        let titles = [
-            "Clear a stage on Yoshi's Island",
-            "Discover a secret exit",
-            "Defeat a Koopaling",
-            "Rescue Peach from Bowser",
-        ];
-        let notes = [
-            "Finish one of Yoshi's Island's four regular stages.",
-            "Finish a stage using its alternate exit.",
-            "Clear one of the seven Koopaling castles.",
-            "Defeat Bowser and reach the ending.",
-        ];
         let achievements = if supported {
             MILESTONES
                 .iter()
                 .enumerate()
                 .map(|(index, id)| Achievement {
                     id,
-                    title: titles[index],
-                    description: notes[index],
+                    title: TITLES[index],
+                    description: NOTES[index],
                     xp: 100,
                     earned: game.verified.contains(*id),
                     art_index: index + 4,
+                    revealed: revealed(id, &game.verified),
+                    reward_title: REWARDS[index],
                 })
                 .collect()
         } else {
@@ -308,7 +382,7 @@ impl Journey {
             level: 1 + total_xp / 200,
             level_progress: total_xp % 200,
             collected: if supported { game.verified.len() } else { 0 },
-            total_rewards: if supported { 4 } else { 0 },
+            total_rewards: if supported { MILESTONES.len() } else { 0 },
         }
     }
 }
@@ -325,6 +399,39 @@ mod tests {
             earned: BTreeSet::from(["first_stage".into()]),
             ..Default::default()
         }
+    }
+    #[test]
+    fn reveals_next_regions_without_spoiling_the_finale() {
+        let mut state = Journey::default();
+        state.begin("a");
+        let mut event = observed();
+        event.earned.clear();
+        state.observe("a", &event);
+        let visible = |state: &Journey| {
+            state
+                .summary("a", None)
+                .achievements
+                .into_iter()
+                .filter(|a| a.revealed)
+                .map(|a| a.id)
+                .collect::<BTreeSet<_>>()
+        };
+        assert_eq!(
+            visible(&state),
+            BTreeSet::from(["first_stage", "power_up", "yoshi"])
+        );
+        event.earned.insert("first_stage".into());
+        state.observe("a", &event);
+        assert!(visible(&state).contains("boss"));
+        assert!(!visible(&state).contains("secret"));
+        event.earned.insert("castle_4".into());
+        state.observe("a", &event);
+        assert!(visible(&state).contains("castle_5"));
+        assert!(!visible(&state).contains("finale"));
+        event.earned.insert("castle_7".into());
+        state.observe("a", &event);
+        assert!(visible(&state).contains("finale"));
+        assert_eq!(state.summary("a", None).total_rewards, 13);
     }
     #[test]
     fn only_verified_events_award_xp_and_duplicate_polls_do_nothing() {

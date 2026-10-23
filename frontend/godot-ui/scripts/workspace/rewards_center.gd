@@ -327,7 +327,9 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     var customized := cover != null
     for achievement: Dictionary in state.achievements:
         var index := int(achievement.artIndex)
-        var texture := _load_icon(base + "/journey/rewards/%02d" % [index + 1]) if not base.is_empty() else null
+        var texture := _load_icon(base + "/journey/rewards/" + str(achievement.id)) if not base.is_empty() else null
+        if texture == null and index < 8 and not base.is_empty():
+            texture = _load_icon(base + "/journey/rewards/%02d" % [index + 1])
         reward_art[str(achievement.id)] = texture
         customized = customized or texture != null
     if not customized:
@@ -371,13 +373,15 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     for achievement: Dictionary in state.achievements:
         var earned := bool(achievement.earned)
         var index := int(achievement.artIndex)
+        if not earned and not bool(achievement.get("revealed", true)):
+            continue
         if (_status_filter == 1 and not earned) or (_status_filter == 2 and earned):
             continue
         var art: Texture2D = reward_art.get(str(achievement.id))
         var art_direction := JourneyTheme.card(theme_data, str(achievement.id)) if art != null else {}
         var card_accent := Color(art_direction.get("accent", accent.to_html(false)))
         var requirement := str(achievement.description) + " · %d XP" % int(achievement.xp)
-        var title := str(art_direction.get("rewardName", gifts[index] if art != null and index < gifts.size() else achievement.title))
+        var title := str(achievement.get("rewardTitle", art_direction.get("rewardName", gifts[index] if art != null and index < gifts.size() else achievement.title)))
         _build_keepsake(grid, title, requirement, earned, index, art, card_accent, theme_data.get("artStyle") == "pixel")
 
 

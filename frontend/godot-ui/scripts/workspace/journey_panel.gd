@@ -6,7 +6,7 @@ const Profiles = preload("res://scripts/workspace/collection_profiles.gd")
 const Preferences = preload("res://scripts/workspace/preferences.gd")
 const RewardStamp = preload("res://scripts/workspace/reward_stamp.gd")
 const JourneyTheme = preload("res://scripts/workspace/journey_theme.gd")
-const ACHIEVEMENT_IDS := ["first_stage", "secret", "boss", "finale"]
+const ACHIEVEMENT_IDS := ["first_stage", "secret", "boss", "finale", "power_up", "yoshi", "dragon_coins", "castle_2", "castle_3", "castle_4", "castle_5", "castle_6", "castle_7"]
 const GIFTS := ["First-light badge", "Explorer pin", "Adventure ticket", "Golden hour trophy", "Stage star", "Secret compass", "Boss crown", "Victory gift"]
 const INK := Color("eaf0f5")
 const MUTED := Color("9baebc")
@@ -23,6 +23,8 @@ var _unlock_notice: Label
 var _notice_remaining := 0.0
 var _has_snapshot := false
 var _earned_ids: Array[String] = []
+var _next_reward: Label
+var _future_hint: Label
 var _collection: VBoxContainer
 var _collection_progress: ProgressBar
 var _collection_summary: Label
@@ -73,14 +75,14 @@ func _ready() -> void:
     _world.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
     _world.max_lines_visible = 1
     _cover_frame = PanelContainer.new()
-    _cover_frame.custom_minimum_size.y = 190
+    _cover_frame.custom_minimum_size.y = 100
     _cover_frame.clip_contents = true
     _cover_frame.add_theme_stylebox_override("panel", _panel_style(Color("1b2835"), Color.TRANSPARENT, 12, 0))
     column.add_child(_cover_frame)
     _art = TextureRect.new()
     _art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-    _art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+    _art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     _art.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _cover_frame.add_child(_art)
     _cover_frame.hide()
@@ -104,7 +106,7 @@ func _ready() -> void:
     var tabs := HBoxContainer.new()
     tabs.add_theme_constant_override("separation", 6)
     column.add_child(tabs)
-    _quests_tab = _tab(tabs, "Chapters")
+    _quests_tab = _tab(tabs, "Discoveries")
     _quests_tab.button_pressed = true
     _gift_tab = _tab(tabs, "Collection · 0/0")
     var group := ButtonGroup.new()
@@ -115,6 +117,11 @@ func _ready() -> void:
     column.add_child(_quests)
     for index in ACHIEVEMENT_IDS.size():
         _build_chapter(index)
+    _next_reward = _text(_quests, "", 14, _accent)
+    _future_hint = _text(_quests, "New discoveries appear as your adventure unfolds.", 13, MUTED)
+    var order := ["power_up", "yoshi", "first_stage", "dragon_coins", "boss", "secret", "castle_2", "castle_3", "castle_4", "castle_5", "castle_6", "castle_7", "finale"]
+    for position in order.size():
+        _quests.move_child(_chapter_cards[ACHIEVEMENT_IDS.find(order[position])], position)
     _time = _text(_quests, "", 11, MUTED)
     _legacy = _text(_quests, "Earlier journal entries are preserved separately. Verified rewards unlock from game events.", 11, MUTED)
     _legacy.hide()
@@ -150,7 +157,7 @@ func _build_chapter(index: int) -> void:
     frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
     row.add_child(frame)
     _chapter_icon_frames.append(frame)
-    icon.custom_minimum_size = Vector2(88, 88)
+    icon.custom_minimum_size = Vector2(64, 64)
     icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -218,7 +225,7 @@ func _reset_art() -> void:
     _chapter_textures.clear()
     _chapter_textures.resize(ACHIEVEMENT_IDS.size())
     _reward_textures.clear()
-    _reward_textures.resize(GIFTS.size())
+    _reward_textures.resize(ACHIEVEMENT_IDS.size() + 4)
     for index in ACHIEVEMENT_IDS.size():
         _chapter_icons[index].texture = null
         _chapter_icons[index].hide()
@@ -245,14 +252,18 @@ func _configure_art() -> void:
     var pixel_art: bool = _theme_data.get("artStyle") == "pixel"
     var art_filter := CanvasItem.TEXTURE_FILTER_NEAREST if pixel_art else CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _art.texture_filter = art_filter
+    _art.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED if pixel_art else TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     _art.texture = _load_art(journey + "cover.png") if not journey.is_empty() else null
     _cover_frame.visible = _art.texture != null
     _art.visible = _art.texture != null
     for index in ACHIEVEMENT_IDS.size():
         _chapter_textures.append(_load_icon(journey + "chapters/" + ACHIEVEMENT_IDS[index]) if not journey.is_empty() else null)
-    _reward_textures.resize(GIFTS.size())
-    for index in range(4, GIFTS.size()):
-        _reward_textures[index] = _load_icon(journey + "rewards/%02d" % [index + 1]) if not journey.is_empty() else null
+    _reward_textures.resize(ACHIEVEMENT_IDS.size() + 4)
+    for index in ACHIEVEMENT_IDS.size():
+        var texture := _load_icon(journey + "rewards/" + ACHIEVEMENT_IDS[index]) if not journey.is_empty() else null
+        if texture == null and index < 4 and not journey.is_empty():
+            texture = _load_icon(journey + "rewards/%02d" % [index + 5])
+        _reward_textures[index + 4] = texture
     _customized = _art.texture != null or _chapter_textures.any(func(texture: Texture2D): return texture != null) or _reward_textures.any(func(texture: Texture2D): return texture != null)
     if not _customized:
         _theme_data.clear()
@@ -264,7 +275,7 @@ func _configure_art() -> void:
     else:
         _chapter.text = str(_theme_data.get("title", _chapter.text))
         _description.text = str(_theme_data.get("subtitle", _description.text))
-    _quests_tab.text = "Chapters" if _customized else "Milestones"
+    _quests_tab.text = "Discoveries" if _customized else "Milestones"
     for index in ACHIEVEMENT_IDS.size():
         var art_direction := JourneyTheme.card(_theme_data, ACHIEVEMENT_IDS[index])
         var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
@@ -274,7 +285,7 @@ func _configure_art() -> void:
         _chapter_icon_frames[index].visible = _chapter_textures[index] != null
         _chapter_icon_frames[index].add_theme_stylebox_override("panel", _panel_style(card_accent.darkened(0.84), card_accent.darkened(0.55), 3 if pixel_art else 14, 3))
         var region := str(art_direction.get("region", ""))
-        _chapter_regions[index].text = "%02d · %s" % [index + 1, region]
+        _chapter_regions[index].text = region
         _chapter_regions[index].visible = not region.is_empty() and _chapter_textures[index] != null
         _chapter_regions[index].add_theme_color_override("font_color", card_accent)
         _chapter_numbers[index].visible = _chapter_textures[index] == null
@@ -374,6 +385,8 @@ func _render_response(response: Variant) -> void:
     var newly_earned: Array[String] = []
     for card in _chapter_cards:
         card.hide()
+    var upcoming: Array[String] = []
+    var hidden_count := 0
     for achievement: Dictionary in achievements:
         var id := str(achievement.id)
         var index := ACHIEVEMENT_IDS.find(id)
@@ -381,20 +394,28 @@ func _render_response(response: Variant) -> void:
         if done:
             now_earned.append(id)
             if _has_snapshot and not _earned_ids.has(id):
-                newly_earned.append(str(achievement.title))
+                newly_earned.append(str(achievement.get("rewardTitle", achievement.title)))
         if index < 0:
             continue
+        if not bool(achievement.get("revealed", true)):
+            hidden_count += 1
+            continue
+        if done:
+            continue
+        upcoming.append(str(achievement.get("rewardTitle", achievement.title)))
         var art_direction := JourneyTheme.card(_theme_data, id)
         var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
         _chapter_cards[index].show()
         _chapter_titles[index].text = str(achievement.title)
         _quest_notes[index].text = str(achievement.description)
-        _chapter_statuses[index].text = ("UNLOCKED" if done else "WAITING TO DISCOVER") + " · %d XP" % int(achievement.xp)
+        _chapter_statuses[index].text = "GIFT · " + str(achievement.get("rewardTitle", achievement.title)) + " · %d XP" % int(achievement.xp)
         _chapter_statuses[index].add_theme_color_override("font_color", card_accent if done else MUTED)
         var style := _panel_style(card_accent.darkened(0.85) if done else Color("17222d"), card_accent.darkened(0.3) if done else card_accent.darkened(0.65), 14, 11)
         if _chapter_textures[index] != null:
             style.border_width_left = 3
         _chapter_cards[index].add_theme_stylebox_override("panel", style)
+    _next_reward.text = "%d keepsakes collected · Open Collection to see your gifts." % collected if collected > 0 else "Your first gifts are waiting. Each discovery adds a keepsake to your collection."
+    _future_hint.text = "%d more discoveries will appear as you progress." % hidden_count if hidden_count > 0 else ("Every keepsake collected. What an adventure!" if collected == available else "Keep exploring to complete your collection.")
     if not newly_earned.is_empty():
         _unlock_notice.text = "Keepsake unlocked · " + ", ".join(newly_earned)
         _unlock_notice.add_theme_color_override("font_color", _accent)
@@ -421,7 +442,7 @@ static func validate_summary(data: Variant) -> String:
     if not str(data.detectionStatus) in ["watching", "waiting", "unsupported", "unavailable"]:
         return "The progress response was unsupported."
     var achievements: Array = data.achievements
-    if int(data.totalRewards) != achievements.size() or int(data.collected) < 0 or int(data.collected) > achievements.size() or achievements.size() != (4 if data.supported else 0):
+    if int(data.totalRewards) != achievements.size() or int(data.collected) < 0 or int(data.collected) > achievements.size() or (data.supported and achievements.size() not in [4, ACHIEVEMENT_IDS.size()]) or (not data.supported and not achievements.is_empty()):
         return "The progress response was inconsistent."
     var seen := {}
     var earned := 0
@@ -433,6 +454,10 @@ static func validate_summary(data: Variant) -> String:
                 return "The achievement response was incomplete."
         var id := str(achievement.id)
         if not id in ACHIEVEMENT_IDS or seen.has(id) or not achievement.earned is bool or int(achievement.xp) < 0 or int(achievement.artIndex) != ACHIEVEMENT_IDS.find(id) + 4:
+            return "The achievement response was unsupported."
+        if achievement.has("revealed") and not achievement.revealed is bool:
+            return "The achievement response was unsupported."
+        if achievement.has("rewardTitle") and not achievement.rewardTitle is String:
             return "The achievement response was unsupported."
         seen[id] = true
         earned += 1 if achievement.earned else 0
@@ -448,6 +473,8 @@ func _clear_rewards() -> void:
 func _build_reward(achievement: Dictionary) -> void:
     var index := int(achievement.artIndex)
     var unlocked := bool(achievement.earned)
+    if not unlocked and not bool(achievement.get("revealed", true)):
+        return
     var art: Texture2D = _reward_textures[index] if index < _reward_textures.size() else null
     var art_direction := JourneyTheme.card(_theme_data, str(achievement.id)) if art != null else {}
     var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
@@ -467,11 +494,11 @@ func _build_reward(achievement: Dictionary) -> void:
     stamp.custom_minimum_size = Vector2(88, 132 if stamp.artwork != null else 38)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)
-    var title := str(art_direction.get("rewardName", _gift_names[index] if stamp.artwork != null and index < _gift_names.size() else achievement.title))
+    var title := str(achievement.get("rewardTitle", art_direction.get("rewardName", _gift_names[index] if stamp.artwork != null and index < _gift_names.size() else achievement.title)))
     var caption := _text(column, title, 14, INK if unlocked else MUTED)
     caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     caption.custom_minimum_size.y = 34
-    var status := _text(column, "COLLECTED" if unlocked else "LOCKED · %d XP" % int(achievement.xp), 10, card_accent if unlocked else MUTED)
+    var status := _text(column, "COLLECTED" if unlocked else "EARN IN GAME · +%d XP" % int(achievement.xp), 10, card_accent if unlocked else MUTED)
     status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     card.tooltip_text = str(achievement.description) + " · %d XP" % int(achievement.xp)
     card.mouse_filter = Control.MOUSE_FILTER_IGNORE

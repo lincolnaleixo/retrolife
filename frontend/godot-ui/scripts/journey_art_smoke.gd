@@ -101,9 +101,9 @@ func _run() -> void:
     _check(panel._art.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST and panel._chapter_icons[0].texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "Pixel packs must preserve hard edges in both cover and chapter art")
     _check(panel._reward_grid.get_child(0).get_child(0).get_child(0).pixel_art, "Pixel rendering must propagate to event keepsakes")
     _check(panel._customized and panel._chapter.text == "Fixture field guide", "A supported game with its own art must use its own custom theme")
-    _check(panel._chapter_regions[0].text == "01 · ISLAND ADVENTURE" and panel._chapter_icons[0].custom_minimum_size.x >= 80, "Custom chapters must give their illustrations and region labels room to read")
+    _check(panel._chapter_regions[0].text == "ISLAND ADVENTURE" and panel._chapter_icons[0].custom_minimum_size.x >= 64, "Custom chapters must give their illustrations and region labels room to read")
     _check(panel._reward_grid.get_child(0).get_child(0).get_child(1).text == "Island diorama", "Custom reward names must come from the selected game's art pack")
-    _check(panel._chapter_statuses[1].text.contains("UNLOCKED") and panel._chapter_statuses[0].text.contains("WAITING"), "Achievement cards must reflect verified backend events")
+    _check(not panel._chapter_cards[1].visible and panel._chapter_cards[0].visible and panel._chapter_statuses[0].text.contains("GIFT"), "Achievement cards must reflect verified backend events")
     _check(panel._xp.value == 100 and panel._time.text.contains("active play"), "XP and active gameplay time must come from the backend")
     _check(not panel._unlock_notice.visible, "The initial summary must not announce previously earned rewards")
     _check(panel._detection.text == "Watching for game events.", "The detector status must come from the backend")
@@ -167,6 +167,20 @@ func _run() -> void:
     _assert_neutral(panel, "An unmatched sequel")
     for path in panel.requested_paths:
         _check(not path.contains("/box/"), "A game journal must never read box artwork as a fallback")
+    backend.state = FixtureBackend.supported_state()
+    backend.state.achievements.clear()
+    for index in preload("res://scripts/workspace/journey_panel.gd").ACHIEVEMENT_IDS.size():
+        var id: String = preload("res://scripts/workspace/journey_panel.gd").ACHIEVEMENT_IDS[index]
+        backend.state.achievements.append({"id": id, "title": id, "description": "A real event", "xp": 100, "artIndex": index + 4, "earned": false, "revealed": id in ["power_up", "yoshi", "first_stage"], "rewardTitle": "Keepsake " + id})
+    backend.state.collected = 0
+    backend.state.totalRewards = 13
+    panel.configure(backend, "fixture-progressive", "Super Mario World", "snes")
+    _check(not panel._error.visible and panel._reward_grid.get_child_count() == 3, "Only the three revealed gifts appear at the start")
+    _check(not panel._chapter_cards[3].visible and not panel._chapter_cards[2].visible, "The finale and first castle must not appear on a fresh journey")
+    backend.state.achievements[4].earned = true
+    backend.state.collected = 1
+    panel.refresh()
+    _check(not panel._chapter_cards[4].visible and panel._unlock_notice.text.contains("Keepsake power_up"), "A discovery becomes a named gift and leaves the active quest list")
     panel.free()
     backend.free()
     _remove_fixture_tree(_fixture_root)
@@ -196,7 +210,7 @@ func _exercise_read_only_updates(panel: Control, backend: FixtureBackend) -> voi
     backend.state.level = 2
     backend.state.levelProgress = 0
     panel.refresh()
-    _check(panel._chapter_statuses[0].text.contains("UNLOCKED") and panel._collection_progress.value == 2, "A new game event must update the visible achievement and collection")
+    _check(not panel._chapter_cards[0].visible and panel._collection_progress.value == 2, "A new game event must update the visible achievement and collection")
     _check(panel._unlock_notice.visible and panel._unlock_notice.text.contains("Yoshi's Island"), "A newly earned live event must produce a compact notice")
     panel._notice_remaining = 0.0
     panel._unlock_notice.hide()

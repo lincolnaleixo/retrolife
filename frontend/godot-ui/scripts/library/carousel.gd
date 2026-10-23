@@ -379,7 +379,7 @@ func _layout(animate: bool, refresh := false) -> void:
         var absolute := absi(distance)
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)
         var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-18.0 if distance == 0 else -signi(distance) * 23.0), 0)
-        var scale_factor := 1.24 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
+        var scale_factor := 0.94 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
         item.call("place", target, angle, scale_factor, distance == 0, animate and not rebound)
         item.call("set_motion_enabled", not reduced_motion)
         item.call("set_pointer", Vector2.ZERO)

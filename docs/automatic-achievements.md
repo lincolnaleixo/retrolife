@@ -99,9 +99,31 @@ Version-one journals stored manual checks and elapsed emulator time. On the firs
 successful save, the original bytes are archived as `journey.v1-backup.json` beside
 `journey.json`. Every old record also remains in the version-two `legacy` field.
 These records do not count as verified XP, levels or collected achievements.
-The four event rewards each grant 100 XP once; 200 XP advances a level.
+The thirteen event rewards each grant 100 XP once; 200 XP advances a level. Existing four-event journals retain their earned IDs and XP. New entries extend the same verified profile without promoting legacy manual records.
 
 The observer continues running while Journey is hidden. New awards are saved on
 ordinary emulator polling; active play time is checkpointed every 30 seconds and
 on stop. A journal write failure keeps the session's save barrier active and can
 be retried before a clean exit. ROMs, battery saves and game memory are unchanged.
+
+## Progressive discoveries
+
+A fresh journal reveals only a power-up, riding Yoshi and the first stage finish.
+Finishing the stage reveals the first castle and five Dragon Coins. A castle
+completion reveals secret routes and the next regional castle; the final rescue
+is not shown until Larry's castle is cleared. Detection is never gated by reveal
+order: a player who skips ahead can still earn the event they actually complete.
+Earned discoveries leave the active list and become named keepsakes in Collection
+and the central Rewards view. Hidden future entries never expose their titles in
+either view. Keepsakes belong to RetroLife, not the game's inventory.
+
+Additional WRAM fields come from the same pinned SMWDisX declarations and symbols:
+`Powerup` at `0x19` (fresh small 0 → big/cape/fire 1–3), `PlayerRidingYoshi` at
+`0x187A` (0 → 1), and `DragonCoinsCollected` at `0x1420` (4 → 5). Bank 00's
+`CODE_00F377` increments the Dragon Coin count. These require consecutive live
+frames in the same level/player/save, outside message boxes and exit transitions.
+Starting/loading with the value already present does not grant a keepsake.
+Castles 2–7 reuse witnessed normal exits at the documented IDs, with distinct
+persistent rewards. Tests cover reveal order, skipped regions, load/reset edges,
+duplicate polling and old-journal compatibility. Full-game playthrough remains
+outside the automated fixtures' coverage.

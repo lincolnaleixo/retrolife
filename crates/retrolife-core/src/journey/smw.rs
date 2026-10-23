@@ -9,6 +9,9 @@ use std::collections::BTreeSet;
 pub const PROFILE: &str = "super-mario-world-usa-v1";
 pub const USA_SHA256: &str = "0838e531fe22c077528febe14cb3ff7c492f1f5fa8de354192bdff7137c27f5b";
 
+const POWERUP: usize = 0x19;
+const RIDING_YOSHI: usize = 0x187a;
+const DRAGON_COINS: usize = 0x1420;
 const GAME_MODE: usize = 0x0100;
 const OVERWORLD_OVERRIDE: usize = 0x0109;
 const SAVE_FILE: usize = 0x010a;
@@ -46,6 +49,9 @@ struct Sample {
     animation: u8,
     message: u8,
     finale: u8,
+    powerup: u8,
+    riding_yoshi: u8,
+    dragon_coins: u8,
 }
 
 impl Sample {
@@ -64,6 +70,9 @@ impl Sample {
             animation: ram[PLAYER_ANIMATION],
             message: ram[MESSAGE_BOX],
             finale: ram[FINAL_CUTSCENE],
+            powerup: ram[POWERUP],
+            riding_yoshi: ram[RIDING_YOSHI],
+            dragon_coins: ram[DRAGON_COINS],
         })
     }
 
@@ -132,6 +141,19 @@ impl Detector {
         }
 
         if let Some(previous) = self.previous_live.filter(|old| old.same_run(sample)) {
+            // Fresh in-level transitions only; loading or entering a stage with
+            // these values already present is never an achievement.
+            if live && previous.message == 0 && sample.message == 0 && sample.exit == 0 {
+                if previous.powerup == 0 && matches!(sample.powerup, 1..=3) {
+                    self.award("power_up");
+                }
+                if previous.riding_yoshi == 0 && sample.riding_yoshi == 1 {
+                    self.award("yoshi");
+                }
+                if previous.dragon_coins == 4 && sample.dragon_coins == 5 {
+                    self.award("dragon_coins");
+                }
+            }
             // CODE_00C9FE writes the outcome and switches mode in the same frame.
             // 0x10 also occurs when the goal leads into the 100-star bonus game.
             // Death and Start+Select set 0x80; side exits set zero.
@@ -147,6 +169,13 @@ impl Detector {
                 }
                 if sample.exit == 1 && KOOPALING_CASTLES.contains(&sample.translevel) {
                     self.award("boss");
+                    if let Some(index) = KOOPALING_CASTLES
+                        .iter()
+                        .position(|id| *id == sample.translevel)
+                        && index > 0
+                    {
+                        self.award(&format!("castle_{}", index + 1));
+                    }
                 }
             }
             // CODE_03AC03 starts the rescue after Bowser's final defeat. Bowser
@@ -265,7 +294,13 @@ mod tests {
         }
         assert_eq!(
             detector.snapshot().earned,
-            BTreeSet::from(["secret".into(), "boss".into()])
+            BTreeSet::from(
+                [
+                    "secret", "boss", "castle_2", "castle_3", "castle_4", "castle_5", "castle_6",
+                    "castle_7"
+                ]
+                .map(String::from)
+            )
         );
     }
 
@@ -412,6 +447,32 @@ mod tests {
         detector.start("snes", USA_SHA256, 60.098812);
         assert!(detector.snapshot().earned.is_empty());
         assert_eq!(detector.snapshot().active_frames, 0);
+    }
+
+    #[test]
+    fn small_discoveries_require_live_edges_and_reset_drops_evidence() {
+        for (field, before, after, award) in [
+            (POWERUP, 0, 1, "power_up"),
+            (RIDING_YOSHI, 0, 1, "yoshi"),
+            (DRAGON_COINS, 4, 5, "dragon_coins"),
+        ] {
+            let mut detector = detector();
+            let mut ram = level(0x29);
+            ram[field] = after;
+            detector.observe(Some(&ram));
+            assert!(detector.snapshot().earned.is_empty());
+            ram[field] = before;
+            detector.observe(Some(&ram));
+            detector.reset();
+            ram[field] = after;
+            detector.observe(Some(&ram));
+            assert!(detector.snapshot().earned.is_empty());
+            ram[field] = before;
+            detector.observe(Some(&ram));
+            ram[field] = after;
+            detector.observe(Some(&ram));
+            assert_eq!(detector.snapshot().earned, BTreeSet::from([award.into()]));
+        }
     }
 
     #[test]

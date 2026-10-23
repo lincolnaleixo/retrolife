@@ -29,6 +29,13 @@ var _selection_music_enabled := false
 var _selection_music_volume := 0.35
 var _selection_music_path := ""
 var _selection_music_failed_path := ""
+var _inline_preview: AspectRatioContainer
+var _inline_video: VideoStreamPlayer
+var _inline_still: TextureRect
+var _inline_path := ""
+var _preview_delay := 0.0
+var _inline_checked_path := ""
+var _inline_valid := false
 var _video_panel: PopupPanel
 var _video_player: VideoStreamPlayer
 var _presentation: Dictionary = {}
@@ -164,7 +171,7 @@ func _build_shell() -> void:
     column.add_child(showcase)
     var info_margin := MarginContainer.new()
     info_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    info_margin.size_flags_stretch_ratio = 0.85
+    info_margin.size_flags_stretch_ratio = 1.0
     info_margin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     info_margin.add_theme_constant_override("margin_left", 28)
     info_margin.add_theme_constant_override("margin_right", 24)
@@ -174,7 +181,7 @@ func _build_shell() -> void:
     _game_info.add_theme_constant_override("separation", 20)
     info_margin.add_child(_game_info)
     _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    _carousel.size_flags_stretch_ratio = 1.45
+    _carousel.size_flags_stretch_ratio = 1.15
     showcase.add_child(_carousel)
     _previous_game = _button("‹", _navigate.bind(-1))
     _next_game = _button("›", _navigate.bind(1))
@@ -214,6 +221,25 @@ func _build_shell() -> void:
     _game_description.max_lines_visible = 5
     _game_description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
     _game_info.add_child(_game_description)
+    _inline_preview = AspectRatioContainer.new()
+    _inline_preview.name = "SelectionPreview"
+    _inline_preview.ratio = 4.0 / 3.0
+    _inline_preview.custom_minimum_size.y = 170
+    _inline_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    _game_info.add_child(_inline_preview)
+    _inline_still = TextureRect.new()
+    _inline_still.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    _inline_still.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    _inline_still.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    _inline_preview.add_child(_inline_still)
+    _inline_video = VideoStreamPlayer.new()
+    _inline_video.expand = true
+    _inline_video.volume_db = -80.0
+    _inline_video.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _inline_video.finished.connect(func():
+        if not _inline_path.is_empty() and _inline_preview.visible: _inline_video.play())
+    _inline_preview.add_child(_inline_video)
+    _inline_preview.hide()
     _media_group = VBoxContainer.new()
     _media_group.add_theme_constant_override("separation", 6)
     _game_info.add_child(_media_group)
@@ -303,10 +329,12 @@ func _update_layout_density() -> void:
     if _carousel == null or _hero_title == null:
         return
     _carousel.custom_minimum_size.y = 180 if size.y < 660 else 220
-    _hero_title.add_theme_font_size_override("font_size", 32 if size.x < 1300 else 52)
+    _hero_title.add_theme_font_size_override("font_size", 30 if size.x < 1300 else 40)
     _game_description.add_theme_font_size_override("font_size", 16 if size.x < 1300 else 20)
-    _game_info.add_theme_constant_override("separation", 12 if size.y < 720 else 22)
-    _game_description.max_lines_visible = 4 if size.y < 720 else 6
+    _game_info.add_theme_constant_override("separation", 8 if size.y < 720 else 12)
+    _game_description.max_lines_visible = 2 if size.y < 720 else 3
+    if is_instance_valid(_inline_preview):
+        _inline_preview.custom_minimum_size.y = 140 if size.y < 720 else 210
     var compact := size.y < 660
     _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
     _hero_title.max_lines_visible = 2 if compact else 3
@@ -724,6 +752,7 @@ func _game_is_active() -> bool:
 
 
 func _process(_delta: float) -> void:
+    _sync_inline_preview(_delta)
     _update_settings_context()
     _sync_selection_music()
     if _carousel != null:
@@ -982,6 +1011,10 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     if key == _presentation_key:
         return
     _stop_selection_music()
+    _stop_inline_preview()
+    _preview_delay = 0.0
+    _inline_checked_path = ""
+    _inline_still.texture = null
     _presentation_key = key
     _presentation = {}
     _game_backdrop.texture = null
@@ -1037,6 +1070,7 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
             if art != null and not art.is_empty() and art.get_width() <= 8192 and art.get_height() <= 8192:
                 art.generate_mipmaps()
                 _game_backdrop.texture = ImageTexture.create_from_image(art)
+                _inline_still.texture = _game_backdrop.texture
                 _game_backdrop.visible = not _at_console_home
     _update_selection_media_controls()
     _sync_selection_music()
@@ -1254,6 +1288,7 @@ func _sync_selection_music() -> void:
 func _play_selected_game() -> void:
     # Stop before the backend starts, not one UI frame after game audio begins.
     _selection_launch_pending = true
+    _stop_inline_preview()
     _stop_selection_music()
     _external_preview_active = false
     if is_instance_valid(_video_panel):
@@ -1261,3 +1296,46 @@ func _play_selected_game() -> void:
     super._play_selected_game()
     _selection_launch_pending = false
     _sync_selection_music()
+
+
+func _stop_inline_preview() -> void:
+    if not is_instance_valid(_inline_video):
+        return
+    _inline_video.stop()
+    _inline_video.stream = null
+    _inline_video.hide()
+    _inline_path = ""
+
+
+func _sync_inline_preview(delta: float) -> void:
+    if not is_instance_valid(_inline_video):
+        return
+    var blocked := _at_console_home or _game_is_active() or _selection_launch_pending or not is_visible_in_tree() or _importing or _external_preview_active
+    for popup in [_video_panel, _media_settings, _settings_panel, _controller_panel, _storage_panel, _rewards_panel, _box_panel, _updates_panel, _details_overlay, _search_panel, _file_dialog, _art_dialog]:
+        if is_instance_valid(popup) and popup.visible:
+            blocked = true
+    var path := str(_presentation.get("video_path", ""))
+    var playable := path.get_extension().to_lower() == "ogv"
+    _inline_preview.visible = not _at_console_home and not _presentation_key.is_empty() and (playable or _inline_still.texture != null)
+    if blocked or _reduce_motion or not playable:
+        _stop_inline_preview()
+        _preview_delay = 0.0
+        return
+    if path == _inline_path:
+        return
+    _preview_delay += delta
+    if _preview_delay < 0.8:
+        return
+    if path != _inline_checked_path:
+        _inline_checked_path = path
+        _inline_valid = _valid_local_preview(path)
+    if not _inline_valid:
+        _inline_preview.visible = _inline_still.texture != null
+        return
+    var stream := VideoStreamTheora.new()
+    stream.file = path
+    _inline_video.stream = stream
+    _inline_video.paused = false
+    _inline_video.show()
+    _inline_path = path
+    _inline_video.play()

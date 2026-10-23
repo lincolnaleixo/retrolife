@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## Optional, inert art direction. A theme never enables achievements or changes XP.
-const IDS := ["first_stage", "secret", "boss", "finale"]
+const IDS := ["first_stage", "secret", "boss", "finale", "power_up", "yoshi", "dragon_coins", "castle_2", "castle_3", "castle_4", "castle_5", "castle_6", "castle_7"]
 const LIMIT := 16 * 1024
 
 static func from_file(path: String) -> Dictionary:
