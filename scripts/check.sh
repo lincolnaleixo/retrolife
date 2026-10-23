@@ -9,6 +9,7 @@ python3 scripts/check-dependencies.py
 python3 scripts/test-cartridge-assets.py
 python3 scripts/test-updates.py
 python3 scripts/test-release-automation.py
+python3 scripts/test-local-macos-install.py
 scripts/build.sh
 "${GODOT:-godot}" --headless --path frontend/godot-ui --editor --import
 

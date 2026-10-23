@@ -46,7 +46,7 @@ Verification for this workspace is tracked in `plan.md`. A physical gamepad and 
 
 ### Console gallery and game journals
 
-The window uses integrated, borderless chrome. Drag the RetroLife wordmark area to move it; double-click that area or press F11 to toggle fullscreen. **Menu** also provides fullscreen, minimize and safe quit. The background is a static studio stage with no dotted overlay. Local development installs replace `/Applications/RetroLife.app`, so launching the normal app opens the latest installed build; they are not a signed distribution release.
+The window uses integrated, borderless chrome. Drag the RetroLife wordmark area to move it; double-click that area or press F11 to toggle fullscreen. **Menu** also provides fullscreen, minimize and safe quit. The background is a static studio stage with no dotted overlay. [Local development installs](docs/local-macos-install.md) update `/Applications/RetroLife.app` using a pinned development signing identity, so launching the normal app opens the latest installed build and macOS can recognize subsequent updates. These are local builds, not notarized distribution releases.
 
 The library opens on a carousel showing one 3D console at a time. Only systems with games in the library appear. Use the side buttons or Left/Right to change consoles, then click the console artwork (or press Enter/A) to browse games. With only one console, the side arrows are hidden. Use the top back arrow (or Escape outside a search) to return. Local ROM import and play remain SNES-only.
 
