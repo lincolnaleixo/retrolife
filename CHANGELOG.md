@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Give active gameplay exclusive ownership of mapped controller input before GUI navigation, so Circle remains SNES A and face buttons cannot activate a focused fullscreen control. Keep library window dragging out of fullscreen and route in-game fullscreen shortcuts only through gameplay.
+- Soften the selection dossier with a translucent background, center its content, add optional checksum-verified external publisher logos, and replace tiny music text with a speaker toggle, styled volume track and percentage. Missing publisher artwork retains its text fallback.
+
 - Recompose game selection around a narrow illustrated dossier and a brighter artwork stage, inspired by ES-DE theme layouts. Keep copy bounded, integrate a clickable video with a small watch caption, replace full-width preview/music controls with compact controls, move collection count to the lower edge, and reduce the selected 3D cartridge. Compact windows suppress long synopses while preserving preview, navigation and neutral missing-media behavior.
 
 - Scale the inline game preview with the window height (140–400 pixels) so large displays show meaningful gameplay footage beside the cartridge instead of a tiny fixed-height thumbnail.

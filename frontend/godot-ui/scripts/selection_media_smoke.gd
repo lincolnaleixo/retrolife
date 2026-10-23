@@ -95,14 +95,17 @@ func _run() -> void:
     _select(shell, catalog.entries[0], 0)
     await process_frame
     _check(not shell._selection_music_enabled and not shell._selection_music.playing, "Background music is opt-in and silent by default")
+    _check(not shell._music_slider.visible and not shell._music_percent.visible, "Disabled music hides volume controls")
     _check(shell.external_requests.is_empty() and not shell._video_panel.visible and not shell._video_player.is_playing(), "Selecting a game never launches its video automatically")
     _check(shell._media_button.visible, "An available local trailer has a discoverable explicit action")
+    _check(shell._publisher_logo.visible and shell._publisher_logo.texture != null, "Verified publisher logo replaces plain text")
     shell.persist_preferences = true
     shell._set_selection_music_enabled(true)
     shell._sync_selection_music()
     _check(shell._selection_music.playing and shell._selection_music_path == first_pack.music_path, "Enabling music starts the selected game's own local track")
     shell._set_selection_music_volume(0.2)
     _check(is_equal_approx(db_to_linear(shell._selection_music.volume_db), 0.2), "Selection music volume controls the actual player")
+    _check(shell._music_slider.visible and shell._music_percent.text == "20%", "Music controls expose current volume without an ambiguous on/off label")
     var config := ConfigFile.new()
     _check(config.load(shell.settings_path) == OK and config.get_value("media", "selection_music_enabled", false) == true, "Music opt-in persists in the isolated library preferences")
     _check(is_equal_approx(float(config.get_value("media", "selection_music_volume", 0.0)), 0.2), "Selection music volume persists independently")
@@ -113,6 +116,7 @@ func _run() -> void:
     _select(shell, catalog.entries[2], 2)
     _check(not shell._selection_music.playing and shell._selection_music_path.is_empty(), "A game without music immediately stops the previous game's track")
     _check(not shell._media_button.visible and shell._game_backdrop.texture == null, "Missing assets keep the selection neutral without a stale trailer or backdrop")
+    _check(not shell._publisher_logo.visible and shell._publisher_logo.texture == null, "Games without logos never inherit the previous publisher mark")
     _select(shell, catalog.entries[0], 0)
     shell._video_panel.show()
     shell._sync_selection_music()
@@ -200,10 +204,17 @@ func _make_pack(slug: String, rate: int) -> Dictionary:
     _check(audio.save_to_wav(source) == OK, "Generated silent WAV fixture is valid")
     var music := Packs.write_media(directory, "music", "wav", FileAccess.get_file_as_bytes(source))
     var video := Packs.write_media(directory, "video", "mp4", PackedByteArray([0, 0, 0, 12, 102, 116, 121, 112, 105, 115, 111, 109]))
-    var document := {"schemaVersion": 1, "game": {"system": "snes", "slug": slug, "title": slug}, "media": {"music": music, "video": video}, "source": {"provider": "Synthetic test fixture", "url": ""}}
+    var logo_image := Image.create(40, 10, false, Image.FORMAT_RGBA8)
+    logo_image.fill(Color.WHITE)
+    var logo := Packs.write_media(directory, "publisher_logo", "png", logo_image.save_png_to_buffer())
+    var document := {"schemaVersion": 1, "game": {"system": "snes", "slug": slug, "title": slug}, "media": {"music": music, "video": video, "publisher_logo": logo}, "source": {"provider": "Synthetic test fixture", "url": ""}}
     _check(Packs.save_document(document, _temporary) == OK, "Music and video pack saves locally")
     var loaded := Packs.load_for_game("snes", slug, _temporary)
     _check(not str(loaded.get("music_path", "")).is_empty(), "Valid music pack returns a verified local path")
+    _check(not str(loaded.get("publisher_logo_path", "")).is_empty(), "Publisher logo is loaded from its verified external pack")
+    var corrupt := logo.duplicate()
+    corrupt.sha256 = "0".repeat(64)
+    _check(Packs.local_media_path(directory, corrupt, "publisher_logo").is_empty(), "Corrupted publisher logo is rejected")
     return loaded
 
 func _exercise_pack_validation(pack: Dictionary) -> void:

@@ -220,6 +220,16 @@ func _process(delta: float) -> void:
     _poll_audio()
 
 
+func _input(event: InputEvent) -> void:
+    # Active gameplay owns mapped controls before focused GUI buttons. Otherwise
+    # Cross/Enter can activate a stale fullscreen button and Circle can cancel.
+    if _session_id.is_empty() or _stopping or not visible or _paused or _settings_open or _shader_panel.visible or _states_busy():
+        return
+    if not _event_logical_action(event).is_empty() or event.is_action("game_pause"):
+        _unhandled_input(event)
+        get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
     if _session_id.is_empty() or _stopping or not visible:
         return
@@ -299,10 +309,8 @@ func _unhandled_input(event: InputEvent) -> void:
             _stop_session()
             get_viewport().set_input_as_handled()
         return
-    if event.is_action_pressed("ui_cancel"):
-        _toggle_pause()
-        get_viewport().set_input_as_handled()
-
+    # ui_cancel also contains the east face button (Circle / SNES A).
+    # Only the dedicated game_pause action pauses an active session.
     if _shader_input_release_pending and not _event_logical_action(event).is_empty():
         get_viewport().set_input_as_handled()
         return

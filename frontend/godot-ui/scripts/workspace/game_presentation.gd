@@ -37,6 +37,7 @@ static func load_for_game(system: String, slug: String, root_override := "") -> 
     result["source_name"] = str(document.source.provider)
     result["source_url"] = str(document.source.url)
     result["background_path"] = local_media_path(directory, document.media.get("background", {}), "background")
+    result["publisher_logo_path"] = local_media_path(directory, document.media.get("publisher_logo", {}), "publisher_logo")
     result["video_path"] = local_media_path(directory, document.media.get("video", {}), "video")
     result["video_playable"] = str(result.video_path).get_extension().to_lower() == "ogv"
     result["music_path"] = local_media_path(directory, document.media.get("music", {}), "music")
@@ -81,7 +82,7 @@ static func clean_document(value: Variant, system: String, slug: String) -> Dict
         result.source = {"provider": "Local metadata", "gameId": "", "systemId": "", "retrievedAt": "", "url": ""}
     var media: Variant = value.get("media", {})
     if media is Dictionary:
-        for kind in ["background", "video", "music"]:
+        for kind in ["background", "video", "music", "publisher_logo"]:
             if not media.has(kind):
                 continue
             var entry: Variant = media.get(kind, {})
@@ -128,14 +129,14 @@ static func valid_media_name(value: String, kind: String) -> bool:
         return false
     var extension := value.get_extension().to_lower()
     match kind:
-        "background": return extension in ["png", "jpg", "jpeg", "webp"]
+        "background", "publisher_logo": return extension in ["png", "jpg", "jpeg", "webp"]
         "video": return extension in ["ogv", "mp4"]
         "music": return extension in ["ogg", "mp3", "wav"]
     return false
 
 static func media_size_limit(kind: String) -> int:
     match kind:
-        "background": return MAX_IMAGE_BYTES
+        "background", "publisher_logo": return MAX_IMAGE_BYTES
         "video": return MAX_VIDEO_BYTES
         "music": return MAX_MUSIC_BYTES
     return 0

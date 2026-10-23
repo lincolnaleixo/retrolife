@@ -17,6 +17,8 @@ var _preview_caption: Label
 var _game_description: Label
 var _game_facts: Label
 var _game_source: Label
+var _publisher_logo: TextureRect
+var _music_percent: Label
 var _game_backdrop: TextureRect
 var _media_button: Button
 var _media_group: VBoxContainer
@@ -177,7 +179,7 @@ func _build_shell() -> void:
     _info_panel.custom_minimum_size.x = 420
     _info_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
     var dossier_style := StyleBoxFlat.new()
-    dossier_style.bg_color = Color(0.025, 0.045, 0.065, 0.91)
+    dossier_style.bg_color = Color(0.035, 0.070, 0.090, 0.62)
     dossier_style.border_color = Color(0.65, 0.85, 0.79, 0.12)
     dossier_style.border_width_right = 1
     dossier_style.set_corner_radius_all(8)
@@ -190,6 +192,7 @@ func _build_shell() -> void:
     _game_info = VBoxContainer.new()
     _game_info.name = "GameInformation"
     _game_info.alignment = BoxContainer.ALIGNMENT_CENTER
+    _game_info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     _game_info.add_theme_constant_override("separation", 20)
     _info_margin.add_child(_game_info)
     _carousel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -300,7 +303,17 @@ func _build_shell() -> void:
     _game_info.add_child(_music_controls)
     _music_toggle = _button("Game music", func(): _set_selection_music_enabled(_music_toggle.button_pressed))
     _music_toggle.toggle_mode = true
-    _music_toggle.flat = true
+    _music_toggle.flat = false
+    _music_toggle.custom_minimum_size = Vector2(138, 38)
+    for state in ["normal", "hover", "pressed", "focus"]:
+        var music_style := StyleBoxFlat.new()
+        music_style.bg_color = Color(0.30, 0.65, 0.53, 0.20 if state == "pressed" else 0.09)
+        music_style.border_color = Color(0.61, 0.88, 0.76, 0.65 if state == "focus" else 0.20)
+        music_style.set_border_width_all(1)
+        music_style.set_corner_radius_all(19)
+        music_style.content_margin_left = 14
+        music_style.content_margin_right = 14
+        _music_toggle.add_theme_stylebox_override(state, music_style)
     _music_toggle.add_theme_font_size_override("font_size", 12)
     _music_toggle.icon = preload("res://scripts/workspace/ui_icons.gd").icon("play", Color("a7e7ce"), 16)
     _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
@@ -310,15 +323,34 @@ func _build_shell() -> void:
     _music_slider.max_value = 100
     _music_slider.step = 1
     _music_slider.value = _selection_music_volume * 100.0
-    _music_slider.custom_minimum_size.x = 90
+    _music_slider.custom_minimum_size.x = 64
+    _music_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
     _music_slider.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
     _music_slider.accessibility_name = "Game selection music volume"
     _music_slider.value_changed.connect(func(value: float): _set_selection_music_volume(value / 100.0))
     _music_controls.add_child(_music_slider)
+    for state in ["slider", "grabber_area", "grabber_area_highlight"]:
+        var track := StyleBoxFlat.new()
+        track.bg_color = Color("9ce1c1") if state != "slider" else Color(0.6, 0.8, 0.75, 0.18)
+        track.content_margin_top = 2
+        track.content_margin_bottom = 2
+        track.set_corner_radius_all(2)
+        _music_slider.add_theme_stylebox_override(state, track)
+    _music_percent = _label("", 11, Color("b5ceca"))
+    _music_percent.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+    _music_controls.add_child(_music_percent)
     _music_controls.hide()
     _game_source = _label("", 11, MUTED_COLOR)
     _game_source.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _game_info.add_child(_game_source)
+    _publisher_logo = TextureRect.new()
+    _publisher_logo.custom_minimum_size = Vector2(112, 28)
+    _publisher_logo.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+    _publisher_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    _publisher_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+    _publisher_logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _publisher_logo.hide()
+    _game_info.add_child(_publisher_logo)
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
@@ -807,6 +839,8 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+    if _game_is_active():
+        return # Gameplay owns shortcuts too; never toggle fullscreen twice.
     if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
         _on_header_action("fullscreen")
         get_viewport().set_input_as_handled()
@@ -949,6 +983,8 @@ func _on_header_action(action: String) -> void:
         "quit": _close_safely()
 
 func _drag_window() -> void:
+    if get_window().mode != Window.MODE_WINDOWED:
+        return
     if DisplayServer.has_feature(DisplayServer.FEATURE_WINDOW_DRAG):
         DisplayServer.window_start_drag()
 
@@ -1107,6 +1143,15 @@ func _update_game_presentation(game: Dictionary, profile: Dictionary) -> void:
     _game_description.visible = size.y >= 720 and not _game_description.text.is_empty()
     var maker := str(_presentation.get("developer", ""))
     _game_source.text = maker if maker not in ["", "<null>"] else ""
+    _publisher_logo.texture = null
+    var logo_path := str(_presentation.get("publisher_logo_path", ""))
+    if not logo_path.is_empty():
+        var logo_image := Image.load_from_file(logo_path)
+        if logo_image != null and not logo_image.is_empty() and logo_image.get_width() <= 2048 and logo_image.get_height() <= 2048:
+            _publisher_logo.texture = ImageTexture.create_from_image(logo_image)
+    _publisher_logo.visible = _publisher_logo.texture != null
+    _publisher_logo.tooltip_text = str(_presentation.get("publisher", maker))
+    _game_source.visible = not _publisher_logo.visible and not _game_source.text.is_empty()
     var background := str(_presentation.get("background_path", ""))
     if background.is_empty() and persist_preferences and not profile.is_empty():
         background = WorkspacePreferences.asset(CollectionProfiles.asset_base(profile) + "/journey/cover.png")
@@ -1258,12 +1303,15 @@ func _update_selection_media_controls() -> void:
     var music_path := str(_presentation.get("music_path", ""))
     _music_controls.visible = selected and not music_path.is_empty() and FileAccess.file_exists(music_path)
     _music_toggle.set_pressed_no_signal(_selection_music_enabled)
-    _music_toggle.text = ("MUSIC · MUTED" if is_zero_approx(_selection_music_volume) else "MUSIC · ON") if _selection_music_enabled else "MUSIC · OFF"
+    _music_toggle.text = ("Sound off" if is_zero_approx(_selection_music_volume) else "Soundtrack") if _selection_music_enabled else "Enable music"
     _music_toggle.tooltip_text = "Play this game's local music while browsing. Music stops during gameplay and video previews."
     _music_slider.set_value_no_signal(_selection_music_volume * 100.0)
     _music_slider.tooltip_text = "Selection music volume · %d%%" % roundi(_selection_music_volume * 100.0)
     _music_slider.editable = _selection_music_enabled
     _music_slider.visible = _selection_music_enabled
+    _music_percent.visible = _selection_music_enabled
+    _music_percent.text = "%d%%" % roundi(_selection_music_volume * 100.0)
+    _music_toggle.icon = preload("res://scripts/workspace/ui_icons.gd").icon("sound" if _selection_music_enabled and _selection_music_volume > 0 else "muted", Color("a7e7ce"), 18)
     if music_path == _selection_music_failed_path and not music_path.is_empty():
         _music_toggle.text = "Music unavailable"
         _music_toggle.tooltip_text = "This local track could not be decoded. Add a valid OGG, MP3 or WAV through Game media."
