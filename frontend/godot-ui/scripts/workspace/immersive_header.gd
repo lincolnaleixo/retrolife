@@ -92,6 +92,12 @@ func set_busy(busy: bool) -> void:
         popup.set_item_disabled(popup.get_item_index(action_id), busy and MENU_ACTIONS[action_id] not in ["fullscreen", "minimize"])
 
 
+func set_back_destination(destination: String) -> void:
+    if is_instance_valid(_back):
+        _back.tooltip_text = "Back to " + destination
+        _back.accessibility_name = _back.tooltip_text
+
+
 func set_search_query(query: String) -> void:
     if is_instance_valid(_search):
         _search.text = "Search" if query.is_empty() else "Filtered"

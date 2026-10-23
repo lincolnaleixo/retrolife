@@ -83,11 +83,9 @@ func _run() -> void:
     root.add_child(shell)
     shell.set_process(false)
     shell.fixture_media = {"example-one": first_pack, "example-two": second_pack, "no-media": {}}
-    shell._current_games = catalog.entries
-    shell._at_console_home = false
-    shell._console_home.hide()
-    shell._carousel.show()
-    shell._carousel.set_games(catalog.entries)
+    shell._open_console("snes")
+    await _settle(shell)
+    _check(not shell._at_console_home and not shell._at_game_details, "Choosing a console opens the collection overview before any game presentation")
     var gameplay := GameplayFixture.new()
     gameplay.music_player = shell._selection_music
     root.add_child(gameplay)
@@ -137,11 +135,12 @@ func _run() -> void:
     shell._sync_selection_music()
     _check(not shell._selection_music.playing, "Console selection does not retain music from a game")
     shell._open_console("snes")
-    await process_frame
-    await process_frame
+    await _settle(shell)
+    shell._sync_selection_music()
+    _check(not shell._at_game_details and not shell._selection_music.playing, "Returning to the collection overview keeps game music stopped")
     _select(shell, catalog.entries[0], 0)
     shell._sync_selection_music()
-    _check(shell._selection_music.playing, "Returning to the game collection restores eligible music")
+    _check(shell._at_game_details and shell._selection_music.playing, "Opening the selected game's presentation restores eligible music")
     shell._return_game_id = "example-one"
     shell._play_selected_game()
     _check(gameplay.active_id == "example-one" and not gameplay.launch_music_was_playing, "Music stops before handing off to gameplay, without even one overlap frame")
@@ -254,9 +253,20 @@ func _exercise_music_import(pack: Dictionary) -> void:
     var rejected := Packs.import_music(invalid, "snes", "example-one", "", _temporary)
     _check(not rejected.ok and FileAccess.get_file_as_string(document_path) == before, "Invalid audio import retains all existing presentation bytes")
 
-func _select(shell: Control, game: Dictionary, index: int) -> void:
-    shell._on_cartridge_selected(game, index)
+func _select(shell: Control, game: Dictionary, _index: int) -> void:
+    var game_id := str(game.get("id", ""))
+    shell._carousel.select_id(game_id)
+    if not shell._at_game_details:
+        shell._open_game_presentation(game_id)
+    _check(shell._at_game_details and shell._carousel.selected_id() == game_id, "Media checks must target the selected game's open presentation")
     shell._sync_selection_music()
+
+func _settle(shell: Control) -> void:
+    for _frame in 1000:
+        if not shell._refreshing:
+            break
+        await process_frame
+    await process_frame
 
 func _check(condition: bool, description: String) -> void:
     _checks += 1

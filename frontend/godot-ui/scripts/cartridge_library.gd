@@ -5,10 +5,15 @@ const CollectionProfiles = preload("res://scripts/workspace/collection_profiles.
 var _console_home: VBoxContainer
 var _game_sections: Array[Control] = []
 var _at_console_home := true
+var _at_game_details := false
+var _collection_footer: VBoxContainer
+var _collection_title: Label
+var _collection_position: Label
 var _box_panel: PopupPanel
 var _box_view: SubViewportContainer
 var _box_title: Label
 var _box_hint: Label
+var _box_done: Button
 var _box_path := ""
 var _game_info: VBoxContainer
 var _info_panel: PanelContainer
@@ -174,6 +179,7 @@ func _build_shell() -> void:
     _carousel.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _carousel.selection_changed.connect(_on_cartridge_selected)
     _carousel.game_activated.connect(_activate_game_art)
+    _carousel.box_activated.connect(_activate_box_art)
     var showcase := HBoxContainer.new()
     showcase.size_flags_vertical = Control.SIZE_EXPAND_FILL
     showcase.name = "GameShowcase"
@@ -221,6 +227,18 @@ func _build_shell() -> void:
     _empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(_empty_label)
     column.move_child(_count_label, column.get_child_count() - 1)
+    _collection_footer = VBoxContainer.new()
+    _collection_footer.add_theme_constant_override("separation", 8)
+    column.add_child(_collection_footer)
+    column.move_child(_collection_footer, column.get_child_count() - 2)
+    _collection_title = _label("", 32, TEXT_COLOR)
+    _collection_title.add_theme_font_override("font", preload("res://scripts/workspace/presentation_theme.gd").heading_font())
+    _collection_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _collection_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+    _collection_footer.add_child(_collection_title)
+    _collection_position = _label("", 13, MUTED_COLOR)
+    _collection_position.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    _collection_footer.add_child(_collection_position)
     _hero_title = _label("Your next adventure starts here", 30, TEXT_COLOR)
     _hero_title.add_theme_font_override("font", preload("res://scripts/workspace/presentation_theme.gd").heading_font())
     _hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -420,12 +438,12 @@ func _build_shell() -> void:
     _collection_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _collection_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
     _collection_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
-    _collection_hint.offset_left = -210
-    _collection_hint.offset_right = 210
+    _collection_hint.offset_left = -250
+    _collection_hint.offset_right = 250
     _collection_hint.offset_top = -42
     _collection_hint.offset_bottom = -18
     _carousel.add_child(_collection_hint)
-    _game_sections = [filter_scroll, _count_label, _showcase_margin, _empty_label]
+    _game_sections = [filter_scroll, _count_label, _showcase_margin, _empty_label, _collection_footer]
     _refresh_workspace_assets()
     _apply_library_page()
     resized.connect(_update_layout_density)
@@ -448,6 +466,7 @@ func _update_layout_density() -> void:
     for side in ["top", "bottom"]:
         _info_margin.add_theme_constant_override("margin_" + side, 16 if compact else 36)
     _hero_title.add_theme_font_size_override("font_size", 30 if compact else (52 if wide else 40))
+    _collection_title.add_theme_font_size_override("font_size", 26 if compact else 34)
     _hero_meta.add_theme_font_size_override("font_size", 13 if wide else 11)
     _game_facts.add_theme_font_size_override("font_size", 13 if compact else (17 if wide else 14))
     _game_description.add_theme_font_size_override("font_size", 15 if compact else (20 if wide else 17))
@@ -710,7 +729,7 @@ func _restore_carousel_focus() -> void:
 func _restore_carousel_focus_if_idle() -> void:
     # A dialog can close immediately before a game starts. Recheck at the
     # deferred boundary so library focus cannot escape into a live session.
-    if _game_is_active() or not is_inside_tree():
+    if _game_is_active() or not is_inside_tree() or _box_panel.visible:
         return
     if _at_console_home:
         _console_home.focus_first()
@@ -723,13 +742,16 @@ func _on_cartridge_selected(game: Dictionary, index: int) -> void:
     var profile := CollectionProfiles.for_game(str(game.get("title", "")), str(game.get("systemId", "")))
     _hero_title.text = str(profile.get("title", game.get("title", "Your next adventure starts here")))
     _hero_meta.text = "" if game.is_empty() else ("Super Nintendo" if str(game.get("systemId", "")) == "snes" else str(game.get("systemName", ""))).to_upper()
+    _collection_title.text = _hero_title.text if not game.is_empty() else ""
+    _collection_position.text = "%02d / %02d  ·  %s" % [index + 1, _current_games.size(), _hero_meta.text] if not game.is_empty() else ""
     _box_path = CollectionProfiles.box_path(profile) if persist_preferences else ""
-    _previous_game.visible = _current_games.size() > 1
-    _next_game.visible = _current_games.size() > 1
+    _previous_game.visible = not _at_game_details and _current_games.size() > 1
+    _next_game.visible = not _at_game_details and _current_games.size() > 1
     _previous_game.disabled = index <= 0
     _next_game.disabled = index >= _current_games.size() - 1
-    _header.configure_page(_at_console_home, not game.is_empty(), not _box_path.is_empty())
+    _configure_page_header()
     _update_game_presentation(game, profile)
+    _update_collection_hint()
     _remember_selection()
     if _settings_timer != null:
         _settings_timer.start()
@@ -800,6 +822,7 @@ func _on_files_selected(paths: PackedStringArray) -> void:
         _search_edit.text = ""
         _selected_system_id = "snes"
         _at_console_home = false
+        _at_game_details = false
     _refresh_library(imported_id)
 
 
@@ -920,6 +943,10 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event.is_action_pressed("library_next_system"):
         _cycle_system(1)
     elif event.is_action_pressed("ui_cancel"):
+        if _at_game_details:
+            _return_to_collection()
+            get_viewport().set_input_as_handled()
+            return
         if _search_query.is_empty():
             _show_console_home()
             get_viewport().set_input_as_handled()
@@ -994,6 +1021,9 @@ func _show_storage() -> void:
 func _activate_game_art(game_id: String) -> void:
     if _importing or _at_console_home or _game_is_active() or game_id.is_empty():
         return
+    if not _at_game_details:
+        _open_game_presentation(game_id)
+        return
     var selected: Dictionary = {}
     for game in _current_games:
         if str(game.get("id", "")) == game_id:
@@ -1007,9 +1037,40 @@ func _activate_game_art(game_id: String) -> void:
     _return_game_id = game_id
     _play_selected_game()
 
+
+func _open_game_presentation(game_id: String) -> void:
+    if _at_console_home or _game_is_active() or game_id.is_empty():
+        return
+    if not _current_games.any(func(game: Dictionary) -> bool: return str(game.get("id", "")) == game_id):
+        return
+    _carousel.select_id(game_id)
+    _at_game_details = true
+    _apply_library_page()
+    _restore_carousel_focus()
+
+
+func _return_to_collection() -> void:
+    _stop_inline_preview()
+    _stop_selection_music()
+    _external_preview_active = false
+    if _video_panel.visible:
+        _video_panel.hide()
+    if _box_panel.visible:
+        _box_panel.hide()
+    _at_game_details = false
+    _apply_library_page()
+    _restore_carousel_focus()
+
+
+func _activate_box_art(game_id: String) -> void:
+    if _at_game_details and game_id == _last_game_id and not _game_is_active():
+        _show_box()
+
 func _on_header_action(action: String) -> void:
     match action:
-        "back": _show_console_home()
+        "back":
+            if _at_game_details: _return_to_collection()
+            else: _show_console_home()
         "box": _show_box()
         "details":
             if not _last_game_id.is_empty(): _open_details(_last_game_id)
@@ -1040,6 +1101,8 @@ func _open_console(system_id: String) -> void:
     _search_query = ""
     _search_edit.text = ""
     _at_console_home = false
+    _at_game_details = false
+    _carousel.set_collection_overview(true)
     _refresh_library()
     _apply_library_page()
 
@@ -1050,6 +1113,7 @@ func _show_console_home() -> void:
         _video_panel.hide()
     _remember_selection()
     _at_console_home = true
+    _at_game_details = false
     _search_query = ""
     _search_edit.text = ""
     _search_timer.stop()
@@ -1061,19 +1125,40 @@ func _apply_library_page() -> void:
     if _console_home == null:
         return
     _console_home.visible = _at_console_home
+    _carousel.set_collection_overview(not _at_game_details)
     if _game_backdrop != null:
         _game_backdrop.visible = not _at_console_home and not _current_games.is_empty() and _game_backdrop.texture != null
     for section in _game_sections:
         section.visible = not _at_console_home
+    _info_panel.visible = _at_game_details and not _current_games.is_empty()
+    _collection_footer.visible = not _at_console_home and not _at_game_details and not _current_games.is_empty()
+    _previous_game.visible = not _at_game_details and _current_games.size() > 1
+    _next_game.visible = not _at_game_details and _current_games.size() > 1
     if not _at_console_home:
         _empty_label.visible = _current_games.is_empty()
         _hero_title.visible = not _current_games.is_empty()
         _workspace_filters.hide()
         _hero_meta.visible = true
-        _count_label.visible = size.y >= 660
-    _header.configure_page(_at_console_home, not _current_games.is_empty(), not _box_path.is_empty())
+        _count_label.visible = _at_game_details and size.y >= 660
+    _configure_page_header()
+    _update_collection_hint()
     _update_selection_media_controls()
     _sync_selection_music()
+
+
+func _configure_page_header() -> void:
+    _header.configure_page(_at_console_home, _at_game_details and not _current_games.is_empty(), _at_game_details and not _box_path.is_empty())
+    _header.set_back_destination("collection" if _at_game_details else "consoles")
+
+
+func _update_collection_hint() -> void:
+    if not is_instance_valid(_collection_hint):
+        return
+    _collection_hint.visible = not _textual_view and not _current_games.is_empty()
+    if not _at_game_details:
+        _collection_hint.text = "Choose a cartridge  ·  ← → Browse" if _current_games.size() > 1 else "Choose the cartridge to explore this game"
+    else:
+        _collection_hint.text = "Cartridge: play  ·  Box: inspect  ·  Drag either to rotate" if not _box_path.is_empty() else "Click the cartridge to play  ·  Drag to explore"
 
 func _build_box_inspector() -> void:
     _box_panel = PopupPanel.new()
@@ -1103,7 +1188,8 @@ func _build_box_inspector() -> void:
     actions.add_child(_button("Back", func(): _box_view.set_view(0.0, PI)))
     actions.add_child(_button("Spine", func(): _box_view.set_view(0.0, PI / 2)))
     actions.add_child(_button("Reset view", _box_view.reset_view))
-    actions.add_child(_button("Done", _box_panel.hide))
+    _box_done = _button("Done", _box_panel.hide)
+    actions.add_child(_box_done)
     _box_panel.popup_hide.connect(func():
         if _box_view.model != null:
             _box_view.model.free()
@@ -1114,9 +1200,11 @@ func _build_box_inspector() -> void:
 func _show_box() -> void:
     if _box_path.is_empty():
         return
+    _carousel.set_active(false)
     _box_title.text = _hero_title.text + " · The box"
     var target := Vector2i(mini(1040, int(size.x) - 40), mini(760, int(size.y) - 40))
     _box_panel.popup_centered(target)
+    _box_done.call_deferred("grab_focus")
     _box_view.load_model(_box_path)
     _box_hint.text = _box_view.message
     await get_tree().process_frame
@@ -1300,7 +1388,7 @@ func _build_game_video() -> void:
 
 
 func _show_game_video() -> void:
-    if _game_is_active() or _at_console_home or _external_preview_active:
+    if _game_is_active() or _at_console_home or not _at_game_details or _external_preview_active:
         return
     var path := str(_presentation.get("video_path", ""))
     if not _valid_local_preview(path):
@@ -1346,7 +1434,7 @@ func _return_from_external_preview() -> void:
 func _update_selection_media_controls() -> void:
     if not is_instance_valid(_media_group):
         return
-    var selected := not _at_console_home and not _presentation_key.is_empty()
+    var selected := not _at_console_home and _at_game_details and not _presentation_key.is_empty()
     var video_path := str(_presentation.get("video_path", ""))
     var has_video := _valid_local_preview(video_path)
     _media_group.visible = selected and _external_preview_active
@@ -1412,7 +1500,7 @@ func _stop_selection_music(clear_track := true) -> void:
 func _sync_selection_music() -> void:
     if not is_instance_valid(_selection_music):
         return
-    if _at_console_home or _game_is_active() or _selection_launch_pending:
+    if _at_console_home or not _at_game_details or _game_is_active() or _selection_launch_pending:
         _external_preview_active = false
         if is_instance_valid(_video_panel) and _video_panel.visible:
             _video_panel.hide()
@@ -1467,13 +1555,13 @@ func _stop_inline_preview() -> void:
 func _sync_inline_preview(delta: float) -> void:
     if not is_instance_valid(_inline_video):
         return
-    var blocked := _at_console_home or _game_is_active() or _selection_launch_pending or not is_visible_in_tree() or _importing or _external_preview_active
+    var blocked := _at_console_home or not _at_game_details or _game_is_active() or _selection_launch_pending or not is_visible_in_tree() or _importing or _external_preview_active
     for popup in [_video_panel, _media_settings, _settings_panel, _controller_panel, _storage_panel, _rewards_panel, _box_panel, _updates_panel, _details_overlay, _search_panel, _file_dialog, _art_dialog]:
         if is_instance_valid(popup) and popup.visible:
             blocked = true
     var path := str(_presentation.get("video_path", ""))
     var playable := path.get_extension().to_lower() == "ogv"
-    _inline_preview.visible = not _at_console_home and not _presentation_key.is_empty() and (playable or _inline_still.texture != null or _media_button.visible)
+    _inline_preview.visible = not _at_console_home and _at_game_details and not _presentation_key.is_empty() and (playable or _inline_still.texture != null or _media_button.visible)
     if blocked or _reduce_motion or not playable:
         _stop_inline_preview()
         _preview_delay = 0.0

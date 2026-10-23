@@ -114,7 +114,9 @@ func _run() -> void:
     timings.sort()
     print("Cartridge navigation CPU p95 (microseconds): ", timings[int(timings.size() * 0.95)])
     _check(timings[int(timings.size() * 0.95)] < 250000, "Navigation CPU p95 exceeded 250 ms on the test host", errors)
-    _check(shell._header._details.visible, "Game details remain available in the integrated header", errors)
+    _check(not shell._at_game_details and not shell._header._details.visible, "The collection overview must hide game-specific Details", errors)
+    shell._open_game_presentation(carousel.selected_id())
+    _check(shell._at_game_details and shell._header._details.visible, "Game details must be available in the presentation header", errors)
     shell._header._details.pressed.emit()
     _check((shell.get("_details_overlay") as Control).visible, "The header Details action must open the selected game", errors)
     shell._close_details()
@@ -316,6 +318,7 @@ func _check(condition: bool, message: String, errors: Array[String]) -> void:
 
 
 func _exercise_input_events(shell: Control, carousel: Control, errors: Array[String]) -> void:
+    shell._return_to_collection()
     carousel.set_presentation(true, false, false)
     carousel.select_index(100)
     carousel.grab_focus()
@@ -360,7 +363,18 @@ func _exercise_input_events(shell: Control, carousel: Control, errors: Array[Str
     action.pressed = true
     Input.parse_input_event(action)
     await process_frame
-    _check((shell.get("_details_overlay") as Control).visible, "Routed accept on an unavailable game must open its details", errors)
+    _check(shell._at_game_details and not (shell.get("_details_overlay") as Control).visible, "The first routed accept must open the game presentation", errors)
+    action = InputEventAction.new()
+    action.action = "ui_accept"
+    action.pressed = false
+    Input.parse_input_event(action)
+    await process_frame
+    action = InputEventAction.new()
+    action.action = "ui_accept"
+    action.pressed = true
+    Input.parse_input_event(action)
+    await process_frame
+    _check((shell.get("_details_overlay") as Control).visible, "A second routed accept on an unavailable game must open its details", errors)
     action = InputEventAction.new()
     action.action = "ui_accept"
     action.pressed = false
@@ -589,6 +603,8 @@ func _exercise_direct_activation(shell: Control, carousel: Control, errors: Arra
     shell.set("_gameplay", gameplay)
     var selected: Dictionary = carousel.games[carousel.selected_index]
     var id := str(selected["id"])
+    shell._open_game_presentation(id)
+    _check(shell._at_game_details, "Direct gameplay activation must start from the game presentation", errors)
     selected["playable"] = true
     carousel.game_activated.emit(id)
     _check(gameplay.started_ids == [id], "Activating playable game artwork must launch directly", errors)

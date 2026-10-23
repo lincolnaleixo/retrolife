@@ -4,6 +4,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Add a cartridge collection between console selection and the full game presentation. Browse a centered cartridge with neighboring games and side arrows, select it to open its page, and return to the same collection position. Keep previews and selection music scoped to the game page, with neutral empty and single-game states.
+- Separate the game's box and cartridge into independent 3D displays with room between them, distinct drag/zoom targets and individual captions. Clicking the box opens its inspector; clicking the cartridge on the game page plays. Preserve keyboard/controller access, modal focus, bounded model resources and absent-box fallbacks.
+- Exercise the three-page navigation and inspect/play distinction, independent model transforms, visible neighbor layout, media ownership and responsive presentation with synthetic fixtures and local visual captures.
+
 - Rotate and zoom the selected box and cartridge as one rigid, physically separated assembly. Align their resting bases, fit the camera at every inspection angle and ground the contact shadow; remove independent hover and bob that could make the models intersect. Exercise 405 rotation/zoom/aspect combinations and retain click-to-play and missing-model fallbacks.
 - Turn selection backdrop artwork into a subdued per-game color wash so characters do not repeat behind the box. Give the optional official publisher mark a compact, contrasting plate beside the system name, retaining private asset loading and neutral missing-logo behavior.
 

@@ -53,7 +53,9 @@ func _run() -> void:
     await _settle(shell)
     var carousel: Control = shell._carousel
     carousel.select_id("rich-fixture")
+    shell._open_game_presentation("rich-fixture")
     await process_frame
+    _check(shell._at_game_details and shell._game_info.is_visible_in_tree(), "Opening a game must enter its presentation before showing metadata")
     _check(shell._game_facts.text == "1994  ·  Adventure / Platform  ·  2 players", "Facts must come from actual catalog metadata")
     _check(not shell._carousel.allow_local_art, "Isolated library views never load private box artwork")
     _check(shell._game_source.text == "Fixture Studio" and not shell._game_description.text.is_empty(), "Developer and description must use the selected game's metadata")
@@ -112,6 +114,7 @@ func _run() -> void:
     shell._media_button.show()
     carousel.select_id("neutral-fixture")
     await process_frame
+    _check(shell._at_game_details, "Changing the selected game within its presentation must retain the detail page")
     _check(shell._game_backdrop.texture == null and not shell._game_backdrop.visible, "Switching to an unknown game must clear the previous backdrop")
     _check(shell._game_description.text.is_empty() and not shell._game_description.visible, "Unknown games must not inherit another game's description")
     _check(shell._game_facts.text.is_empty() and shell._game_source.text.is_empty() and not shell._media_button.visible, "Unknown games must clear facts, developer and video actions")

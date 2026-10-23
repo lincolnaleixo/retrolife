@@ -2,6 +2,7 @@ extends Control
 
 signal selection_changed(game: Dictionary, index: int)
 signal game_activated(game_id: String)
+signal box_activated(game_id: String)
 
 const CartridgeScene = preload("res://scenes/Cartridge3D.tscn")
 const LabelCache = preload("res://scripts/library/label_cache.gd")
@@ -25,7 +26,7 @@ const IDLE_PITCH_AMPLITUDE := 0.02
 const IDLE_BOB_AMPLITUDE := 0.06
 const IDLE_SPEED := 1.05
 const PAIR_GROUND_Y := -1.05
-const PAIR_CLEARANCE := 0.08
+const COLLECTIBLE_GAP := 0.42
 
 var games: Array = []
 var selected_index := -1
@@ -34,6 +35,7 @@ var low_quality := false
 var textual_view := false
 var force_fallback_model := false
 var allow_local_art := true
+var collection_overview := false
 var label_fetch_enabled := true
 var labels := LabelCache.new()
 var _indices: Dictionary = {}
@@ -43,6 +45,9 @@ var _viewport: SubViewport
 var _world: Node3D
 var _camera: Camera3D
 var _shadow: MeshInstance3D
+var _media_shadow: MeshInstance3D
+var _box_caption: Label
+var _media_caption: Label
 var _fallback: VBoxContainer
 var _fallback_buttons: Array[Button] = []
 var _active := true
@@ -58,9 +63,10 @@ var _box_game_id := ""
 var _pair_ready := false
 var _pair_box_pose := Transform3D.IDENTITY
 var _pair_media_pose := Transform3D.IDENTITY
-var _pair_base_bounds := AABB()
-var _pair_center := Vector3.ZERO
-var _pair_transform := Transform3D.IDENTITY
+var _collectible_current := {"box": Vector3(0, 0, 1), "cartridge": Vector3(0, 0, 1)}
+var _collectible_target := {"box": Vector3(0, 0, 1), "cartridge": Vector3(0, 0, 1)}
+var _active_collectible := "cartridge"
+var _drag_collectible := ""
 var _inspecting := false
 var _inspect_yaw := 0.0
 var _inspect_pitch := 0.0
@@ -140,6 +146,8 @@ func _ready() -> void:
         _fallback.add_child(button)
         _fallback_buttons.append(button)
     _fallback.hide()
+    _box_caption = _collectible_caption("BOX")
+    _media_caption = _collectible_caption("CARTRIDGE")
     resized.connect(_resize_view)
     focus_entered.connect(queue_redraw)
     focus_exited.connect(queue_redraw)
@@ -206,6 +214,15 @@ func set_presentation(motion_reduced: bool, quality_low: bool, show_text: bool) 
     _layout(false, true)
 
 
+func set_collection_overview(enabled: bool) -> void:
+    if collection_overview == enabled:
+        return
+    collection_overview = enabled
+    _active_collectible = "cartridge"
+    _cancel_pointer_interaction()
+    _layout(false)
+
+
 func set_active(active: bool) -> void:
     if _active == active:
         return
@@ -223,6 +240,7 @@ func _clear_pointer() -> void:
 
 
 func _cancel_pointer_interaction() -> void:
+    _drag_collectible = ""
     _dragging = false
     _inspecting = false
     _drag_distance = 0.0
@@ -343,12 +361,18 @@ func _layout(animate: bool, refresh := false) -> void:
     _pair_ready = false
     _update_selected_box()
     _shadow.visible = not textual_view and not games.is_empty()
+    _media_shadow.visible = _shadow.visible and _selected_box.visible
     _container.visible = not textual_view
     _fallback.visible = textual_view
     _viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if _active and not textual_view else SubViewport.UPDATE_DISABLED
     var radius := 1 if low_quality or size.x < 760 else 3
     var first := maxi(0, selected_index - radius)
     var last := mini(games.size(), selected_index + radius + 1)
+    if not collection_overview:
+        first = maxi(selected_index, 0)
+        last = mini(games.size(), selected_index + 1)
+    _box_caption.visible = _selected_box.visible and not textual_view
+    _media_caption.visible = _box_caption.visible
     if textual_view:
         for item in _pool:
             item.hide()
@@ -398,6 +422,10 @@ func _layout(animate: bool, refresh := false) -> void:
         var target := Vector3(distance * 3.65, -0.14 * absolute, -1.35 * absolute)
         var angle := Vector3(deg_to_rad(-3.0), deg_to_rad(-18.0 if distance == 0 else -signi(distance) * 23.0), 0)
         var scale_factor := 0.68 if distance == 0 else maxf(0.62, 0.88 - absolute * 0.065)
+        if collection_overview:
+            target = Vector3(distance * 2.65, -0.12 * absolute, -0.65 * absolute)
+            scale_factor = 0.82 if distance == 0 else 0.60
+            angle = Vector3(deg_to_rad(-3.0), deg_to_rad(-12.0 if distance == 0 else -signi(distance) * 16.0), 0)
         if distance == 0 and _selected_box.visible:
             target = Vector3(1.05, 0.0, 0.40)
             angle = Vector3(deg_to_rad(4.0), deg_to_rad(-10.0), 0)
@@ -425,7 +453,7 @@ func _box_path_for(game: Dictionary) -> String:
 func _update_selected_box() -> void:
     if _selected_box == null:
         return
-    if textual_view or games.is_empty() or selected_index < 0:
+    if textual_view or collection_overview or games.is_empty() or selected_index < 0:
         _selected_box.call("clear")
         _box_game_id = ""
         return
@@ -450,11 +478,15 @@ func _gui_input(event: InputEvent) -> void:
     if not _active:
         return
     if event is InputEventMouseButton:
-        if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-            _zoom_by(WHEEL_ZOOM_STEP)
-            accept_event()
-        elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-            _zoom_by(-WHEEL_ZOOM_STEP)
+        if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+            var step := WHEEL_ZOOM_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else -WHEEL_ZOOM_STEP
+            if _pair_ready:
+                var hovered := _collectible_at(event.position)
+                if not hovered.is_empty():
+                    _active_collectible = hovered
+                    _zoom_collectible(hovered, step)
+            else:
+                _zoom_by(step)
             accept_event()
         elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
             navigate(-1 if event.button_index == MOUSE_BUTTON_WHEEL_LEFT else 1)
@@ -464,12 +496,19 @@ func _gui_input(event: InputEvent) -> void:
                 grab_focus()
                 _drag_origin = event.position
                 _drag_distance = 0.0
-                _inspecting = selected_index >= 0 and _cartridge_index_at(event.position) == selected_index
+                _drag_collectible = _collectible_at(event.position) if _pair_ready else ""
+                if not _drag_collectible.is_empty():
+                    _active_collectible = _drag_collectible
+                _inspecting = not _drag_collectible.is_empty() if _pair_ready else selected_index >= 0 and _cartridge_index_at(event.position) == selected_index
                 _dragging = not _inspecting
             elif _inspecting:
                 _inspecting = false
-                if _drag_distance < 14.0 and _cartridge_index_at(event.position) == selected_index:
-                    game_activated.emit(selected_id())
+                if _drag_distance < 14.0:
+                    if _pair_ready and _collectible_at(event.position) == _drag_collectible:
+                        _activate_collectible(_drag_collectible)
+                    elif not _pair_ready and _cartridge_index_at(event.position) == selected_index:
+                        game_activated.emit(selected_id())
+                _drag_collectible = ""
             elif _dragging:
                 _dragging = false
                 if _drag_distance < 14.0:
@@ -478,8 +517,11 @@ func _gui_input(event: InputEvent) -> void:
     elif event is InputEventMouseMotion:
         if _inspecting:
             _drag_distance += event.relative.length() + absf(event.relative.y)
-            _inspect_target_yaw = wrapf(_inspect_target_yaw + event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
-            _inspect_target_pitch = clampf(_inspect_target_pitch + event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
+            if _pair_ready:
+                _rotate_collectible(_drag_collectible, event.relative * Vector2(ROTATE_PER_PIXEL, PITCH_PER_PIXEL))
+            else:
+                _inspect_target_yaw = wrapf(_inspect_target_yaw + event.relative.x * ROTATE_PER_PIXEL, -PI, PI)
+                _inspect_target_pitch = clampf(_inspect_target_pitch + event.relative.y * PITCH_PER_PIXEL, -PITCH_LIMIT, PITCH_LIMIT)
             accept_event()
         elif _dragging:
             _drag_distance += event.relative.length()
@@ -513,7 +555,7 @@ func _gui_input(event: InputEvent) -> void:
         _repeat_remaining = REPEAT_DELAY
         accept_event()
     elif event.is_action_pressed("ui_accept") and not selected_id().is_empty():
-        game_activated.emit(selected_id())
+        _activate_collectible(_active_collectible if _pair_ready else "cartridge")
         accept_event()
 
 
@@ -543,6 +585,9 @@ func _process(delta: float) -> void:
 
 
 func _step_inspection(delta: float) -> void:
+    if _pair_ready:
+        _step_collectible_inspection(delta)
+        return
     if has_focus():
         var rotate := Vector2(
             Input.get_action_strength("library_inspect_right") - Input.get_action_strength("library_inspect_left"),
@@ -583,10 +628,18 @@ func _apply_inspection() -> void:
 
 
 func _zoom_by(step: float) -> void:
-    _inspect_target_zoom = clampf(_inspect_target_zoom + step, ZOOM_MINIMUM, ZOOM_MAXIMUM)
+    if _pair_ready:
+        _zoom_collectible(_active_collectible, step)
+    else:
+        _inspect_target_zoom = clampf(_inspect_target_zoom + step, ZOOM_MINIMUM, ZOOM_MAXIMUM)
 
 
 func _reset_inspection() -> void:
+    _active_collectible = "cartridge"
+    _drag_collectible = ""
+    for kind in ["box", "cartridge"]:
+        _collectible_current[kind] = Vector3(0, 0, 1)
+        _collectible_target[kind] = Vector3(0, 0, 1)
     _inspect_target_yaw = 0.0
     _inspect_target_pitch = 0.0
     _inspect_target_zoom = 1.0
@@ -600,6 +653,8 @@ func _reset_inspection() -> void:
 func _cartridge_index_at(at: Vector2) -> int:
     if textual_view or _viewport.size.x <= 0:
         return -1
+    if _pair_ready:
+        return selected_index if _collectible_at(at) == "cartridge" else -1
     var point := at * Vector2(_viewport.size) / size.max(Vector2.ONE)
     var best_index := -1
     var closest := INF
@@ -614,16 +669,32 @@ func _cartridge_index_at(at: Vector2) -> int:
         if relative.x <= 1.0 and relative.y <= 1.0 and distance < closest:
             closest = distance
             best_index = int(item.get("library_index"))
-    if _selected_box.visible and _bounds_at_point(_selected_box.call("world_bounds"), point):
-        return selected_index
     return best_index
 
 
-func _bounds_at_point(bounds: AABB, point: Vector2) -> bool:
+func _projected_bounds(bounds: AABB) -> Rect2:
     var projected := Rect2(_camera.unproject_position(bounds.get_endpoint(0)), Vector2.ZERO)
     for corner in range(1, 8):
         projected = projected.expand(_camera.unproject_position(bounds.get_endpoint(corner)))
-    return projected.has_point(point)
+    return projected
+
+
+func _collectible_at(at: Vector2) -> String:
+    if not _pair_ready or textual_view or _viewport.size.x <= 0:
+        return ""
+    var point := at * Vector2(_viewport.size) / size.max(Vector2.ONE)
+    if _projected_bounds(_selected_box.call("world_bounds")).has_point(point):
+        return "box"
+    if _projected_bounds(_hero.call("world_bounds")).has_point(point):
+        return "cartridge"
+    return ""
+
+
+func _activate_collectible(kind: String) -> void:
+    if kind == "box" and _pair_ready:
+        box_activated.emit(selected_id())
+    elif kind == "cartridge":
+        game_activated.emit(selected_id())
 
 
 func _click_cartridge(at: Vector2) -> void:
@@ -653,53 +724,114 @@ func _resize_view() -> void:
 
 func _frame_single_stage() -> void:
     var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
-    _camera.position = Vector3(0, 0.55, maxf(7.5, 7.0 / ratio))
+    _camera.position = Vector3(0, 0.55, maxf(8.5, 7.8 / ratio) if collection_overview else maxf(7.5, 7.0 / ratio))
     _camera.look_at(Vector3(0, -0.05, 0), Vector3.UP)
 
 
 func _prepare_pair_pose() -> void:
-    # Establish disjoint solids once, before any inspection transform. Their
-    # complete transforms are then moved together, never about separate pivots.
     _hero.call("set_pointer", Vector2.ZERO)
     _hero.call("set_inspection", 0.0, 0.0, 1.0, 0.0)
-    var box_bounds: AABB = _selected_box.call("world_bounds")
-    _selected_box.position.y += PAIR_GROUND_Y - box_bounds.position.y
-    box_bounds = _selected_box.call("world_bounds")
-    var media_bounds: AABB = _hero.call("world_bounds")
-    _hero.position.y += PAIR_GROUND_Y - media_bounds.position.y
-    # Even at their resting yaw, the cartridge's back is ahead of the box's
-    # foremost geometry. A common rigid transform preserves this separating plane.
-    _hero.position.z += maxf(0.0, box_bounds.end.z + PAIR_CLEARANCE - media_bounds.position.z)
-    media_bounds = _hero.call("world_bounds")
     _pair_box_pose = _selected_box.transform
     _pair_media_pose = _hero.transform
-    _pair_base_bounds = box_bounds.merge(media_bounds)
-    _pair_center = _pair_base_bounds.get_center()
+    _pair_box_pose.origin = Vector3.ZERO
+    _pair_media_pose.origin = Vector3.ZERO
     _pair_ready = true
 
 
+func _rotate_collectible(kind: String, amount: Vector2) -> void:
+    if not _collectible_target.has(kind):
+        return
+    var target: Vector3 = _collectible_target[kind]
+    target.x = wrapf(target.x + amount.x, -PI, PI)
+    target.y = clampf(target.y + amount.y, -PITCH_LIMIT, PITCH_LIMIT)
+    _collectible_target[kind] = target
+
+
+func _zoom_collectible(kind: String, amount: float) -> void:
+    var target: Vector3 = _collectible_target[kind]
+    target.z = clampf(target.z + amount, ZOOM_MINIMUM, ZOOM_MAXIMUM)
+    _collectible_target[kind] = target
+
+
+func _step_collectible_inspection(delta: float) -> void:
+    if has_focus():
+        var rotate := Vector2(
+            Input.get_action_strength("library_inspect_right") - Input.get_action_strength("library_inspect_left"),
+            Input.get_action_strength("library_inspect_down") - Input.get_action_strength("library_inspect_up")
+        )
+        _rotate_collectible(_active_collectible, rotate * Vector2(KEY_ROTATE_SPEED, KEY_PITCH_SPEED) * delta)
+        var zoom := Input.get_action_strength("library_zoom_in") - Input.get_action_strength("library_zoom_out")
+        if zoom != 0.0:
+            _zoom_collectible(_active_collectible, zoom * KEY_ZOOM_SPEED * delta)
+        if Input.is_action_just_pressed("library_reset_view"):
+            _reset_inspection()
+    var weight := 1.0 if reduced_motion else 1.0 - exp(-INSPECT_DAMP * delta)
+    for kind in ["box", "cartridge"]:
+        var current: Vector3 = _collectible_current[kind]
+        var target: Vector3 = _collectible_target[kind]
+        _collectible_current[kind] = Vector3(lerp_angle(current.x, target.x, weight), lerpf(current.y, target.y, weight), lerpf(current.z, target.z, weight))
+    _apply_pair_inspection()
+
+
 func _apply_pair_inspection() -> void:
-    var orientation := Basis.from_euler(Vector3(clampf(_inspect_pitch, -PITCH_LIMIT, PITCH_LIMIT), _inspect_yaw, 0))
-    var basis_value := orientation.scaled(Vector3.ONE * _inspect_zoom)
-    _pair_transform = Transform3D(basis_value, _pair_center - basis_value * _pair_center)
-    _selected_box.transform = _pair_transform * _pair_box_pose
-    _hero.transform = _pair_transform * _pair_media_pose
-    var bounds: AABB = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
-    # Ground the rotated assembly without relative movement or floating idle bob.
-    _pair_transform.origin.y += PAIR_GROUND_Y - bounds.position.y
-    _selected_box.transform = _pair_transform * _pair_box_pose
-    _hero.transform = _pair_transform * _pair_media_pose
-    bounds = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
-    _frame_pair(bounds)
+    for kind in ["box", "cartridge"]:
+        var state: Vector3 = _collectible_current[kind]
+        var object: Node3D = _selected_box if kind == "box" else _hero
+        var rest := _pair_box_pose if kind == "box" else _pair_media_pose
+        object.transform = Transform3D(Basis.from_euler(Vector3(state.y, state.x, 0)).scaled(Vector3.ONE * state.z), Vector3.ZERO) * rest
+        var bounds: AABB = object.call("world_bounds")
+        object.position.y += PAIR_GROUND_Y - bounds.position.y
+        object.position.z -= bounds.get_center().z
+    var box_bounds: AABB = _selected_box.call("world_bounds")
+    var media_bounds: AABB = _hero.call("world_bounds")
+    # Separate the actual rotated solids horizontally, then ensure their
+    # projected silhouettes also retain breathing room under perspective.
+    _selected_box.position.x += -COLLECTIBLE_GAP * 0.5 - box_bounds.end.x
+    _hero.position.x += COLLECTIBLE_GAP * 0.5 - media_bounds.position.x
+    for _pass in range(5):
+        box_bounds = _selected_box.call("world_bounds")
+        media_bounds = _hero.call("world_bounds")
+        var combined := box_bounds.merge(media_bounds)
+        _frame_pair(combined)
+        var box_rect := _projected_bounds(box_bounds)
+        var media_rect := _projected_bounds(media_bounds)
+        var minimum_pixels := clampf(float(_viewport.size.x) * 0.035, 24.0, 52.0)
+        var missing := minimum_pixels - (media_rect.position.x - box_rect.end.x)
+        if missing <= 0.0:
+            break
+        var world_per_pixel := 2.0 * _camera.position.distance_to(combined.get_center()) * tan(deg_to_rad(_camera.fov * 0.5)) / maxf(_viewport.size.y, 1.0)
+        var spacing := missing * world_per_pixel * 0.7
+        _selected_box.position.x -= spacing
+        _hero.position.x += spacing
+    _frame_pair((_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds")))
+    _position_collectible_caption(_box_caption, _selected_box.call("world_bounds"), "box")
+    _position_collectible_caption(_media_caption, _hero.call("world_bounds"), "cartridge")
+
+
+func _collectible_caption(text: String) -> Label:
+    var caption := Label.new()
+    caption.text = text
+    caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    caption.add_theme_font_size_override("font_size", 12)
+    caption.size = Vector2(140, 24)
+    caption.hide()
+    add_child(caption)
+    return caption
+
+
+func _position_collectible_caption(caption: Label, bounds: AABB, kind: String) -> void:
+    var projected := _projected_bounds(bounds)
+    var control_scale := size / Vector2(_viewport.size).max(Vector2.ONE)
+    caption.position = Vector2(projected.get_center().x * control_scale.x - caption.size.x * 0.5, minf(projected.end.y * control_scale.y + 14.0, size.y - 32.0))
+    caption.add_theme_color_override("font_color", Color("9ce1c1") if kind == _active_collectible and has_focus() else Color("a5b2bd"))
 
 
 func _frame_pair(bounds: AABB) -> void:
-    var target := _pair_transform * _pair_center
+    var target := bounds.get_center()
     var ratio := maxf(size.x, 1.0) / maxf(size.y, 1.0)
     var half_fov := tan(deg_to_rad(_camera.fov * 0.5))
-    var distance := 7.8
-    # Fit the complete assembly at every inspection angle. Zoom can approach
-    # the viewport edge, but cannot crop the other half of the collection.
+    var distance := 8.2
     for corner in range(8):
         var point := bounds.get_endpoint(corner) - target
         distance = maxf(distance, point.z + maxf(absf(point.y) / half_fov, absf(point.x) / (half_fov * ratio)) * 1.12)
@@ -735,17 +867,22 @@ func _build_shadow() -> void:
     _shadow.rotation.x = -PI / 2.0
     _shadow.position = Vector3(0, -1.5, 0.2)
     _world.add_child(_shadow)
+    _media_shadow = _shadow.duplicate() as MeshInstance3D
+    _media_shadow.name = "CartridgeContactShadow"
+    _media_shadow.mesh = mesh.duplicate()
+    _media_shadow.hide()
+    _world.add_child(_media_shadow)
 
 
 func _update_contact_shadow() -> void:
     if _shadow == null or not _shadow.visible:
         return
     if _pair_ready and _selected_box.visible:
-        var bounds: AABB = (_selected_box.call("world_bounds") as AABB).merge(_hero.call("world_bounds"))
-        _shadow.position = Vector3(bounds.get_center().x, bounds.position.y - 0.015, bounds.get_center().z)
-        (_shadow.mesh as QuadMesh).size = Vector2(maxf(bounds.size.x * 1.03, 0.3), maxf(bounds.size.z * 1.15, 0.55))
-        _shadow.transparency = 0.4
+        _position_contact_shadow(_shadow, _selected_box.call("world_bounds"))
+        _position_contact_shadow(_media_shadow, _hero.call("world_bounds"))
+        _media_shadow.show()
         return
+    _media_shadow.hide()
     _shadow.position.x = 0.0
     _shadow.position.z = 0.2
     (_shadow.mesh as QuadMesh).size = Vector2(7, 2.5)
@@ -761,6 +898,12 @@ func _update_contact_shadow() -> void:
     # A transparent quad still draws over geometry it intersects. Keep the
     # entire floor below every visible shell, including inspection and zoom.
     _shadow.position.y = floor_y
+
+
+func _position_contact_shadow(shadow: MeshInstance3D, bounds: AABB) -> void:
+    shadow.position = Vector3(bounds.get_center().x, bounds.position.y - 0.015, bounds.get_center().z)
+    (shadow.mesh as QuadMesh).size = Vector2(maxf(bounds.size.x * 1.03, 0.3), maxf(bounds.size.z * 1.15, 0.55))
+    shadow.transparency = 0.4
 
 
 func _draw() -> void:
