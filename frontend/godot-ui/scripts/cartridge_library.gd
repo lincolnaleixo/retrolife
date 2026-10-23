@@ -334,7 +334,7 @@ func _update_layout_density() -> void:
     _game_info.add_theme_constant_override("separation", 8 if size.y < 720 else 12)
     _game_description.max_lines_visible = 2 if size.y < 720 else 3
     if is_instance_valid(_inline_preview):
-        _inline_preview.custom_minimum_size.y = 140 if size.y < 720 else 210
+        _inline_preview.custom_minimum_size.y = 140 if size.y < 720 else clampf(size.y * 0.28, 210, 400)
     var compact := size.y < 660
     _workspace_column.add_theme_constant_override("separation", 6 if compact else 12)
     _hero_title.max_lines_visible = 2 if compact else 3

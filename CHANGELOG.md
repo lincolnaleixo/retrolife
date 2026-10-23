@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Scale the inline game preview with the window height (140–400 pixels) so large displays show meaningful gameplay footage beside the cartridge instead of a tiny fixed-height thumbnail.
+
 - Make Super Mario World's Journey progressive: thirteen automatic discoveries, early power-up/Yoshi/Dragon Coin events, separate named keepsakes and later castle rewards. Hide future spoilers and move completed discoveries into Collection while preserving existing verified progress.
 - Show a silent local OGV preview directly beside the selected game after a short delay, with original-art fallback, reduced-motion support and playback stopped during gameplay/dialogs. Reduce the selected cartridge by 24%, tighten typography and darken the scenery backdrop for readability.
 - Keep game art and captured preview media in optional private packs; ScreenScraper credentials remain entered in Game media and never included in source. Validate staged native build, journal/media UI contracts and publication boundaries.
