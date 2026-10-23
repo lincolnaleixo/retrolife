@@ -43,6 +43,7 @@ var _hero_title: Label
 var _hero_meta: Label
 var _search_panel: PopupPanel
 var _settings_panel: PopupPanel
+var _software_updates_button: Button
 var _art_dialog: FileDialog
 var _artwork_game_id := ""
 var _view_selections: Dictionary = {}
@@ -349,7 +350,10 @@ func _build_settings() -> void:
     credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     column.add_child(credit)
     column.add_child(HSeparator.new())
-    column.add_child(_button("Software updates...", _show_updates))
+    _software_updates_button = _button("Software updates...", _show_updates)
+    _software_updates_button.tooltip_text = "Check for updates after returning to the library."
+    column.add_child(_software_updates_button)
+    _settings_panel.about_to_popup.connect(_update_settings_context)
     column.add_child(_button("Close", _settings_panel.hide))
     _updates_panel = UpdatePanel.new()
     _updates_panel.request = Callable(self, "_update_command")
@@ -496,10 +500,20 @@ func _focus_game_deferred(game_id: String) -> void:
 
 
 func _restore_carousel_focus() -> void:
+    if _game_is_active():
+        return
+    _restore_carousel_focus_if_idle.call_deferred()
+
+
+func _restore_carousel_focus_if_idle() -> void:
+    # A dialog can close immediately before a game starts. Recheck at the
+    # deferred boundary so library focus cannot escape into a live session.
+    if _game_is_active() or not is_inside_tree():
+        return
     if _at_console_home:
-        _console_home.call_deferred("focus_first")
+        _console_home.focus_first()
     elif _carousel != null and not _details_overlay.visible:
-        _carousel.call_deferred("grab_focus")
+        _carousel.grab_focus()
 
 
 func _on_cartridge_selected(game: Dictionary, index: int) -> void:
@@ -621,7 +635,13 @@ func _show_search() -> void:
 
 
 func _show_settings() -> void:
+    _update_settings_context()
     _settings_panel.popup_centered()
+
+
+func _update_settings_context() -> void:
+    if is_instance_valid(_software_updates_button):
+        _software_updates_button.visible = not _game_is_active()
 
 
 func _apply_presentation() -> void:
@@ -651,6 +671,7 @@ func _game_is_active() -> bool:
 
 
 func _process(_delta: float) -> void:
+    _update_settings_context()
     if _carousel != null:
         _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible and not _rewards_panel.visible and not _media_settings.visible and not _video_panel.visible)
 

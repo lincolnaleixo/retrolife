@@ -22,8 +22,9 @@ repository first, then mirror them to the configured local collection. Applicati
 source and releases contain only the renderer, never these game illustrations.
 
 The current four event IDs are `first_stage`, `secret`, `boss` and `finale`.
-Chapter illustrations use `chapters/<event>.svg`; their collectible counterparts
-retain `rewards/05.svg` through `08.svg`. `cover.png` is optional. Existing progress
+Chapter illustrations use `chapters/<event>.png`; their collectible counterparts
+retain `rewards/05.png` through `08.png`. Existing `.svg` files are supported as
+fallbacks when a PNG is absent or invalid. `cover.png` is optional. Existing progress
 IDs and artwork indexes do not change when replacing illustrations.
 
 An optional `theme.json` provides inert presentation data:
@@ -31,6 +32,7 @@ An optional `theme.json` provides inert presentation data:
 ```json
 {
   "version": 1,
+  "artStyle": "pixel",
   "title": "Your field guide",
   "subtitle": "A collection of discoveries.",
   "collectionTitle": "Your treasures",
@@ -55,6 +57,18 @@ the sidebar and Rewards hub. Use large silhouettes and readable details, with
 little transparent padding. Locked illustrations retain their colors; explicit
 status text distinguishes them from collected rewards. Missing files never reuse
 another game's art.
+
+Match a custom pack to the game's actual visual language and edition. For a
+16-bit game, prefer documented original sprites and tiles in the private media
+source, preserving their palette and recording source URLs, credits and crop
+coordinates. Do not substitute a different console port's sprites or generic 3D
+art. Game assets remain separate from the application's source license.
+
+Set `artStyle` to `pixel` for nearest-neighbor filtering on the cover, chapters
+and keepsakes. Keepsakes use whole-number enlargement and pixel-aligned positions
+when they fit. A compact 44-by-44 sprite composition doubles exactly into the
+88-pixel chapter canvas. Omit this field for smoothly filtered illustrated art;
+unsupported values are ignored. Neither style affects the emulated game image.
 
 `journey_art_smoke.gd`, `gameplay_window_smoke.gd` and `rewards_center_smoke.gd`
 exercise custom/basic/absent states, same-title unsupported versions, bounded

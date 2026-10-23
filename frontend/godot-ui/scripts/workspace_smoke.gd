@@ -21,12 +21,40 @@ func _run() -> void:
     old_key.keycode = KEY_X
     assert(gameplay._event_logical_action(old_key).is_empty())
     assert(not Bindings.assign("east", key).is_empty())
+    for shortcut in [KEY_F8, KEY_F9, KEY_F11]:
+        for physical in [false, true]:
+            var reserved := InputEventKey.new()
+            if physical:
+                reserved.physical_keycode = shortcut
+            else:
+                reserved.keycode = shortcut
+            var message := Bindings.assign("south", reserved)
+            assert(message.contains("reserved") and message.contains("remapped"))
+            assert(gameplay._event_logical_action(key) == "south")
+            assert(gameplay._event_logical_action(reserved).is_empty())
+    var mixed := InputEventKey.new()
+    mixed.keycode = KEY_G
+    mixed.physical_keycode = KEY_F9
+    assert(Bindings.assign("south", mixed).contains("Game settings"))
+    assert(gameplay._event_logical_action(key) == "south")
     var test_path := "user://workspace-bindings-smoke-%d.cfg" % OS.get_process_id()
     assert(Bindings.save(test_path) == OK)
     Bindings.restore(defaults)
     assert(gameplay._event_logical_action(key).is_empty())
     Bindings.load_saved(test_path)
     assert(gameplay._event_logical_action(key) == "south")
+    # Keep an older shortcut binding intact on load, but label it for remapping.
+    var legacy := InputEventKey.new()
+    legacy.keycode = KEY_F9
+    InputMap.action_add_event("game_south", legacy)
+    assert(Bindings.save(test_path) == OK)
+    var legacy_bytes := FileAccess.get_file_as_bytes(test_path)
+    Bindings.restore(defaults)
+    Bindings.load_saved(test_path)
+    assert(gameplay._event_logical_action(legacy) == "south")
+    assert(Bindings.caption("south", false).contains("reserved; remap"))
+    assert(FileAccess.get_file_as_bytes(test_path) == legacy_bytes)
+    InputMap.action_erase_event("game_south", legacy)
     DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))
     var panel := preload("res://scripts/workspace/controller_panel.gd").new()
     root.add_child(panel)
@@ -53,7 +81,7 @@ func _run() -> void:
     assert(profiles.for_game("Super Mario Bros. 2", "nes").is_empty())
     assert(profiles.for_game("Crash Bandicoot 2", "playstation-1").is_empty())
     assert(profiles.for_game("Unlisted Game").is_empty())
-    print("Workspace mapping smoke passed: live remap routing, duplicate rejection, save/reload, guided cancellation and timeout rollback.")
+    print("Workspace mapping smoke passed: live remap routing, reserved shortcut and duplicate rejection, non-destructive legacy reload, guided cancellation and timeout rollback.")
     quit()
 
 func _test_model_texture_coordinates() -> void:

@@ -54,7 +54,7 @@ func _run() -> void:
     var tetris_base := Profiles.asset_base(Profiles.for_game("Tetris", "game-boy"))
     var sonic_base := Profiles.asset_base(Profiles.for_game("Sonic the Hedgehog", "mega-drive"))
     _write_png(mario_base + "/journey/cover.png", Color("46b282"))
-    _write_text(mario_base + "/journey/theme.json", JSON.stringify({"version": 1, "title": "Fixture field guide", "collectionTitle": "Fixture treasures", "cards": {"first_stage": {"accent": "83df9b", "region": "ISLAND\nADVENTURE", "rewardName": "Island diorama", "xp": 99999}, "secret": {"accent": "not-a-color"}, "unrecognized": {"rewardName": "Must be ignored"}}}))
+    _write_text(mario_base + "/journey/theme.json", JSON.stringify({"version": 1, "artStyle": "pixel", "title": "Fixture field guide", "collectionTitle": "Fixture treasures", "cards": {"first_stage": {"accent": "83df9b", "region": "ISLAND\nADVENTURE", "rewardName": "Island diorama", "xp": 99999}, "secret": {"accent": "not-a-color"}, "unrecognized": {"rewardName": "Must be ignored"}}}))
     var theme := JourneyTheme.from_file(_fixture_root.path_join(mario_base + "/journey/theme.json"))
     _check(theme.title == "Fixture field guide" and JourneyTheme.card(theme, "first_stage").region == "ISLAND ADVENTURE", "Theme captions must be bounded inert data with normalized whitespace")
     _check(not JourneyTheme.card(theme, "first_stage").has("xp") and not theme.cards.has("unrecognized") and not JourneyTheme.card(theme, "secret").has("accent"), "Theme metadata must never accept XP, unknown milestones or invalid colors")
@@ -66,6 +66,8 @@ func _run() -> void:
         _write_svg(mario_base + "/journey/chapters/%s.svg" % id, "#487bc7")
     for index in range(1, 9):
         _write_svg(mario_base + "/journey/rewards/%02d.svg" % index, "#d6a447")
+    _write_png(mario_base + "/journey/chapters/first_stage.png", Color("f09b40"))
+    _write_png(mario_base + "/journey/rewards/05.png", Color("36c994"))
     # This existing box preview must never be substituted for missing journal art.
     _write_png(tetris_base + "/box/hero.png", Color("ef3c62"))
     _write_svg(sonic_base + "/journey/chapters/first_stage.svg", "#845ac5")
@@ -85,8 +87,19 @@ func _run() -> void:
     _check(panel._profile.get("slug") == "super-mario-world", "A scoped region/dedup title must select its own journal profile")
     _check(panel._art.texture != null and panel._cover_frame.visible, "A dedicated PNG cover must display")
     _check(_color_matches(panel._art.texture, Color("46b282")), "The journal must display the pack's original cover pixels")
-    _check(_texture_count(panel._chapter_textures) == 4, "All four chapter SVGs must load from stable milestone names")
-    _check(_texture_count(panel._reward_textures) == 4, "Only the four event SVGs must load using their existing zero-padded filenames")
+    _check(_texture_count(panel._chapter_textures) == 4, "All four chapter illustrations must load from stable milestone names")
+    _check(_texture_count(panel._reward_textures) == 4, "Only the four event illustrations must load using their existing zero-padded filenames")
+    _check(_color_matches(panel._chapter_textures[0], Color("f09b40")), "A custom chapter PNG must take priority over its older SVG")
+    _check(_color_matches(panel._reward_textures[4], Color("36c994")), "A custom reward PNG must take priority over its older SVG")
+    _write_text("broken.png", "not a PNG image")
+    _write_svg("broken.svg", "#b83579")
+    var prior_errors := Engine.print_error_messages
+    Engine.print_error_messages = false
+    var fallback: Texture2D = panel._load_icon("broken")
+    Engine.print_error_messages = prior_errors
+    _check(fallback != null and fallback == panel._load_art("broken.svg"), "A broken optional PNG must retain a usable SVG fallback")
+    _check(panel._art.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST and panel._chapter_icons[0].texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "Pixel packs must preserve hard edges in both cover and chapter art")
+    _check(panel._reward_grid.get_child(0).get_child(0).get_child(0).pixel_art, "Pixel rendering must propagate to event keepsakes")
     _check(panel._customized and panel._chapter.text == "Fixture field guide", "A supported game with its own art must use its own custom theme")
     _check(panel._chapter_regions[0].text == "01 · ISLAND ADVENTURE" and panel._chapter_icons[0].custom_minimum_size.x >= 80, "Custom chapters must give their illustrations and region labels room to read")
     _check(panel._reward_grid.get_child(0).get_child(0).get_child(1).text == "Island diorama", "Custom reward names must come from the selected game's art pack")

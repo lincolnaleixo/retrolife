@@ -242,14 +242,17 @@ func _configure_art() -> void:
     var base := Profiles.asset_base(_profile)
     var journey := base + "/journey/" if not base.is_empty() else ""
     _theme_data = JourneyTheme.from_file(_art_path(journey + "theme.json")) if not journey.is_empty() else {}
+    var pixel_art: bool = _theme_data.get("artStyle") == "pixel"
+    var art_filter := CanvasItem.TEXTURE_FILTER_NEAREST if pixel_art else CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    _art.texture_filter = art_filter
     _art.texture = _load_art(journey + "cover.png") if not journey.is_empty() else null
     _cover_frame.visible = _art.texture != null
     _art.visible = _art.texture != null
     for index in ACHIEVEMENT_IDS.size():
-        _chapter_textures.append(_load_art(journey + "chapters/" + ACHIEVEMENT_IDS[index] + ".svg") if not journey.is_empty() else null)
+        _chapter_textures.append(_load_icon(journey + "chapters/" + ACHIEVEMENT_IDS[index]) if not journey.is_empty() else null)
     _reward_textures.resize(GIFTS.size())
     for index in range(4, GIFTS.size()):
-        _reward_textures[index] = _load_art(journey + "rewards/%02d.svg" % [index + 1]) if not journey.is_empty() else null
+        _reward_textures[index] = _load_icon(journey + "rewards/%02d" % [index + 1]) if not journey.is_empty() else null
     _customized = _art.texture != null or _chapter_textures.any(func(texture: Texture2D): return texture != null) or _reward_textures.any(func(texture: Texture2D): return texture != null)
     if not _customized:
         _theme_data.clear()
@@ -266,9 +269,10 @@ func _configure_art() -> void:
         var art_direction := JourneyTheme.card(_theme_data, ACHIEVEMENT_IDS[index])
         var card_accent := Color(art_direction.get("accent", _accent.to_html(false)))
         _chapter_icons[index].texture = _chapter_textures[index]
+        _chapter_icons[index].texture_filter = art_filter
         _chapter_icons[index].visible = _chapter_textures[index] != null
         _chapter_icon_frames[index].visible = _chapter_textures[index] != null
-        _chapter_icon_frames[index].add_theme_stylebox_override("panel", _panel_style(card_accent.darkened(0.84), card_accent.darkened(0.55), 14, 3))
+        _chapter_icon_frames[index].add_theme_stylebox_override("panel", _panel_style(card_accent.darkened(0.84), card_accent.darkened(0.55), 3 if pixel_art else 14, 3))
         var region := str(art_direction.get("region", ""))
         _chapter_regions[index].text = "%02d · %s" % [index + 1, region]
         _chapter_regions[index].visible = not region.is_empty() and _chapter_textures[index] != null
@@ -304,6 +308,10 @@ func _load_art(relative: String) -> Texture2D:
     pixels.generate_mipmaps()
     _art_cache[relative] = ImageTexture.create_from_image(pixels)
     return _art_cache[relative]
+
+func _load_icon(stem: String) -> Texture2D:
+    var illustration := _load_art(stem + ".png")
+    return illustration if illustration != null else _load_art(stem + ".svg")
 
 func _process(delta: float) -> void:
     if game_id.is_empty():
@@ -455,6 +463,7 @@ func _build_reward(achievement: Dictionary) -> void:
     stamp.earned = unlocked
     stamp.symbol = index
     stamp.artwork = art
+    stamp.pixel_art = _theme_data.get("artStyle") == "pixel"
     stamp.custom_minimum_size = Vector2(88, 132 if stamp.artwork != null else 38)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)

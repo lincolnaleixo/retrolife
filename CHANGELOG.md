@@ -4,7 +4,10 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
-- Add in-game Super Nintendo display presets: Original, Smooth, Scanlines and CRT, with frozen-frame previews, adjustable intensity and persisted system preferences. Opening the shader panel pauses gameplay and releases inputs; closing restores the prior play/pause state. Effects apply only to the game image and adapt to frame resolution and window size.
+- Open Game settings during a session from the header, F9 or the pause menu. Pause automatically and keep controls, shader previews and existing RetroLife preferences under one pause state; closing restores the previous play state. Persist game audio volume, expose fullscreen and Journey visibility, and isolate held inputs while configuring or returning to play.
+- Prefer optional external PNG illustrations for custom Journey chapters and Rewards, retaining SVG compatibility and neutral fallbacks. Honor per-game pixel-art packs with nearest filtering and integer-scaled keepsakes. Keep game artwork in the private collection; changing presentation never unlocks a reward or enables unsupported games.
+
+- Add in-game Super Nintendo display presets: Original, Smooth, Scanlines and CRT, with frozen-frame previews, adjustable intensity and persisted system preferences. Opening the shader panel pauses gameplay and releases inputs; closing restores the prior play/pause state. Effects apply only to the game image and adapt to frame resolution and window size. Keep the floating options compact on large displays, and restore pause/exit controls if saving fails while leaving a preview.
 
 - Give supported custom Journeys larger illustrated chapters and full-color collectible artwork, with per-event colors, region captions and keepsake names from an optional bounded external theme. Supported games without art keep a neutral presentation; missing reward illustrations in partial packs consistently ignore per-card custom names and colors in Journey and Rewards. Hide the gameplay Journey column and toggle for unsupported games, omit them from Rewards, and retry temporary support failures without losing the visibility preference. Themes never enable detection or change progress.
 

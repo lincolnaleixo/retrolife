@@ -14,6 +14,8 @@ static func from_file(path: String) -> Dictionary:
     if not source is Dictionary or source.get("version") != 1:
         return {}
     var theme := {}
+    if source.get("artStyle") == "pixel":
+        theme["artStyle"] = "pixel"
     for key in ["title", "subtitle", "collectionTitle"]:
         var value := _caption(source.get(key, ""), 160 if key == "subtitle" else 80)
         if not value.is_empty():

@@ -36,10 +36,28 @@ static func caption(action: String, gamepad: bool) -> String:
             elif event is InputEventJoypadButton:
                 names.append("Button %d" % event.button_index)
             else:
-                names.append(event.as_text().replace(" (Physical)", ""))
+                var name := event.as_text().replace(" (Physical)", "")
+                if not _reserved_shortcut(event).is_empty():
+                    name += " (reserved; remap)"
+                names.append(name)
     return " / ".join(names) if not names.is_empty() else "Not mapped"
 
+static func _reserved_shortcut(event: InputEvent) -> String:
+    if event is InputEventKey:
+        for key in [event.keycode, event.physical_keycode]:
+            match key:
+                KEY_F8:
+                    return "F8 is reserved for Shaders."
+                KEY_F9:
+                    return "F9 is reserved for Game settings."
+                KEY_F11:
+                    return "F11 is reserved for Fullscreen."
+    return ""
+
 static func assign(action: String, event: InputEvent) -> String:
+    var reserved := _reserved_shortcut(event)
+    if not reserved.is_empty():
+        return reserved + " Choose another key; existing shortcut bindings can be remapped here."
     var normalized: InputEvent = event.duplicate()
     normalized.device = -1
     if normalized is InputEventJoypadMotion:

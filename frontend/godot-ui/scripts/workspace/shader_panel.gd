@@ -243,7 +243,7 @@ func _layout() -> void:
     var inset := 12.0
     var width := minf(440.0, maxf(0.0, size.x - inset * 2.0))
     _panel.position = Vector2(maxf(inset, size.x - width - inset), inset)
-    _panel.size = Vector2(width, maxf(0.0, size.y - inset * 2.0))
+    _panel.size = Vector2(width, minf(680.0, maxf(0.0, size.y - inset * 2.0)))
     var compact := size.y < 640.0
     for button in _preset_buttons.values():
         button.custom_minimum_size.y = 148.0 if compact else 172.0

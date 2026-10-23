@@ -327,7 +327,7 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     var customized := cover != null
     for achievement: Dictionary in state.achievements:
         var index := int(achievement.artIndex)
-        var texture := _load_art(base + "/journey/rewards/%02d.svg" % [index + 1]) if not base.is_empty() else null
+        var texture := _load_icon(base + "/journey/rewards/%02d" % [index + 1]) if not base.is_empty() else null
         reward_art[str(achievement.id)] = texture
         customized = customized or texture != null
     if not customized:
@@ -343,6 +343,7 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
     if cover != null:
         var image := TextureRect.new()
         image.texture = cover
+        image.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if theme_data.get("artStyle") == "pixel" else CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
         image.custom_minimum_size = Vector2(72, 64)
         image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
         image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -377,10 +378,10 @@ func _build_game(game: Dictionary, state: Dictionary) -> void:
         var card_accent := Color(art_direction.get("accent", accent.to_html(false)))
         var requirement := str(achievement.description) + " · %d XP" % int(achievement.xp)
         var title := str(art_direction.get("rewardName", gifts[index] if art != null and index < gifts.size() else achievement.title))
-        _build_keepsake(grid, title, requirement, earned, index, art, card_accent)
+        _build_keepsake(grid, title, requirement, earned, index, art, card_accent, theme_data.get("artStyle") == "pixel")
 
 
-func _build_keepsake(parent: Control, title: String, requirement: String, earned: bool, index: int, art: Texture2D, accent: Color) -> void:
+func _build_keepsake(parent: Control, title: String, requirement: String, earned: bool, index: int, art: Texture2D, accent: Color, pixel_art := false) -> void:
     var card := PanelContainer.new()
     card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     card.set_meta("earned", earned)
@@ -396,6 +397,7 @@ func _build_keepsake(parent: Control, title: String, requirement: String, earned
     stamp.earned = earned
     stamp.symbol = index
     stamp.artwork = art
+    stamp.pixel_art = pixel_art
     stamp.custom_minimum_size = Vector2(96, 160 if art != null else 60)
     stamp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     column.add_child(stamp)
@@ -465,6 +467,11 @@ func _load_art(relative: String) -> Texture2D:
     pixels.generate_mipmaps()
     _art_cache[relative] = ImageTexture.create_from_image(pixels)
     return _art_cache[relative]
+
+
+func _load_icon(stem: String) -> Texture2D:
+    var illustration := _load_art(stem + ".png")
+    return illustration if illustration != null else _load_art(stem + ".svg")
 
 
 func _title_for(game: Dictionary) -> String:

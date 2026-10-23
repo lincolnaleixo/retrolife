@@ -15,6 +15,8 @@ class BackendFixture:
     var input_calls: Array = []
     var fail_pause := false
     var fail_resume := false
+    var fail_stop := false
+    var fail_stop_late := false
     var status := "playing"
     var width := 256
     var height := 224
@@ -67,7 +69,9 @@ class BackendFixture:
 
     func stop_emulation_json() -> String:
         stop_calls += 1
-        status = "stopped"
+        if fail_stop:
+            return JSON.stringify({"schemaVersion": 1, "ok": false, "error": "Synthetic stop failure."})
+        status = "failed" if fail_stop_late else "stopped"
         return _response()
 
 var _failure := ""
@@ -204,9 +208,30 @@ func _run() -> void:
     _check(second._frame.material == null and second._frame.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "Zero intensity gives the original unfiltered picture")
     second._open_shader_options()
     resume_before = backend.resume_calls
+    backend.fail_stop = true
+    await second._stop_session()
+    _check(not second.active_session_id().is_empty() and second.is_paused() and not second._stopping, "An immediately rejected stop preserves the paused session")
+    _check(not second._shader_panel.visible and second._pause_overlay.visible and second._pause_button.text == "Resume", "A failed stop from the editor restores the normal pause screen and honest header action")
+    _check(second._exit_button.is_visible_in_tree() and not second._exit_button.disabled, "A rejected stop leaves Exit to library available for retry")
+    _check(backend.resume_calls == resume_before, "A rejected stop must not resume emulation implicitly")
+    backend.fail_stop = false
+    second._resume_game()
+    second._open_shader_options()
+    resume_before = backend.resume_calls
+    backend.fail_stop_late = true
+    await second._stop_session()
+    _check(not second.active_session_id().is_empty() and second.is_paused() and not second._stopping, "An asynchronous save failure preserves the paused session")
+    _check(not second._shader_panel.visible and second._pause_overlay.visible and second._pause_button.text == "Resume", "The asynchronous failure handler restores the pause screen after dismissing the editor")
+    _check(second._exit_button.is_visible_in_tree() and not second._exit_button.disabled, "An asynchronous save failure keeps Exit to library available for retry")
+    _check(backend.resume_calls == resume_before, "An asynchronous save failure never resumes an unconfirmed session")
+    backend.fail_stop_late = false
+    second._resume_game()
+    second._open_shader_options()
+    resume_before = backend.resume_calls
+    var stop_before := backend.stop_calls
     await second._stop_session()
     _check(second.active_session_id().is_empty() and not second._shader_panel.visible, "Stopping a session also dismisses its display editor")
-    _check(backend.resume_calls == resume_before and backend.stop_calls == 1, "Stopping from the editor never resumes an ended session")
+    _check(backend.resume_calls == resume_before and backend.stop_calls == stop_before + 1, "Stopping from the editor never resumes an ended session")
     second.free()
 
     config.set_value("display_snes", "preset", "unknown-effect")
