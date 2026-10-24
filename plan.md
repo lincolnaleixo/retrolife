@@ -5,7 +5,7 @@
 The owner wants the current application on a second Apple Silicon Mac and future versions delivered through RetroLife's existing updater. This updates the distribution scope of the historical plan below: the model library is private, and public application builds must not fetch or distribute its contents. Install the owner's curated model/art packs separately; application updates must preserve those packs, ROM locations and progress.
 
 - [x] Make public build inputs independent of the private model repository, with asset-boundary and runtime checks passing locally. Hosted CI and signed publication remain separate gates below.
-- [ ] Publish the current reviewed application through the protected main-only signing/notarization workflow and verify its signed appcast entry.
+- [x] Publish the current reviewed application through the protected main-only signing/notarization workflow and verify its signed appcast entry (beta.28).
 - [ ] Install that updater-enabled build on the target Mac, preserving any existing application data.
 - [ ] Exercise the target Mac's update check and a signed-to-signed upgrade; retain the existing gameplay/save barrier.
 
