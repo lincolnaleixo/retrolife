@@ -8,9 +8,9 @@ The first target is macOS 13+ on Apple Silicon. Linux builds support development
 
 ## Cartridge library
 
-Browse a physical 3D cartridge collection with keyboard, controller or mouse. The selected SNES cartridge is centered, nearby games recede in perspective, and search/import controls stay compact. Choose a local PNG label in game details, or keep an original neutral title label; matching games can also show their approved label, downloaded on request from the public cartridge collection and verified locally before use. Settings offers reduced motion, low-power rendering, a text alternative and the approved-label download switch. The library remembers selections across filters, details and gameplay.
+Browse a physical 3D cartridge collection with keyboard, controller or mouse. The selected SNES cartridge is centered, nearby games recede in perspective, and search/import controls stay compact. Choose a local PNG label in game details, or keep an original neutral title label; matching games can also show verified labels already present in the owner’s local collection. Settings offers reduced motion, low-power rendering, a text alternative and the approved-label download switch. The library remembers selections across filters, details and gameplay.
 
-Read the [interface and artwork guide](docs/cartridge-library.md) for controls, offline asset staging, resource budgets and verification. The pinned neutral model is fetched at build time; installed application browsing does not need a network connection.
+Read the [interface and artwork guide](docs/cartridge-library.md) for controls, offline asset staging, resource budgets and verification. Public builds use original procedural geometry and do not fetch or bundle the private 3D library. Link the owner’s local collection separately for custom models and artwork; installed browsing remains offline.
 
 ## Development
 
@@ -23,9 +23,9 @@ godot --path frontend/godot-ui
 scripts/check.sh
 ```
 
-Set `GODOT` when the executable has another name. Dependencies are pinned in Cargo.lock and the core build script. The model package and per-file checksums are pinned in `assets/cartridges.lock.json`; large creative files are staged outside Git history. Consult [architecture](docs/architecture.md), [contribution guidance](CONTRIBUTING.md), and [release instructions](docs/releases.md).
+Set `GODOT` when the executable has another name. Dependencies are pinned in Cargo.lock and the core build script. Public development and release builds default to `RETROLIFE_ASSET_MODE=public-neutral`. They reject private files staged in the exportable project. Historical model checksums remain in `assets/cartridges.lock.json` for explicit private offline previews; large creative files stay outside the public app and Git history. Consult [architecture](docs/architecture.md), [contribution guidance](CONTRIBUTING.md), and [release instructions](docs/releases.md).
 
-Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PARTY_NOTICES.md). The separate [Retro 3D Library](https://github.com/lincolnaleixo/retro-3d-library) retains its independent CC BY-NC-ND 4.0 license and version history. No game artwork is relicensed as application code.
+Original application code: **AGPL-3.0-only**. See [third-party notices](THIRD_PARTY_NOTICES.md). The separate Retro 3D Library is private and is not distributed with the public app. Its assets retain their own notices; the application license grants no rights to them. No game artwork is relicensed as application code.
 
 ## Application updates
 

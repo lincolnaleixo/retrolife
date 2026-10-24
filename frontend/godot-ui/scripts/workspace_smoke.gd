@@ -13,7 +13,7 @@ func _run() -> void:
     Bindings.defaults = defaults
     var gameplay := preload("res://scripts/launch_integration.gd").new()
     var key := InputEventKey.new()
-    key.keycode = KEY_F7
+    key.keycode = KEY_F4
     key.pressed = true
     assert(Bindings.assign("south", key).is_empty())
     assert(gameplay._event_logical_action(key) == "south")
@@ -21,7 +21,7 @@ func _run() -> void:
     old_key.keycode = KEY_X
     assert(gameplay._event_logical_action(old_key).is_empty())
     assert(not Bindings.assign("east", key).is_empty())
-    for shortcut in [KEY_F8, KEY_F9, KEY_F11]:
+    for shortcut in [KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F11]:
         for physical in [false, true]:
             var reserved := InputEventKey.new()
             if physical:

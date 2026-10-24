@@ -4,6 +4,12 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Make updater-enabled signed releases the delivery path for everyday Mac installations, document one-time migration from development builds, and preserve separately installed private collections across app updates.
+- Include the public brand assets in the isolated updater UI fixture so clean CI imports and update-panel checks can run without any private model or artwork dependency.
+- Build public releases with original procedural presentation and no private model downloads. Reject staged owner resources before export, declare the asset boundary in release metadata and verify it in the exported application. Preserve explicit owner staging and external collection loading.
+- Report notarization validation phases and exit codes without exposing local paths or tool output, retry bounded host/service failures, and keep publication blocked when ticket validation still fails.
+- Exercise the current collection-to-game launch flow in the real-core regression and reserve save-state shortcuts in the controller-remapping fixture; run collection, input ownership and asset-boundary checks in public CI.
+
 - Add a cartridge collection between console selection and the full game presentation. Browse a centered cartridge with neighboring games and side arrows, select it to open its page, and return to the same collection position. Keep previews and selection music scoped to the game page, with neutral empty and single-game states.
 - Separate the game's box and cartridge into independent 3D displays with room between them, distinct drag/zoom targets and individual captions. Clicking the box opens its inspector; clicking the cartridge on the game page plays. Preserve keyboard/controller access, modal focus, bounded model resources and absent-box fallbacks.
 - Exercise the three-page navigation and inspect/play distinction, independent model transforms, visible neighbor layout, media ownership and responsive presentation with synthetic fixtures and local visual captures.

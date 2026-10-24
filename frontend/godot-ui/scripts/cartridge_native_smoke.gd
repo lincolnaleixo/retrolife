@@ -51,19 +51,12 @@ func _exercise_native_library(shell: Control) -> String:
     carousel.game_activated.emit("missing-game")
     if not _gameplay.active_session_id().is_empty():
         return "an unknown artwork identity started native gameplay"
-    var hero: Node3D = carousel.get("_hero")
-    var camera: Camera3D = carousel.get("_camera")
-    var viewport: SubViewport = carousel.get("_viewport")
-    var local_point := camera.unproject_position(hero.global_position) * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
-    var press := InputEventMouseButton.new()
-    press.button_index = MOUSE_BUTTON_LEFT
-    press.pressed = true
-    press.position = local_point
-    carousel._gui_input(press)
-    var release := InputEventMouseButton.new()
-    release.button_index = MOUSE_BUTTON_LEFT
-    release.position = local_point
-    carousel._gui_input(release)
+    _click_selected_cartridge(carousel)
+    await process_frame
+    await process_frame
+    if not bool(shell.get("_at_game_details")) or not _gameplay.active_session_id().is_empty():
+        return "the collection artwork must open its game page without starting emulation"
+    _click_selected_cartridge(carousel)
     var start_failure: String = await _wait_for_status("running")
     if not start_failure.is_empty():
         _backend.call("stop_emulation_json")
@@ -88,3 +81,19 @@ func _exercise_native_library(shell: Control) -> String:
     if (shell.get("_details_overlay") as Control).visible:
         return "details remained open after the native gameplay round trip"
     return ""
+
+
+func _click_selected_cartridge(carousel: Control) -> void:
+    var hero: Node3D = carousel.get("_hero")
+    var camera: Camera3D = carousel.get("_camera")
+    var viewport: SubViewport = carousel.get("_viewport")
+    var local_point := camera.unproject_position(hero.global_position) * Vector2(carousel.size) / Vector2(viewport.size).max(Vector2.ONE)
+    var press := InputEventMouseButton.new()
+    press.button_index = MOUSE_BUTTON_LEFT
+    press.pressed = true
+    press.position = local_point
+    carousel._gui_input(press)
+    var release := InputEventMouseButton.new()
+    release.button_index = MOUSE_BUTTON_LEFT
+    release.position = local_point
+    carousel._gui_input(release)

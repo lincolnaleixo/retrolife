@@ -8,6 +8,14 @@ Every push to `main` starts the automatic macOS beta release. Credential-free bu
 
 Never register the signing machine as a runner that executes public pull requests, and never expose signing credentials to pull-request CI. Verify Developer ID Application access and a working notary profile on that machine before changing release configuration.
 
+## Public asset boundary
+
+Public builds use original procedural geometry and original RetroLife branding. The private Retro 3D Library, including its templates, is never fetched by CI or bundled with releases. Owner models and artwork are linked from a separate local collection and stay outside the app update. No repository access token or private asset credentials are needed by public build jobs.
+
+`build-macos-release.sh` forces `public-neutral`, rejects private or unreviewed exportable resources before building and immediately before export, and writes a schema-v2 declaration with no bundled models. The existing release asset filename `retrolife-cartridge-assets.lock.json` is retained for signer compatibility; it now describes this empty external-asset set. Required notices cover the app, core, dependencies and Sparkle, without claiming to ship the private model library. The actual exported app probe must report `assetMode: public-neutral` before packaging or signed verification succeeds.
+
+Do not delete private work to satisfy this check. Build from a clean public checkout and install the owner collection separately on the destination Mac. Preserve the configured collection folder across updates.
+
 ## Manual preparation and special builds
 
 The manual path remains for work the pipeline does not cover — for example, reproducing a historical artifact or preparing a locally signed special build.
@@ -16,7 +24,7 @@ The application uses bundle identifier `io.github.lincolnaleixo.retrolife`. Pin 
 
 For a reviewed clean commit, run all checks, build the release bridge and core, and export the macOS application. Provide the signing identity and notary profile through the private signing environment. Never store their resolved credentials in this repository or logs.
 
-The signing script signs nested dylibs and all Sparkle executables, XPC services and framework components before the application, notarizes a temporary ZIP, staples the application and recreates the final ZIP. It rejects non-Apple-Silicon hosts and unsigned output. Its output is local; publication follows verification of the downloaded package and sustained gameplay, input, sound and save restoration.
+The signing script signs nested dylibs and all Sparkle executables, XPC services and framework components before the application, notarizes a temporary ZIP, staples the application and recreates the final ZIP. It rejects non-Apple-Silicon hosts and unsigned output. Testing betas may be published after required automated, signing, notarization and artifact checks pass, with remaining gameplay, input, sound and save acceptance stated explicitly. Stable milestone acceptance still requires those hands-on checks.
 
 Attach the signed ZIP, checksums, exact source archive, dependency source/license bundles, and core-source archive to an immutable prerelease. Extract notes from the dated changelog. Do not include `.cache`, private metadata, archive references, or game files. In-app updates require the versioned, signed ZIP and updater metadata described in [in-app updates](updates.md). Releases before beta.3 do not acquire that feature retroactively.
 

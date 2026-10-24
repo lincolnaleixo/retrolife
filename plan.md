@@ -1,5 +1,16 @@
 # RetroLife plan
 
+## Current distribution request — 2026-10-24
+
+The owner wants the current application on a second Apple Silicon Mac and future versions delivered through RetroLife's existing updater. This updates the distribution scope of the historical plan below: the model library is private, and public application builds must not fetch or distribute its contents. Install the owner's curated model/art packs separately; application updates must preserve those packs, ROM locations and progress.
+
+- [x] Make public build inputs independent of the private model repository, with asset-boundary and runtime checks passing locally. Hosted CI and signed publication remain separate gates below.
+- [ ] Publish the current reviewed application through the protected main-only signing/notarization workflow and verify its signed appcast entry.
+- [ ] Install that updater-enabled build on the target Mac, preserving any existing application data.
+- [ ] Exercise the target Mac's update check and a signed-to-signed upgrade; retain the existing gameplay/save barrier.
+
+Subsequent user-facing changes are delivered only after the corresponding immutable release and feed entry are verified. Local development exports remain useful for testing but do not complete delivery. See [Mac installation](docs/install-macos.md) and [automatic releases](docs/automatic-releases.md).
+
 Last reviewed: 2026-09-17. Product focus: SNES on macOS, with a clean, premium cartridge-first library.
 
 This is the only roadmap. This revision records the owner's review of the installed beta.3/beta.4 builds — the default window opens too small, the hero cartridge barely moves, and real game labels are not shown — and an expansion pass that adds the play-feel, data-portability, privacy, diagnostics and release-operations items below. Its scope is **plan.md plus the repository-required changelog entry**; no application code is changed here. The normal changelog and verification rules apply to the implementation work that follows.
