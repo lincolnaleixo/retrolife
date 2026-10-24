@@ -11,6 +11,10 @@ var _operation := ""
 var _busy := false
 
 func _ready() -> void:
+    # Keep settings open when the native file sheet takes window focus.
+    popup_window = false
+    exclusive = true
+    close_requested.connect(hide)
     var popup_theme := Theme.new()
     var panel_style := StyleBoxFlat.new()
     panel_style.bg_color = Color("141b27")
@@ -47,7 +51,7 @@ func _ready() -> void:
     _picker.use_native_dialog = true
     _picker.mode_overrides_title = false
     _picker.dir_selected.connect(_selected)
-    _picker.canceled.connect(func(): popup())
+    _picker.canceled.connect(func(): call_deferred("popup"))
     add_child(_picker)
     about_to_popup.connect(refresh)
 
@@ -73,7 +77,7 @@ func _pick(operation: String) -> void:
 
 func _selected(path: String) -> void:
     # A native dialog takes focus away from the embedded storage popup.
-    popup()
+    call_deferred("popup")
     if _busy or owner_ui == null:
         return
     if _operation == "assets":
