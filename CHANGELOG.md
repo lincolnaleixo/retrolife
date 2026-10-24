@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Pin ZIP parsing to 9.1.0, including the upstream extraction security fixes required by the release vulnerability gate.
+
 - Discover added, renamed, replaced and removed SNES ROMs automatically, including bounded single-game ZIP archives; retain game identities for saves and progress, skip incomplete files, and refresh the collection from background scans without interrupting gameplay.
 - Connect existing ROM folders without requiring an application-created index and clear resolved missing-file notices.
 
