@@ -1,9 +1,9 @@
 //! Durable, app-managed storage for user-owned SNES ROM files.
 //!
-//! The library copies an input `.sfc` or `.smc` file into its own `roms/`
+//! The library copies an input `.sfc` or `.smc` file into its own `snes/`
 //! directory. The input is never moved, renamed, or deleted. Imported files
-//! are named from their SHA-256 identity, which makes duplicate detection
-//! independent of the source filename.
+//! keep readable filenames; SHA-256 remains the internal identity for duplicate
+//! detection and progress. Renamed copies are reconnected by verified contents.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -110,7 +110,7 @@ pub enum Error {
     SourceChanged,
     /// The SHA-256 identity already exists in the index.
     Duplicate { id: String },
-    /// A file with the identity-derived destination already has another hash.
+    /// A managed destination conflicts with another file.
     StorageConflict { id: String },
     /// Another process left an import journal that cannot be safely recovered.
     InterruptedImport { reason: String },
@@ -177,9 +177,9 @@ impl fmt::Display for Error {
                 f,
                 "An interrupted import could not be recovered: {reason}. Reopen the library after checking its permissions and free space."
             ),
-            Self::ManagedFileMissing { id } => write!(
+            Self::ManagedFileMissing { .. } => write!(
                 f,
-                "Library entry {id} is missing its managed ROM copy; restore it or remove the entry."
+                "A ROM could not be found in the library. Reconnect its drive or restore the file to the console folder. Renamed ROMs are recognized automatically."
             ),
             Self::ManagedFileCorrupt { id } => write!(
                 f,
@@ -242,9 +242,10 @@ impl Library {
 
         let (mut metadata, metadata_missing) = library.load_metadata()?;
         let recovered = library.recover_interrupted(&mut metadata)?;
+        let reconnected = library.reconnect_renamed(&mut metadata)?;
         library.validate_metadata(&metadata)?;
 
-        if metadata_missing || recovered {
+        if metadata_missing || recovered || reconnected {
             library.write_metadata(&metadata)?;
         }
 
@@ -283,7 +284,10 @@ impl Library {
             return Err(Error::Duplicate { id });
         }
 
-        let relative_path = managed_relative_path(&id, extension);
+        let title = title_from_source(source).ok_or_else(|| Error::UnsupportedExtension {
+            name: source_name.clone(),
+        })?;
+        let relative_path = self.available_rom_path(&title, extension)?;
         let final_path = self.root.join(&relative_path);
         match fs::symlink_metadata(&final_path) {
             Ok(final_metadata) => {
@@ -303,9 +307,6 @@ impl Library {
             Err(error) => return Err(map_io("checking the managed destination", error)),
         }
 
-        let title = title_from_source(source).ok_or_else(|| Error::UnsupportedExtension {
-            name: source_name.clone(),
-        })?;
         let staging_relative_path = staging_relative_path(&id);
         let staging_path = self.root.join(&staging_relative_path);
 
@@ -369,7 +370,16 @@ impl Library {
     /// Resolve an entry's relative managed path inside this library.
     pub fn resolve(&self, entry: &Entry) -> Result<PathBuf> {
         validate_entry_shape(entry)?;
-        Ok(self.root.join(&entry.path))
+        let _guard = self.gate.lock().map_err(|_| Error::LockPoisoned)?;
+        let metadata = self.load_and_recover()?;
+        let current = metadata
+            .entries
+            .iter()
+            .find(|item| item.id == entry.id)
+            .ok_or_else(|| Error::ManagedFileMissing {
+                id: entry.id.clone(),
+            })?;
+        Ok(self.root.join(&current.path))
     }
 
     /// Verify a complete copy before callers switch roots. Source files are
@@ -398,11 +408,117 @@ impl Library {
     fn load_and_recover(&self) -> Result<Metadata> {
         let (mut metadata, metadata_missing) = self.load_metadata()?;
         let recovered = self.recover_interrupted(&mut metadata)?;
+        let reconnected = self.reconnect_renamed(&mut metadata)?;
         self.validate_metadata(&metadata)?;
-        if metadata_missing || recovered {
+        if metadata_missing || recovered || reconnected {
             self.write_metadata(&metadata)?;
         }
         Ok(metadata)
+    }
+
+    fn available_rom_path(&self, title: &str, extension: &str) -> Result<PathBuf> {
+        // Keep names portable between Mac, Windows and shared storage, while
+        // retaining the recognizable title. Bound UTF-8 bytes, not just chars.
+        let mut stem = String::new();
+        for character in title.chars() {
+            let character = if "<>:\"/\\|?*".contains(character) {
+                '_'
+            } else {
+                character
+            };
+            if stem.len() + character.len_utf8() > 180 {
+                break;
+            }
+            stem.push(character);
+        }
+        let stem = stem.trim_matches([' ', '.']);
+        let stem = if stem.is_empty() { "Game" } else { stem };
+        for suffix in 0..10_000 {
+            let name = if suffix == 0 {
+                format!("{stem}.{extension}")
+            } else {
+                format!("{stem} ({suffix}).{extension}")
+            };
+            let relative = Path::new(ROMS_DIRECTORY_NAME).join(name);
+            match fs::symlink_metadata(self.root.join(&relative)) {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(relative),
+                Err(error) => return Err(map_io("checking a ROM filename", error)),
+                Ok(_) => {}
+            }
+        }
+        Err(Error::MetadataInvalid {
+            reason: "too many files share this game name".to_owned(),
+        })
+    }
+
+    fn reconnect_renamed(&self, metadata: &mut Metadata) -> Result<bool> {
+        let mut missing = HashSet::new();
+        for entry in &metadata.entries {
+            validate_entry_shape(entry)?;
+            self.validate_rom_directory(&entry.path)?;
+            match fs::symlink_metadata(self.root.join(&entry.path)) {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    missing.insert(entry.id.clone());
+                }
+                Err(error) => return Err(map_io("checking a managed ROM", error)),
+                Ok(_) => {}
+            }
+        }
+        if missing.is_empty() {
+            return Ok(false);
+        }
+
+        // Search only the two supported, direct console folders, never arbitrary
+        // paths or symlinks. A matching filename is not evidence of game identity.
+        let mut candidates = Vec::new();
+        for directory in [ROMS_DIRECTORY_NAME, "roms"] {
+            self.validate_rom_directory(&Path::new(directory).join("probe.sfc"))?;
+            let files = match fs::read_dir(self.root.join(directory)) {
+                Ok(files) => files,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(map_io("looking for renamed ROMs", error)),
+            };
+            for file in files {
+                let file = file.map_err(|error| map_io("looking for renamed ROMs", error))?;
+                let info = fs::symlink_metadata(file.path())
+                    .map_err(|error| map_io("checking a renamed ROM", error))?;
+                if info.is_file()
+                    && supported_extension(&file.path()).is_some()
+                    && (MIN_ROM_SIZE_BYTES..=MAX_ROM_SIZE_BYTES).contains(&info.len())
+                {
+                    candidates.push(Path::new(directory).join(file.file_name()));
+                }
+            }
+        }
+        candidates.sort();
+        let mut changed = false;
+        for path in candidates {
+            let (id, _) = hash_managed_file(&self.root.join(&path))?;
+            if missing.remove(&id) {
+                for entry in metadata.entries.iter_mut().filter(|entry| entry.id == id) {
+                    entry.path.clone_from(&path);
+                }
+                changed = true;
+                if missing.is_empty() {
+                    break;
+                }
+            }
+        }
+        Ok(changed)
+    }
+
+    fn validate_rom_directory(&self, relative: &Path) -> Result<()> {
+        let directory =
+            self.root
+                .join(relative.parent().ok_or_else(|| Error::MetadataInvalid {
+                    reason: "a ROM path has no console folder".to_owned(),
+                })?);
+        if is_symlink(&directory)? {
+            return Err(Error::MetadataInvalid {
+                reason: "a console folder is a symbolic link".to_owned(),
+            });
+        }
+        Ok(())
     }
 
     fn load_metadata(&self) -> Result<(Metadata, bool)> {
@@ -437,6 +553,7 @@ impl Library {
         let mut ids = HashSet::with_capacity(metadata.entries.len());
         for entry in &metadata.entries {
             validate_entry_shape(entry)?;
+            self.validate_rom_directory(&entry.path)?;
             if !ids.insert(entry.id.clone()) {
                 return Err(Error::MetadataInvalid {
                     reason: format!("duplicate entry identity {}", entry.id),
@@ -491,6 +608,7 @@ impl Library {
                 ),
             })?;
         validate_journal_shape(&journal)?;
+        self.validate_rom_directory(&journal.path)?;
 
         let final_path = self.root.join(&journal.path);
         let staging_path = self.root.join(&journal.staging_path);
@@ -648,10 +766,6 @@ fn ensure_volume_available(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn managed_relative_path(id: &str, extension: &str) -> PathBuf {
-    Path::new(ROMS_DIRECTORY_NAME).join(format!("{id}.{extension}"))
-}
-
 fn staging_relative_path(id: &str) -> PathBuf {
     Path::new(ROMS_DIRECTORY_NAME).join(format!(".{id}{STAGING_SUFFIX}"))
 }
@@ -690,11 +804,12 @@ fn validate_entry_shape(entry: &Entry) -> Result<()> {
             });
         }
     };
-    let expected_sfc = format!("{}.sfc", entry.id);
-    let expected_smc = format!("{}.smc", entry.id);
-    if filename != expected_sfc && filename != expected_smc {
+    if filename.contains(['\\', ':'])
+        || filename.chars().any(char::is_control)
+        || supported_extension(&entry.path).is_none()
+    {
         return Err(Error::MetadataInvalid {
-            reason: "an entry path does not match its identity".to_owned(),
+            reason: "an entry path must name a SNES ROM inside its console folder".to_owned(),
         });
     }
     Ok(())
@@ -706,17 +821,14 @@ fn validate_journal_shape(journal: &ImportJournal) -> Result<()> {
             reason: "the journal version or identity is invalid".to_owned(),
         });
     }
-    let expected_path_sfc = managed_relative_path(&journal.id, "sfc");
-    let expected_path_smc = managed_relative_path(&journal.id, "smc");
-    if journal.path != expected_path_sfc
-        && journal.path != expected_path_smc
-        && journal.path != Path::new("roms").join(format!("{}.sfc", journal.id))
-        && journal.path != Path::new("roms").join(format!("{}.smc", journal.id))
-    {
-        return Err(Error::InterruptedImport {
-            reason: "the journal destination is outside the managed ROM layout".to_owned(),
-        });
-    }
+    validate_entry_shape(&Entry {
+        id: journal.id.clone(),
+        title: journal.title.clone(),
+        path: journal.path.clone(),
+    })
+    .map_err(|_| Error::InterruptedImport {
+        reason: "the journal destination is outside the managed ROM layout".to_owned(),
+    })?;
     if journal.staging_path != staging_relative_path(&journal.id)
         && journal.staging_path
             != Path::new("roms").join(format!(".{}{STAGING_SUFFIX}", journal.id))
@@ -796,6 +908,7 @@ fn hash_reader(reader: &mut impl Read, operation: &'static str) -> Result<(Strin
             break;
         }
         size = size.saturating_add(read as u64);
+        validate_managed_size(size)?;
         hasher.update(&buffer[..read]);
     }
     Ok((hex_digest(&hasher.finalize()), size))
@@ -1132,6 +1245,133 @@ mod tests {
     }
 
     #[test]
+    fn readable_names_disambiguate_different_games_without_overwriting() {
+        let temp = TestDir::new("readable-collisions");
+        let (source, first_bytes) = temp.rom("Example Game.sfc", b"first game");
+        let library = Library::open(temp.path.join("library")).unwrap();
+        let first = library.import(&source).unwrap();
+        let (_, second_bytes) = temp.rom("Example Game.sfc", b"second game");
+        let second = library.import(&source).unwrap();
+        assert_eq!(first.path, Path::new("snes/Example Game.sfc"));
+        assert_eq!(second.path, Path::new("snes/Example Game (1).sfc"));
+        assert_ne!(first.id, second.id);
+        assert_eq!(
+            fs::read(library.resolve(&first).unwrap()).unwrap(),
+            first_bytes
+        );
+        assert_eq!(
+            fs::read(library.resolve(&second).unwrap()).unwrap(),
+            second_bytes
+        );
+    }
+
+    #[test]
+    fn renamed_rom_reconnects_live_and_on_restart_without_changing_identity_or_title() {
+        let temp = TestDir::new("rename");
+        let (source, bytes) = temp.rom("Adventure.sfc", b"rename fixture");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let original = library.import(source).unwrap();
+        let renamed = Path::new("snes/My Adventure.SFC");
+        fs::rename(root.join(&original.path), root.join(renamed)).unwrap();
+        // Launches can hold an Entry from before the Finder rename.
+        assert_eq!(library.resolve(&original).unwrap(), root.join(renamed));
+        let updated = library.list().unwrap().remove(0);
+        assert_eq!(updated.id, original.id);
+        assert_eq!(updated.title, original.title);
+        assert_eq!(updated.path, renamed);
+        assert_eq!(fs::read(root.join(renamed)).unwrap(), bytes);
+        let second_name = Path::new("snes/Another Name.smc");
+        fs::rename(root.join(renamed), root.join(second_name)).unwrap();
+        let reopened = Library::open(&root).unwrap();
+        assert_eq!(reopened.list().unwrap()[0].path, second_name);
+        assert_eq!(reopened.list().unwrap()[0].id, original.id);
+        assert!(!root.join(&original.path).exists());
+    }
+
+    #[test]
+    fn legacy_hash_filename_can_be_renamed_and_copied_with_identity_intact() {
+        let temp = TestDir::new("hash-rename");
+        let (source, _) = temp.rom("Classic.sfc", b"old library fixture");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let mut entry = library.import(source).unwrap();
+        let legacy_path = Path::new("snes").join(format!("{}.sfc", entry.id));
+        fs::rename(root.join(&entry.path), root.join(&legacy_path)).unwrap();
+        entry.path = legacy_path;
+        library
+            .write_metadata(&Metadata {
+                version: 1,
+                entries: vec![entry.clone()],
+            })
+            .unwrap();
+        let legacy = Library::open(&root).unwrap();
+        assert_eq!(legacy.list().unwrap()[0], entry);
+        fs::rename(root.join(&entry.path), root.join("snes/Classic.sfc")).unwrap();
+        let target_root = temp.path.join("copy");
+        assert_eq!(legacy.copy_to(&target_root).unwrap(), 1);
+        let copied = Library::open(target_root)
+            .unwrap()
+            .list()
+            .unwrap()
+            .remove(0);
+        assert_eq!(copied.id, entry.id);
+        assert_eq!(copied.title, entry.title);
+        assert_eq!(copied.path, Path::new("snes/Classic.sfc"));
+    }
+
+    #[test]
+    fn renamed_recovery_never_adopts_different_content_or_mutates_failed_metadata() {
+        let temp = TestDir::new("wrong-rename");
+        let (source, _) = temp.rom("Game.sfc", b"original");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let entry = library.import(source).unwrap();
+        let before = fs::read(root.join(METADATA_FILE_NAME)).unwrap();
+        fs::remove_file(root.join(&entry.path)).unwrap();
+        let (_, other) = temp.rom("Other.sfc", b"different game");
+        fs::write(root.join("snes/Renamed.sfc"), other).unwrap();
+        assert!(matches!(
+            Library::open(&root),
+            Err(Error::ManagedFileMissing { .. })
+        ));
+        assert_eq!(fs::read(root.join(METADATA_FILE_NAME)).unwrap(), before);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rename_recovery_rejects_symlinks_and_parent_escape() {
+        use std::os::unix::fs::symlink;
+        let temp = TestDir::new("unsafe-rename");
+        let (source, _) = temp.rom("Game.sfc", b"outside content");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let entry = library.import(&source).unwrap();
+        fs::remove_file(root.join(&entry.path)).unwrap();
+        symlink(&source, root.join("snes/Renamed.sfc")).unwrap();
+        assert!(matches!(
+            Library::open(&root),
+            Err(Error::ManagedFileMissing { .. })
+        ));
+        for invalid in [
+            "../Game.sfc",
+            "snes/../../Game.sfc",
+            "/Game.sfc",
+            "snes/..\\Game.sfc",
+        ] {
+            let mut forged = entry.clone();
+            forged.path = PathBuf::from(invalid);
+            assert!(validate_entry_shape(&forged).is_err());
+        }
+        fs::rename(root.join("snes"), root.join("elsewhere")).unwrap();
+        symlink(root.join("elsewhere"), root.join("snes")).unwrap();
+        assert!(matches!(
+            Library::open(&root),
+            Err(Error::MetadataInvalid { .. })
+        ));
+    }
+
+    #[test]
     fn invalid_sources_return_actionable_errors_without_full_paths() {
         let temp = TestDir::new("invalid");
         let library = Library::open(temp.path.join("library")).expect("open library");
@@ -1178,7 +1418,7 @@ mod tests {
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
         let id = hex_digest(&hasher.finalize());
-        let relative_path = managed_relative_path(&id, "sfc");
+        let relative_path = Path::new(ROMS_DIRECTORY_NAME).join(format!("{id}.sfc"));
         let staging_relative_path = staging_relative_path(&id);
         let staging_path = library_path.join(&staging_relative_path);
         fs::write(&staging_path, bytes).expect("write staged import");

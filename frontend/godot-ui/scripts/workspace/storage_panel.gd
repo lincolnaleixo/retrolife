@@ -11,6 +11,10 @@ var _operation := ""
 var _busy := false
 
 func _ready() -> void:
+    # Keep settings open when the native file sheet takes window focus.
+    popup_window = false
+    exclusive = true
+    close_requested.connect(hide)
     var popup_theme := Theme.new()
     var panel_style := StyleBoxFlat.new()
     panel_style.bg_color = Color("141b27")
@@ -44,7 +48,10 @@ func _ready() -> void:
     _picker = FileDialog.new()
     _picker.access = FileDialog.ACCESS_FILESYSTEM
     _picker.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+    _picker.use_native_dialog = true
+    _picker.mode_overrides_title = false
     _picker.dir_selected.connect(_selected)
+    _picker.canceled.connect(func(): call_deferred("popup"))
     add_child(_picker)
     about_to_popup.connect(refresh)
 
@@ -58,10 +65,19 @@ func _pick(operation: String) -> void:
     if _busy:
         return
     _operation = operation
-    _picker.title = "Choose your local 3D collection" if operation == "assets" else "Choose the ROM root (console folders go inside)"
-    _picker.popup_centered_ratio(0.75)
+    _picker.title = "Choose your local 3D collection" if operation == "assets" else ("Copy your library to a folder" if operation == "copy" else "Choose your ROM library")
+    var directory := Preferences.read_value("collection_root") if operation == "assets" else Preferences.library_root()
+    if directory.is_empty() or not DirAccess.dir_exists_absolute(directory):
+        directory = OS.get_system_dir(OS.SYSTEM_DIR_DOCUMENTS)
+    if directory.is_empty() or not DirAccess.dir_exists_absolute(directory):
+        directory = OS.get_environment("USERPROFILE") if OS.get_name() == "Windows" else OS.get_environment("HOME")
+    _picker.current_file = ""
+    _picker.current_dir = directory
+    _picker.popup_centered_clamped(Vector2i(880, 560), 0.9)
 
 func _selected(path: String) -> void:
+    # A native dialog takes focus away from the embedded storage popup.
+    call_deferred("popup")
     if _busy or owner_ui == null:
         return
     if _operation == "assets":
