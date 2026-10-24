@@ -10,13 +10,19 @@
 //! libretro callback. Because the core runs in-process, the worker cannot
 //! safely interrupt a callback that hangs.
 
+mod checkpoints;
+mod core_identity;
 mod libretro;
 mod persistence;
 mod transport;
 
+pub use checkpoints::{
+    QUICK_SLOT, RECOVERY_SLOT, STATE_SLOTS, SaveStateOperation, SaveStateSlot, SaveStatesSnapshot,
+};
 use libretro::CoreSession;
 use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -148,6 +154,32 @@ pub struct SessionInfo {
     pub has_battery_ram: bool,
 }
 
+/// Identity of the bytes actually loaded by the worker, independent of a
+/// frontend's title, filename or catalogue identifier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentIdentity {
+    pub system_id: String,
+    /// SHA-256 in lowercase hex. For SNES, a 512-byte copier header is excluded
+    /// when the file length is 512 bytes more than a multiple of 32 KiB.
+    pub sha256: String,
+}
+
+/// Read-only observation performed on the emulation worker after every frame.
+///
+/// Callbacks must be bounded and must not wait for frontend work. The borrowed
+/// RAM is valid only during `frame_completed`; no core pointer crosses this
+/// boundary. Missing or nonstandard memory is represented by `None`, rather
+/// than guessed or truncated. No observations are made for paused frames.
+pub trait FrameObserver: Send {
+    fn session_started(&mut self, content: &ContentIdentity, info: &SessionInfo);
+    /// SNES system RAM (exactly 128 KiB, starting at CPU address $7E0000).
+    fn frame_completed(&mut self, system_ram: Option<&[u8]>);
+    /// A reset invalidates transition baselines, but need not discard awards.
+    fn reset(&mut self);
+    /// Retain any cumulative observations needed by the frontend to flush them.
+    fn session_stopped(&mut self);
+}
+
 /// Lifecycle state visible to a frontend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeStatus {
@@ -199,6 +231,8 @@ pub enum EmulationError {
     InvalidPlayer(usize),
     #[error("emulator worker panicked")]
     WorkerPanicked,
+    #[error("checkpoint: {0}")]
+    Checkpoint(String),
 }
 
 impl From<std::io::Error> for EmulationError {
@@ -215,6 +249,8 @@ struct Shared {
     inputs: Arc<AtomicInputs>,
     paused: std::sync::atomic::AtomicBool,
     last_error: Mutex<Option<String>>,
+    save_states: Mutex<SaveStatesSnapshot>,
+    next_state_operation: AtomicU64,
 }
 
 impl Shared {
@@ -227,6 +263,8 @@ impl Shared {
             inputs: Arc::new(AtomicInputs::new()),
             paused: std::sync::atomic::AtomicBool::new(false),
             last_error: Mutex::new(None),
+            save_states: Mutex::new(SaveStatesSnapshot::default()),
+            next_state_operation: AtomicU64::new(1),
         }
     }
 
@@ -290,6 +328,8 @@ enum WorkerCommand {
     RunFrame,
     PauseChanged,
     Reset,
+    SaveState { id: u64, slot: u8 },
+    LoadState { id: u64, slot: u8 },
     Stop,
     Shutdown,
 }
@@ -307,12 +347,21 @@ pub struct EmulationRuntime {
 impl EmulationRuntime {
     /// Start an idle worker. Core loading happens asynchronously on `start`.
     pub fn new() -> Result<Self, EmulationError> {
+        Self::create(None)
+    }
+
+    /// Start an idle worker with a synchronous read-only frame observer.
+    pub fn with_observer(observer: Box<dyn FrameObserver>) -> Result<Self, EmulationError> {
+        Self::create(Some(observer))
+    }
+
+    fn create(observer: Option<Box<dyn FrameObserver>>) -> Result<Self, EmulationError> {
         let shared = Arc::new(Shared::new());
         let (tx, rx) = mpsc::sync_channel(COMMAND_CAPACITY);
         let worker_shared = Arc::clone(&shared);
         let join = thread::Builder::new()
             .name("retrolife-emulation".into())
-            .spawn(move || worker_loop(rx, worker_shared))
+            .spawn(move || worker_loop(rx, worker_shared, observer))
             .map_err(EmulationError::from)?;
         Ok(Self {
             tx,
@@ -324,11 +373,24 @@ impl EmulationRuntime {
     /// Queue a new core/content session.
     pub fn start(&self, request: StartRequest) -> Result<(), EmulationError> {
         request.validate()?;
-        self.try_send(WorkerCommand::Start(request))
+        let mut states = self
+            .shared
+            .save_states
+            .lock()
+            .map_err(|_| EmulationError::WorkerUnavailable)?;
+        if states.busy {
+            return Err(EmulationError::Checkpoint(
+                "Wait for the checkpoint operation to finish.".into(),
+            ));
+        }
+        self.try_send(WorkerCommand::Start(request))?;
+        *states = SaveStatesSnapshot::default();
+        Ok(())
     }
 
     /// Replace one player's complete libretro joypad mask.
     pub fn set_input(&self, player: usize, mask: u16) -> Result<(), EmulationError> {
+        let mask = if self.state_operation_busy() { 0 } else { mask };
         if !self.shared.inputs.set(player, mask) {
             return Err(EmulationError::InvalidPlayer(player));
         }
@@ -337,6 +399,10 @@ impl EmulationRuntime {
 
     /// Replace all four player masks atomically from the worker's perspective.
     pub fn set_input_masks(&self, masks: [u16; 4]) {
+        if self.state_operation_busy() {
+            self.shared.inputs.clear();
+            return;
+        }
         for (player, mask) in masks.into_iter().enumerate() {
             let _ = self.shared.inputs.set(player, mask);
         }
@@ -344,6 +410,17 @@ impl EmulationRuntime {
 
     /// Request a pause or resume. The worker applies the transition in order.
     pub fn set_paused(&self, paused: bool) -> Result<(), EmulationError> {
+        if !paused
+            && self
+                .shared
+                .save_states
+                .lock()
+                .is_ok_and(|states| states.busy || !states.can_resume)
+        {
+            return Err(EmulationError::Checkpoint(
+                "The checkpoint operation is pending or this session cannot resume safely.".into(),
+            ));
+        }
         let previous = self
             .shared
             .paused
@@ -361,7 +438,110 @@ impl EmulationRuntime {
 
     /// Queue one emulation frame. Calling it while paused is a harmless no-op.
     pub fn run_frame(&self) -> Result<(), EmulationError> {
+        if self.state_operation_busy() {
+            return Ok(());
+        }
         self.try_send(WorkerCommand::RunFrame)
+    }
+
+    fn state_operation_busy(&self) -> bool {
+        self.shared
+            .save_states
+            .lock()
+            .map(|states| states.busy)
+            .unwrap_or(true)
+    }
+
+    /// Queue a checkpoint write. Slots 0–5 are manual; 6 is Quick Save.
+    pub fn save_state(&self, slot: u8) -> Result<u64, EmulationError> {
+        if slot > QUICK_SLOT {
+            return Err(EmulationError::Checkpoint(
+                "The recovery slot is read-only.".into(),
+            ));
+        }
+        self.queue_state_operation(slot, false)
+    }
+
+    /// Queue a restore after atomically capturing the current state in slot 7.
+    pub fn load_state(&self, slot: u8) -> Result<u64, EmulationError> {
+        if slot > RECOVERY_SLOT {
+            return Err(EmulationError::Checkpoint(
+                "Invalid checkpoint slot.".into(),
+            ));
+        }
+        self.queue_state_operation(slot, true)
+    }
+
+    fn queue_state_operation(&self, slot: u8, load: bool) -> Result<u64, EmulationError> {
+        let mut states = self
+            .shared
+            .save_states
+            .lock()
+            .map_err(|_| EmulationError::WorkerUnavailable)?;
+        if states.busy {
+            return Err(EmulationError::Checkpoint(
+                "A checkpoint operation is already running.".into(),
+            ));
+        }
+        if !states.supported
+            || !matches!(
+                self.shared.status(),
+                RuntimeStatus::Running | RuntimeStatus::Paused
+            )
+        {
+            return Err(EmulationError::Checkpoint(
+                "No checkpoint-capable game is active.".into(),
+            ));
+        }
+        if !states.can_resume {
+            return Err(EmulationError::Checkpoint("Stop this session after the failed rollback. The recovery checkpoint remains on disk.".into()));
+        }
+        let id = self
+            .shared
+            .next_state_operation
+            .fetch_add(1, Ordering::Relaxed);
+        self.try_send(if load {
+            WorkerCommand::LoadState { id, slot }
+        } else {
+            WorkerCommand::SaveState { id, slot }
+        })?;
+        states.busy = true;
+        states.operation = SaveStateOperation {
+            id,
+            kind: if load { "load" } else { "save" }.into(),
+            slot,
+            status: "pending".into(),
+            error: String::new(),
+        };
+        self.shared.inputs.clear();
+        Ok(id)
+    }
+
+    /// Cached worker result; no core calls or filesystem access on the caller.
+    pub fn save_states_snapshot(&self) -> SaveStatesSnapshot {
+        self.shared
+            .save_states
+            .lock()
+            .map(|states| SaveStatesSnapshot {
+                supported: states.supported,
+                busy: states.busy,
+                slots: states.slots.clone(),
+                operation: states.operation.clone(),
+                discontinuity: states.discontinuity,
+                can_resume: states.can_resume,
+                previews: Vec::new(),
+            })
+            .unwrap_or_default()
+    }
+
+    /// Cached raw RGBA preview, bounded to 512×512, without frontend shaders.
+    pub fn save_state_preview(&self, slot: u8) -> Vec<u8> {
+        self.shared
+            .save_states
+            .lock()
+            .ok()
+            .and_then(|states| states.previews.get(usize::from(slot)).cloned())
+            .unwrap_or_default()
     }
 
     /// Reset the currently loaded core.
@@ -477,7 +657,78 @@ impl Drop for EmulationRuntime {
     }
 }
 
-fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
+fn refresh_state_cache(current: &CoreSession, shared: &Shared) {
+    let mut refreshed = SaveStatesSnapshot::default();
+    current.state_store.refresh(&mut refreshed);
+    let supported = current.checkpoint_size().is_ok();
+    if let Ok(mut states) = shared.save_states.lock() {
+        states.supported = supported;
+        states.slots = refreshed.slots;
+        states.previews = refreshed.previews;
+        states.can_resume = current.state_restore_safe;
+    }
+}
+
+fn restore_checkpoint(
+    current: &mut CoreSession,
+    shared: &Shared,
+    observer: &mut Option<Box<dyn FrameObserver>>,
+    slot: u8,
+) -> (Result<(), EmulationError>, bool) {
+    let mut attempted = false;
+    let result = (|| {
+        // Read the requested snapshot before replacing Recovery, including when
+        // loading slot 7 itself. A corrupt/incompatible request never mutates core.
+        let target = current.state_store.load(slot)?;
+        let recovery_bytes = current.serialize_state()?;
+        let frame = shared.video.lock().ok().and_then(|video| video.latest());
+        let recovery = current
+            .state_store
+            .save(RECOVERY_SLOT, recovery_bytes, frame.as_ref())?;
+        attempted = true;
+        if let Some(observer) = observer.as_mut() {
+            observer.reset();
+        }
+        let restored = current.unserialize_state(&target.state);
+        let visible = if restored {
+            Some(&target)
+        } else if current.unserialize_state(&recovery.state) {
+            Some(&recovery)
+        } else {
+            current.state_restore_safe = false;
+            shared.force_pause();
+            shared.set_status(RuntimeStatus::Paused);
+            shared.push_event(EmulationEvent::Paused);
+            None
+        };
+        shared.inputs.clear();
+        if let Ok(mut audio) = shared.audio.lock() {
+            audio.clear();
+        }
+        if let Ok(mut video) = shared.video.lock() {
+            if let Some(visible) = visible {
+                let (width, height) = visible.preview_size();
+                video.restore_preview(visible.preview.clone(), width, height);
+            } else {
+                video.restore_preview(Vec::new(), 0, 0);
+            }
+        }
+        if restored {
+            Ok(())
+        } else if current.state_restore_safe {
+            Err(EmulationError::Checkpoint("The core rejected this checkpoint. Your previous state was restored from Recovery.".into()))
+        } else {
+            Err(EmulationError::Checkpoint("The core rejected both the checkpoint and rollback. The session is paused; stop it before continuing. The existing battery save is unchanged and Recovery remains on disk.".into()))
+        }
+    })();
+    (result, attempted)
+}
+
+fn worker_loop(
+    rx: Receiver<WorkerCommand>,
+    shared: Arc<Shared>,
+    mut observer: Option<Box<dyn FrameObserver>>,
+) {
     let mut session: Option<CoreSession> = None;
     while let Ok(command) = rx.recv() {
         match command {
@@ -495,6 +746,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                         });
                         continue;
                     }
+                    if let Some(observer) = observer.as_mut() {
+                        observer.session_stopped();
+                    }
                     session = None;
                 }
                 shared.clear_transport();
@@ -505,6 +759,10 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                     Arc::clone(&shared.inputs),
                 ) {
                     Ok((new_session, info)) => {
+                        refresh_state_cache(&new_session, &shared);
+                        if let Some(observer) = observer.as_mut() {
+                            observer.session_started(new_session.content_identity(), &info);
+                        }
                         shared.set_status(
                             if shared.paused.load(std::sync::atomic::Ordering::Acquire) {
                                 RuntimeStatus::Paused
@@ -525,7 +783,9 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                 }
             }
             WorkerCommand::RunFrame => {
-                if shared.paused.load(std::sync::atomic::Ordering::Acquire) {
+                if shared.paused.load(std::sync::atomic::Ordering::Acquire)
+                    || shared.save_states.lock().is_ok_and(|states| states.busy)
+                {
                     continue;
                 }
                 let Some(current) = session.as_ref() else {
@@ -533,12 +793,33 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                 };
                 if let Err(error) = current.run_frame() {
                     session = fail_session(session.take(), &shared, error);
+                    if let Some(observer) = observer.as_mut() {
+                        observer.session_stopped();
+                    }
+                } else if let Some(observer) = observer.as_mut() {
+                    current.observe_frame(observer.as_mut());
+                }
+                if let Some(current) = session.as_ref()
+                    && shared
+                        .save_states
+                        .lock()
+                        .is_ok_and(|states| !states.supported)
+                    && current.checkpoint_size().is_ok()
+                {
+                    refresh_state_cache(current, &shared);
                 }
             }
             WorkerCommand::PauseChanged => {
-                let Some(_) = session.as_ref() else {
+                let Some(current) = session.as_ref() else {
                     continue;
                 };
+                if !current.state_restore_safe {
+                    shared
+                        .paused
+                        .store(true, std::sync::atomic::Ordering::Release);
+                    shared.set_status(RuntimeStatus::Paused);
+                    continue;
+                }
                 let paused = shared.paused.load(std::sync::atomic::Ordering::Acquire);
                 match (paused, shared.status()) {
                     (true, RuntimeStatus::Running) => {
@@ -554,7 +835,57 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
             }
             WorkerCommand::Reset => {
                 if let Some(current) = session.as_ref() {
+                    if !current.state_restore_safe {
+                        continue;
+                    }
                     current.reset();
+                    if let Some(observer) = observer.as_mut() {
+                        observer.reset();
+                    }
+                }
+            }
+            WorkerCommand::SaveState { id, slot } | WorkerCommand::LoadState { id, slot } => {
+                let load = matches!(command, WorkerCommand::LoadState { .. });
+                let mut discontinuity = false;
+                let result = if let Some(current) = session.as_mut() {
+                    if load {
+                        let (result, attempted) =
+                            restore_checkpoint(current, &shared, &mut observer, slot);
+                        discontinuity = attempted;
+                        result
+                    } else {
+                        current.serialize_state().and_then(|bytes| {
+                            let frame = shared.video.lock().ok().and_then(|video| video.latest());
+                            current
+                                .state_store
+                                .save(slot, bytes, frame.as_ref())
+                                .map(|_| ())
+                        })
+                    }
+                } else {
+                    Err(EmulationError::Checkpoint(
+                        "The game session ended before this operation.".into(),
+                    ))
+                };
+                if let Some(current) = session.as_ref() {
+                    refresh_state_cache(current, &shared);
+                }
+                if let Ok(mut states) = shared.save_states.lock()
+                    && states.operation.id == id
+                {
+                    states.busy = false;
+                    states.operation.status =
+                        if result.is_ok() { "complete" } else { "failed" }.into();
+                    states.operation.error = result
+                        .err()
+                        .map(|error| error.to_string())
+                        .unwrap_or_default();
+                    if discontinuity {
+                        states.discontinuity = states.discontinuity.saturating_add(1);
+                    }
+                    states.can_resume = session
+                        .as_ref()
+                        .is_none_or(|current| current.state_restore_safe);
                 }
             }
             WorkerCommand::Stop => {
@@ -562,7 +893,13 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                     shared.set_status(RuntimeStatus::Stopping);
                     match current.stop() {
                         Ok(battery_bytes) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             session = None;
+                            if let Ok(mut states) = shared.save_states.lock() {
+                                *states = SaveStatesSnapshot::default();
+                            }
                             shared.clear_pause();
                             shared.clear_error();
                             shared.set_status(RuntimeStatus::Stopped);
@@ -585,11 +922,17 @@ fn worker_loop(rx: Receiver<WorkerCommand>, shared: Arc<Shared>) {
                 if let Some(current) = session.as_mut() {
                     match current.stop() {
                         Ok(_) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             shared.clear_pause();
                             shared.clear_error();
                             shared.set_status(RuntimeStatus::Stopped);
                         }
                         Err(error) => {
+                            if let Some(observer) = observer.as_mut() {
+                                observer.session_stopped();
+                            }
                             shared.force_pause();
                             shared.set_status(RuntimeStatus::Failed);
                             shared.set_error(&error);

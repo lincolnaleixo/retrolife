@@ -140,10 +140,10 @@ func _execute() -> String:
         return input_failure
 
     var frame_node := _gameplay.get_node_or_null(
-        "GameplayMargin/GameplayColumn/GameplayFramePanel/GameplayFrameAspect/GameplayFrame"
+        "GameplayMargin/GameplayColumn/PlayAndJourney/GameplayFramePanel/GameplayFrameAspect/GameplayFrame"
     ) as TextureRect
     var aspect_node := _gameplay.get_node_or_null(
-        "GameplayMargin/GameplayColumn/GameplayFramePanel/GameplayFrameAspect"
+        "GameplayMargin/GameplayColumn/PlayAndJourney/GameplayFramePanel/GameplayFrameAspect"
     ) as AspectRatioContainer
     if frame_node == null or aspect_node == null:
         _backend.call("stop_emulation_json")
@@ -189,6 +189,20 @@ func _execute() -> String:
     if not pause_failure.is_empty():
         _backend.call("stop_emulation_json")
         return pause_failure
+    var progress_before := _decode(_backend.call("journey_state_json", game_id))
+    if not bool(progress_before.get("ok", false)):
+        return "automatic progress was unavailable during a real session"
+    for _index in range(5):
+        await process_frame
+    var progress_paused := _decode(_backend.call("journey_state_json", game_id))
+    if progress_before.data.seconds != progress_paused.data.seconds:
+        return "paused frames added automatic progress"
+    if _backend.has_method("journey_confirm_json"):
+        return "the backend still exposes manual achievement confirmation"
+    if bool(progress_paused.data.supported) or int(progress_paused.data.totalRewards) != 0 or int(progress_paused.data.gameXp) != 0:
+        return "the synthetic unsupported game received invented achievements"
+    if not progress_paused.data.achievements.is_empty():
+        return "unsupported content exposed an achievement checklist"
     _gameplay.call("_resume_game")
     var resume_failure := await _wait_for_status("running")
     if not resume_failure.is_empty():
@@ -198,6 +212,13 @@ func _execute() -> String:
     var stop_failure := await _wait_for_stopped()
     if not stop_failure.is_empty():
         return stop_failure
+    var before_reload := _decode(_backend.call("journey_state_json", game_id))
+    var reconfigured := _decode(_backend.call("configure_paths_json", library_root, save_root, _core_path))
+    if not bool(reconfigured.get("ok", false)):
+        return "stopped backend could not reconnect library storage"
+    var reloaded := _decode(_backend.call("journey_state_json", game_id))
+    if before_reload.data != reloaded.data:
+        return "automatic progress did not survive store reload"
     return ""
 
 

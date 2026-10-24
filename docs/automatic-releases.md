@@ -85,7 +85,7 @@ The release preflight exposes only missing configuration names. It does not read
 ## Pipeline and signing isolation
 
 1. Plan the version from the exact source and reserved release history.
-2. Validate configuration presence, then build on a fresh Apple Silicon runner with only the public key. Run Rust, real-core, Godot, asset, updater, publication, vulnerability and secret checks. Verify the official Godot engine and export templates before use.
+2. Validate configuration presence, then build the public-neutral app on a fresh Apple Silicon runner with only the public key. Run Rust, real-core, Godot, asset, updater, publication, vulnerability and secret checks. Verify the official Godot engine and export templates before use.
 3. Transfer the exact same-run unsigned artifact with a verified SHA-256. A protected macOS job invokes only the host-installed signing helper; it unlocks the existing Keychain, notarizes/staples the app and disk image, signs the updater ZIP and verifies its signature. The helper never executes repository scripts or the application while private material is available, and it relocks the Keychain before returning.
 4. Verify the signed application and updater probe on a separate hosted macOS job after the signing helper has finished. The probe does not open a ROM library, import a game or bypass signatures. Headless/ad-hoc tests must remain update-disabled.
 5. Publish only an exact public asset allowlist using a separate write-token job without Apple/Sparkle secrets. Upload to a draft, verify GitHub's asset sizes and SHA-256 digests, then publish the prerelease. The job has a 60-minute upload budget so a slow runner transfer finishes instead of cancelling mid-upload and leaving the draft for the next queued run; a genuinely failed upload still leaves only a draft and advertises nothing. Optional signed binary deltas are part of the same audit: `SHA256SUMS` covers them, and their metadata is checked against the uploaded files.
@@ -111,3 +111,9 @@ The first updater-enabled signed build must be installed manually once because o
 - GitHub environment protection: https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments
 - GitHub workflow triggering and token recursion: https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-when-your-workflow-runs/triggering-a-workflow
 - Sparkle signing keys and publication: https://sparkle-project.org/documentation/
+
+## Private artwork stays external
+
+The automatic pipeline makes no request to the private Retro 3D Library. The public app contains original procedural geometry and reviewed RetroLife branding. The build rejects staged private models, labels and unreviewed exportable resources rather than silently packaging or deleting them. `retrolife-cartridge-assets.lock.json` is a schema-v2 public-neutral declaration, retained under its existing filename for host signer compatibility. The exported application probe verifies this boundary again. Owners link their private collection separately; updates preserve that folder and its configuration.
+
+Fresh-runner notarization-ticket verification uses up to three bounded validation attempts, with a 30-second timeout per attempt and short backoff. Diagnostics report the phase and exit status without command arguments or credential output. This only retries verification; it does not alter tickets or bypass notarization. A ticket that cannot be validated still blocks publication. Retries are resilience against temporary verifier failures, not evidence about the cause of an earlier failure.

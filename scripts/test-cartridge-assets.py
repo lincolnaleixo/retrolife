@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 spec = importlib.util.spec_from_file_location("assets", Path(__file__).with_name("prepare-cartridge-assets.py"))
@@ -126,6 +127,70 @@ class StagingTests(unittest.TestCase):
         for model_id in ("mega-drive", "playstation-1", "nintendo-64", "nes"):
             self.assertEqual((self.root / "stage" / model_id / "LICENSE").read_text(), model_id)
             self.assertTrue((self.root / "stage" / model_id / (model_id + ".glb")).is_file())
+
+
+class PublicReleaseAssetsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.project = self.root / "frontend/godot-ui"
+        (self.project / "assets/brand").mkdir(parents=True)
+        (self.project / "assets/brand/icon.svg").write_text("<svg/>")
+        self.tracked = {"assets/brand/icon.svg", "project.godot"}
+        (self.project / "project.godot").write_text("config_version=5\n")
+
+    def tearDown(self) -> None:
+        self.directory.cleanup()
+
+    def test_public_mode_is_offline_and_declares_no_private_models(self) -> None:
+        manifest = self.root / "release-assets.json"
+        with patch.object(assets, "ROOT", self.root), patch.object(assets, "public_project_files", return_value=self.tracked), patch.object(sys, "argv", ["prepare", "--mode", "public-neutral", "--release-project", "--manifest", str(manifest)]), patch.object(assets.urllib.request, "urlopen", side_effect=AssertionError("Public builds must be offline")):
+            assets.main()
+        self.assertEqual(json.loads(manifest.read_text()), assets.PUBLIC_MANIFEST)
+        self.assertFalse((self.root / ".cache").exists())
+
+    def test_public_mode_rejects_private_geometry_without_deleting_it(self) -> None:
+        private = self.project / "assets/cartridges/snes.glb"
+        private.parent.mkdir()
+        private.write_bytes(glb())
+        with self.assertRaisesRegex(ValueError, "Private cartridge assets"):
+            assets.verify_public_project(self.project, self.tracked, True)
+        self.assertEqual(private.read_bytes(), glb())
+
+    def test_private_art_in_another_folder_cannot_bypass_the_guard(self) -> None:
+        private = self.project / "assets/owner.png"
+        private.write_bytes(b"private")
+        with self.assertRaisesRegex(ValueError, "Unreviewed resource"):
+            assets.verify_public_project(self.project, self.tracked, True)
+        private.unlink()
+        (self.project / "hidden-art.glb").write_bytes(glb())
+        with self.assertRaisesRegex(ValueError, "Unreviewed resource"):
+            assets.verify_public_project(self.project, self.tracked, True)
+
+    def test_symlinks_cannot_supply_owner_art(self) -> None:
+        (self.project / "assets/owner").symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            assets.verify_public_project(self.project, self.tracked, True)
+
+    def test_only_import_metadata_for_reviewed_resources_is_allowed(self) -> None:
+        imported = self.project / "assets/brand/icon.svg.import"
+        imported.write_text("original resource import")
+        assets.verify_public_project(self.project, self.tracked, True)
+        (self.project / "assets/owner.png.import").write_text("private cached import")
+        with self.assertRaisesRegex(ValueError, "Unreviewed resource"):
+            assets.verify_public_project(self.project, self.tracked, True)
+
+    def test_native_build_outputs_are_allowed_but_extra_pack_is_rejected(self) -> None:
+        (self.project / "bin").mkdir()
+        (self.project / "bin/libretrolife_godot.dylib").write_bytes(b"native fixture")
+        assets.verify_public_project(self.project, self.tracked, True)
+        (self.project / "bin/owner.pck").write_bytes(b"private pack")
+        with self.assertRaisesRegex(ValueError, "Unreviewed resource"):
+            assets.verify_public_project(self.project, self.tracked, True)
+
+    def test_owner_mode_cannot_create_a_public_release_manifest(self) -> None:
+        with patch.object(sys, "argv", ["prepare", "--mode", "owner", "--release-project"]), self.assertRaises(SystemExit):
+            assets.main()
 
 
 class PreviewNoticeTests(unittest.TestCase):

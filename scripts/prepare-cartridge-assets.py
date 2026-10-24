@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Verify a pinned neutral model and stage unchanged build inputs, never game art.
+"""Prepare public procedural presentation or explicitly stage private owner models.
 
-Use --archive for an offline build, --verify-only to audit an existing stage.
-The model's independent license and notices travel with the unchanged GLB.
+Public mode never downloads creative assets and refuses owner files in the project.
+Use --mode owner --archive for an offline private build. Private model notices
+travel with their unchanged GLBs; these assets are not public release inputs.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import struct
+import subprocess
 import tempfile
 import urllib.request
 import zipfile
@@ -24,6 +26,44 @@ DEST = ROOT / "frontend/godot-ui/assets/cartridges"
 MEDIA_LOCK = ROOT / "assets/media-models.lock.json"
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_EXPANDED_BYTES = 128 * 1024 * 1024
+PUBLIC_MANIFEST = {
+    "schemaVersion": 2,
+    "mode": "public-neutral",
+    "runtimeGeometry": "original-procedural",
+    "bundledModels": [],
+    "privateAssetsBundled": False,
+    "ownerAssets": "external-user-collection",
+}
+
+
+def verify_public_project(project: Path, tracked: set[str], release: bool = False) -> None:
+    """Fail closed; never delete or silently omit private files from a build tree."""
+    scope = project if release else project / "assets"
+    if scope.is_symlink():
+        raise ValueError("Public presentation cannot use a symlinked resource tree")
+    for path in scope.rglob("*"):
+        name = path.relative_to(project).as_posix()
+        if name.split("/")[0] == ".godot":
+            continue  # Godot regenerates imports from the audited source resources.
+        if path.is_symlink():
+            raise ValueError("Public presentation rejects a resource symlink: " + name)
+        if path.is_dir():
+            continue
+        if name.startswith("assets/cartridges/"):
+            raise ValueError("Private cartridge assets are staged; use a separate clean public checkout: " + name)
+        if name in tracked:
+            continue
+        if release and name in {"bin/libretrolife_godot.dylib", "bin/bsnes-jg_libretro.dylib", "bin/libretrolife_godot.so", "bin/bsnes-jg_libretro.so"}:
+            continue
+        if path.suffix in {".import", ".uid"} and name.rsplit(".", 1)[0] in tracked:
+            continue
+        raise ValueError("Unreviewed resource cannot enter a public build: " + name)
+
+
+def public_project_files() -> set[str]:
+    prefix = "frontend/godot-ui/"
+    output = subprocess.check_output(["git", "ls-files", "-z", "--", prefix], cwd=ROOT)
+    return {name[len(prefix):] for name in output.decode().split("\0") if name.startswith(prefix)}
 
 
 def verify(path: Path, expected: dict) -> None:
@@ -171,7 +211,24 @@ def main() -> None:
     parser.add_argument("--archive", type=Path, help="Use an offline SNES archive")
     parser.add_argument("--media-archives", type=Path, help="Directory containing the pinned media-model ZIPs")
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument("--mode", choices=("public-neutral", "owner"),
+                        default=os.environ.get("RETROLIFE_ASSET_MODE", "public-neutral"))
+    parser.add_argument("--release-project", action="store_true", help="Audit every exportable project resource")
+    parser.add_argument("--manifest", type=Path, help="Write the public release asset declaration")
     args = parser.parse_args()
+    if args.mode not in {"public-neutral", "owner"}:
+        parser.error("RETROLIFE_ASSET_MODE must be public-neutral or owner")
+    if args.mode == "public-neutral":
+        if args.archive or args.media_archives:
+            parser.error("Private archives require explicit --mode owner")
+        verify_public_project(ROOT / "frontend/godot-ui", public_project_files(), args.release_project)
+        if args.manifest:
+            args.manifest.parent.mkdir(parents=True, exist_ok=True)
+            args.manifest.write_text(json.dumps(PUBLIC_MANIFEST, indent=2) + "\n")
+        print("Public-neutral presentation verified: original procedural geometry, no private asset downloads")
+        return
+    if args.release_project or args.manifest:
+        parser.error("Owner assets cannot be used for a public release")
     prepare(json.loads(LOCK.read_text()), DEST, args.archive, args.verify_only)
     for lock in json.loads(MEDIA_LOCK.read_text())["models"]:
         archive = args.media_archives / lock["archive"]["name"] if args.media_archives else None

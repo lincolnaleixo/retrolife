@@ -12,6 +12,7 @@ import sys
 import tarfile
 import tempfile
 from updates.common import BUNDLE_ID, FEED_URL, version_info
+import importlib.util
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,9 +41,15 @@ def main() -> None:
             data = path.read_bytes()
             if any(root in data for root in private_roots):
                 raise ValueError("A private build path leaked into " + str(path.relative_to(app)))
-    for notice in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "Sparkle-LICENSE", "retro-cartridge-models/LICENSE", "retro-cartridge-models/provenance.json"):
+    for notice in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "Sparkle-LICENSE", "retrolife-assets.json"):
         if not (app / "Contents/Resources/licenses" / notice).is_file():
             raise ValueError("Missing packaged notice: " + notice)
+    spec = importlib.util.spec_from_file_location("release_assets", ROOT / "scripts/prepare-cartridge-assets.py")
+    assets = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(assets)
+    for manifest in (output / "retrolife-cartridge-assets.lock.json", app / "Contents/Resources/licenses/retrolife-assets.json"):
+        if json.loads(manifest.read_text()) != assets.PUBLIC_MANIFEST:
+            raise ValueError("Release must declare public-neutral assets without private geometry")
     for name in ("retrolife-source.tar.gz", "retrolife-rust-dependencies.tar.gz", "bsnes-jg.tar.gz"):
         with tarfile.open(output / name) as archive:
             if not archive.getmembers():
@@ -66,6 +73,8 @@ def main() -> None:
         state = json.loads(lines[0])
         if state.get("available") is not False or state.get("currentVersion") != version:
             raise ValueError("Headless app must report its real version without enabling unsigned updates")
+        if state.get("assetMode") != "public-neutral":
+            raise ValueError("Actual exported app contains non-public creative assets")
     print("Release packaging passed: arm64 components, notices, corresponding source and actual packaged Godot probe.")
     print("The ad-hoc/headless test remains update-disabled. No signed release acceptance is claimed.")
 

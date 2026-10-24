@@ -239,6 +239,9 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "libloading",
+ "serde",
+ "serde_json",
+ "sha2",
  "thiserror",
 ]
 

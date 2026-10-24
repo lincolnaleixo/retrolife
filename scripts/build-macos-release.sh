@@ -6,6 +6,11 @@ cd "$(dirname "$0")/.."
 [[ -z "$(git status --porcelain)" ]] || { echo 'A clean reviewed checkout is required.' >&2; exit 1; }
 version=${1:?Pass a release version}
 public_key=${2:?Pass the persistent Sparkle PUBLIC key}
+# A public app never contains the owner's private creative library, even when
+# this command is invoked from a machine with a private development setup.
+export RETROLIFE_ASSET_MODE=public-neutral
+unset RETROLIFE_SKIP_CARTRIDGE_ASSETS RETROLIFE_REQUIRE_MEDIA_MODELS
+python3 scripts/prepare-cartridge-assets.py --mode public-neutral --release-project
 PYTHONPATH=scripts python3 -c 'from updates.common import version_info,decode_key; import sys; version_info(sys.argv[1]);decode_key(sys.argv[2],32)' "$version" "$public_key"
 export MACOSX_DEPLOYMENT_TARGET=13.0
 # Apply path remapping to debug checks too, so packaged native binaries cannot
@@ -17,8 +22,8 @@ sdk="$PWD/.cache/sparkle/2.10.0"
 scripts/build-core.sh
 scripts/check.sh
 scripts/test-core.sh
-# A fallback-only development build is not a cartridge-library release.
-python3 scripts/prepare-cartridge-assets.py --verify-only
+# Recheck immediately before export; tests must not leave owner resources behind.
+python3 scripts/prepare-cartridge-assets.py --mode public-neutral --release-project --manifest dist/retrolife-cartridge-assets.lock.json
 export CARGO_ENCODED_RUSTFLAGS
 CARGO_ENCODED_RUSTFLAGS=$(printf '%s\037%s' "--remap-path-prefix=$PWD=." "--remap-path-prefix=$HOME=~")
 cargo build --release --locked -p retrolife-godot
@@ -59,12 +64,9 @@ install_name_tool -id @rpath/bsnes-jg_libretro.dylib "$app/Contents/Frameworks/b
 cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/licenses/"
 cp -R third-party "$app/Contents/Resources/licenses/"
 cp "$sdk/LICENSE" "$app/Contents/Resources/licenses/Sparkle-LICENSE"
-asset_notices="$app/Contents/Resources/licenses/retro-cartridge-models"
-mkdir -p "$asset_notices"
-for name in LICENSE CREDITS.md NOTICE.md provenance.json; do
-    cp "frontend/godot-ui/assets/cartridges/$name" "$asset_notices/"
-done
-cp assets/cartridges.lock.json dist/retrolife-cartridge-assets.lock.json
+# Retain the release asset filename for signer/feed compatibility. Its v2
+# declaration records that no external geometry or owner art is bundled.
+cp dist/retrolife-cartridge-assets.lock.json "$app/Contents/Resources/licenses/retrolife-assets.json"
 cargo vendor --locked dist/vendor > dist/vendor-config.toml
 # The vendor archive contains each dependency's upstream license and source.
 tar -czf dist/retrolife-rust-dependencies.tar.gz -C dist vendor vendor-config.toml

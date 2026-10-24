@@ -5,6 +5,8 @@ on:
     branches: [main]
 permissions:
   contents: read
+env:
+  RETROLIFE_ASSET_MODE: public-neutral
 concurrency:
   group: cartridge-ui-${{ github.ref }}
   cancel-in-progress: true
@@ -18,10 +20,9 @@ jobs:
           persist-credentials: false
       - name: Asset verifier unit tests
         run: python3 scripts/test-cartridge-assets.py
-      - name: Prepare and verify pinned cartridge model
+      - name: Verify public procedural presentation without private assets
         run: |
-          python3 scripts/prepare-cartridge-assets.py
-          python3 scripts/prepare-cartridge-assets.py --verify-only
+          python3 scripts/prepare-cartridge-assets.py --mode public-neutral --release-project
       - name: Install pinned Godot
         run: |
           curl --fail --location https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o /tmp/godot.zip
@@ -40,10 +41,27 @@ jobs:
           set -euo pipefail
           timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/cartridge_library_smoke.gd 2>&1 | tee .cache/ui-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-smoke.log
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/journey_art_smoke.gd 2>&1 | tee .cache/ui-journey-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-journey-smoke.log
+      - name: Presentation packs, gameplay window and Rewards regression
+        run: |
+          set -euo pipefail
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/game_presentation_smoke.gd 2>&1 | tee .cache/ui-presentation-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-presentation-smoke.log
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/gameplay_window_smoke.gd 2>&1 | tee .cache/ui-gameplay-window-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-gameplay-window-smoke.log
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/rewards_center_smoke.gd 2>&1 | tee .cache/ui-rewards-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-rewards-smoke.log
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/library_presentation_smoke.gd 2>&1 | tee .cache/ui-library-presentation-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-library-presentation-smoke.log
+          for smoke in collection_flow library/collectible_pair gameplay_input_ownership public_assets; do
+            timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script "res://scripts/${smoke}_smoke.gd" 2>&1 | tee ".cache/ui-${smoke##*/}-smoke.log"
+            ! grep -E 'SCRIPT ERROR|Parse Error' ".cache/ui-${smoke##*/}-smoke.log"
+          done
       - name: Pooled media-profile and artwork regression
         run: |
           set -euo pipefail
-          RETROLIFE_REQUIRE_MEDIA_MODELS=1 timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/media_model_smoke.gd 2>&1 | tee .cache/ui-media-smoke.log
+          timeout 180s /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 --headless --path .cache/ui-check --script res://scripts/media_model_smoke.gd 2>&1 | tee .cache/ui-media-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error' .cache/ui-media-smoke.log
       - name: Render actual UI with neutral fixture data
         env:
@@ -60,7 +78,6 @@ jobs:
           path: |
             .cache/ui-*.log
             .cache/captures/*.png
-            frontend/godot-ui/assets/cartridges/model-summary.json
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: true

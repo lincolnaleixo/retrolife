@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from release_automation import (ALL_PROTECTED_SECRETS, API_KEY_NOTARY_SECRETS,
                                 LOCAL_KEYCHAIN_SECRETS, PASSWORD_NOTARY_SECRETS,
                                 SIGNING_SECRETS, assert_release_context)
@@ -37,6 +38,29 @@ def run(arguments: list[str], env: dict | None = None) -> str:
 
 def public_environment() -> dict:
     return {k: v for k, v in os.environ.items() if k not in ALL_PROTECTED_SECRETS and k not in {"GH_TOKEN", "GITHUB_TOKEN"}}
+
+
+def verify_notarization_ticket(app: Path, env: dict) -> None:
+    """Validate the existing ticket; retry transient host/service failures only boundedly.
+
+    The release stays blocked after the last failure. Do not repair/staple the
+    artifact here, or log tool output that can contain local paths.
+    """
+    for attempt in range(1, 4):
+        try:
+            result = subprocess.run(["xcrun", "stapler", "validate", str(app)],
+                                    env=env, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                print(f"Notarization ticket validation passed (attempt {attempt}/3).")
+                return
+            status = f"exit {result.returncode}"
+        except subprocess.TimeoutExpired:
+            status = "timeout after 30 seconds"
+        print(f"Notarization ticket validation failed ({status}, attempt {attempt}/3).",
+              file=sys.stderr)
+        if attempt < 3:
+            time.sleep(5 * attempt)
+    raise RuntimeError("Notarization ticket validation failed after 3 attempts; release remains unpublished")
 
 
 def unlock_keychain(path: Path, env: dict) -> None:
@@ -74,7 +98,7 @@ def verify_bundle(app: Path, version: str, public_key: str, team: str, env: dict
     details = subprocess.run(["codesign", "-dv", "--verbose=4", str(app)], capture_output=True, text=True, env=env)
     if details.returncode or f"TeamIdentifier={team}\n" not in details.stderr or "Authority=Developer ID Application:" not in details.stderr:
         raise ValueError("The application is not signed by the configured Developer ID team")
-    run(["xcrun", "stapler", "validate", str(app)], env)
+    verify_notarization_ticket(app, env)
     run(["spctl", "--assess", "--type", "execute", str(app)], env)
     roots = [str(ROOT).encode(), str(Path.home()).encode()]
     for path in app.rglob("*"):
@@ -104,6 +128,8 @@ def verify_probe(app: Path, version: str, env: dict) -> None:
     state = json.loads(lines[0])
     if state.get("available") is not True or state.get("currentVersion") != version:
         raise ValueError("Refusing release: the installed app still reports updater unavailable")
+    if state.get("assetMode") != "public-neutral":
+        raise ValueError("Refusing release: private creative assets are bundled")
     print("Installed Godot application reports the expected version and an available updater.")
 
 

@@ -16,13 +16,15 @@ Cargo.lock records exact Rust dependencies. Release preparation must bundle thei
 
 The MPL-covered Rust binding sources are additionally distributed under AGPL-3.0-only as part of this combined application under MPL 2.0 section 3.3; their original MPL rights and notices remain available. See [Mozilla's combination guidance](https://www.mozilla.org/en-US/MPL/2.0/FAQ/#q14-may-i-combine-mpl-licensed-code-and-lgpl-licensed-code-in-the-same-executable-program).
 
-## Retro 3D Library
+## Private Retro 3D Library (not bundled)
+
+Public releases contain no files from the private Retro 3D Library. The following records apply only to explicit owner-side staging of historical packages, not to the public app’s procedural presentation.
 
 The neutral `snes-ntsc-u`, `mega-drive`, `playstation-1`, `nintendo-64` and `nes` models are independently versioned reconstructions by **Lincoln Aleixo** from [Retro 3D Library](https://github.com/lincolnaleixo/retro-3d-library).
 
-Original model contributions retain **CC BY-NC-ND 4.0**, not the application's AGPL license. Attribution, noncommercial scope and restrictions on redistribution of adaptations remain in the upstream license. This integration makes no additional rights grant. Existing hardware designs, third-party artwork, marks and other material excluded in the upstream notice remain outside that license grant.
+The historical locked packages carry their independent **CC BY-NC-ND 4.0** notices, not the application's AGPL license. Keep their original notices with any explicit owner-side staging. The private collection is not part of this release and this integration grants no additional rights to it, hardware designs, third-party artwork or marks.
 
-`assets/cartridges.lock.json` and `assets/media-models.lock.json` record the exact versions, archive hashes and selected-file hashes. The build stages each unchanged GLB with its `LICENSE`, `CREDITS.md`, `NOTICE.md` and machine-readable provenance. Exported application resources include every model's notices in its asset directory; macOS release preparation additionally places the SNES notices in `Contents/Resources/licenses/retro-cartridge-models`. This internal notice-directory name is retained for packaging compatibility after the source repository was renamed to Retro 3D Library. Release source includes both asset locks and the staging tool so the same model inputs can be verified without placing creative binaries into the software Git history.
+`assets/cartridges.lock.json` and `assets/media-models.lock.json` retain historical versions, archive hashes and selected-file hashes for explicit owner-mode validation. That mode stages unchanged GLBs with their independent notices and provenance. The public release builder rejects such a stage. Its `Contents/Resources/licenses/retrolife-assets.json` and release asset declaration record `public-neutral` and no bundled external models. Release source retains the validation code and historical locks, without creative model binaries.
 
 The neutral metadata label and procedural missing-model fallback are original application presentation code. User-selected PNG labels are local display overlays, not edits to or redistributed replacements of the pinned GLB. Textured game reproductions are not bundled. Approved label exports from the collection can be downloaded on request into the user's local cache and are verified against the collection's published checksums; they are not part of application source, releases or public evidence.
 

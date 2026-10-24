@@ -1,5 +1,16 @@
 # RetroLife plan
 
+## Current distribution request — 2026-10-24
+
+The owner wants the current application on a second Apple Silicon Mac and future versions delivered through RetroLife's existing updater. This updates the distribution scope of the historical plan below: the model library is private, and public application builds must not fetch or distribute its contents. Install the owner's curated model/art packs separately; application updates must preserve those packs, ROM locations and progress.
+
+- [x] Make public build inputs independent of the private model repository, with asset-boundary and runtime checks passing locally. Hosted CI and signed publication remain separate gates below.
+- [ ] Publish the current reviewed application through the protected main-only signing/notarization workflow and verify its signed appcast entry.
+- [ ] Install that updater-enabled build on the target Mac, preserving any existing application data.
+- [ ] Exercise the target Mac's update check and a signed-to-signed upgrade; retain the existing gameplay/save barrier.
+
+Subsequent user-facing changes are delivered only after the corresponding immutable release and feed entry are verified. Local development exports remain useful for testing but do not complete delivery. See [Mac installation](docs/install-macos.md) and [automatic releases](docs/automatic-releases.md).
+
 Last reviewed: 2026-09-17. Product focus: SNES on macOS, with a clean, premium cartridge-first library.
 
 This is the only roadmap. This revision records the owner's review of the installed beta.3/beta.4 builds — the default window opens too small, the hero cartridge barely moves, and real game labels are not shown — and an expansion pass that adds the play-feel, data-portability, privacy, diagnostics and release-operations items below. Its scope is **plan.md plus the repository-required changelog entry**; no application code is changed here. The normal changelog and verification rules apply to the implementation work that follows.
@@ -259,7 +270,7 @@ There are exactly ten product milestones below: **v0.1.0 through v0.10.0**. The 
 
 ### 7. v0.7.0: save states, quick save/load and resume
 
-**Status:** planned. Extend [issue #3](https://github.com/lincolnaleixo/retrolife/issues/3) with local state evidence; cloud synchronization remains deferred.
+**Status:** in progress. The first local implementation provides six manual slots, a quick slot and a pre-load Recovery slot, with screenshots, confirmation, bounded worker operations and compatibility checks. See [save-state behavior and validation](docs/save-states.md). Automatic exit/resume history, configurable shortcuts and battery-backup rotation remain deferred; this does not claim complete milestone acceptance. Extend [issue #3](https://github.com/lincolnaleixo/retrolife/issues/3) with local state evidence; cloud synchronization remains deferred.
 
 **Deliverables**
 
@@ -485,3 +496,82 @@ Clean-checkout Linux and native Apple Silicon checks pass: formatting, Clippy, 3
 A local arm64 app export also starts and exits successfully; engine and both native libraries are arm64, the bundle identifier is correct, and a targeted packaged private-path scan is clean. The later published app passed Developer ID signing, Apple notarization, stapling, Gatekeeper and transferred-ZIP startup verification. The beta.2 DMG passed notarization, stapling, disk-image verification and mounted-app signature/Gatekeeper checks; its transferred SHA-256 matched the signing-machine output.
 
 Technical references checked for this planning revision: [Godot GLTFDocument](https://docs.godotengine.org/en/stable/classes/class_gltfdocument.html), [libretro serialization contract](https://docs.libretro.com/development/cores/developing-cores/), [Sparkle setup](https://sparkle-project.org/documentation/), [programmatic/non-Apple-toolkit integration](https://sparkle-project.org/documentation/programmatic-setup/), [update publication](https://sparkle-project.org/documentation/publishing/), and [Sparkle security changes](https://sparkle-project.org/documentation/security-and-reliability/). These guide implementation; compatibility with the project's exact pinned Godot/export configuration still requires the early native proof above.
+
+
+## Library and play journey
+
+- [x] Simplify the library with direct play, console/game presentation and visible storage.
+- [x] Support an external ROM root with console folders, verified copy and offline-drive recovery; preserve existing saves.
+- [x] Link a private local 3D collection without including its files in source or releases.
+- [x] Configure keyboard/gamepad bindings beside a controller model; persist mappings and use them during gameplay.
+- [x] Persist personal quests, XP, levels and collectible rewards; distinguish automatic session evidence from self-reported game challenges.
+- [x] Exercise storage, mappings, progress and native gameplay; run repository checks and record remaining limitations.
+
+
+Workspace verification (2026-10-22): `scripts/check.sh` passed (formatting, Clippy, Rust tests, publication/dependency audits, asset/update/release contracts and all Godot smokes). `scripts/test-core.sh` passed with the pinned native SNES core. Additional regressions exercise verified/retryable library copy, legacy layouts, offline-volume rejection, remap persistence/cancellation/timeout, live InputMap routing, paused progress, reward correction/idempotency and reload. The native Super Mario World session was rendered with the external library and private local models; its existing battery save was unchanged after clean stop. Generated UI captures were inspected for the library, controller target, storage and gameplay journey. Physical-gamepad and audible-output acceptance remain pending: no gamepad is connected and interactive macOS inspection was blocked by the lock screen. The local development preview is separate from the installed application and is not a signed distributable release.
+
+
+Public CI follow-up: the `cartridge-ui` job for PR #43 stops in `prepare-cartridge-assets.py` with HTTP 404 when fetching the pinned packages from the now-private 3D repository. Local checks used the unchanged checksum-verified offline packages. Do not publish private models, grant a public PR access to private credentials, or disable asset verification to make this job pass.
+
+- [ ] Resolve the public build's model dependency and distribution policy before merging PR #43 or publishing a new signed release. The app source and private local collection integration are available on the feature branch; the public PR remains draft.
+
+
+## Console-first library and game journals
+
+- [x] Add console selection, return navigation, empty collections and local 3D box inspection; exercise navigation and the native gameplay round trip.
+- [x] Install the new app icon and per-game Journey presentation in the separate local Preview.
+- [x] Run presentation regressions and publication audit; keep all game artwork external.
+- [x] Exercise installed desktop console-to-games navigation and open the actual local 3D box after unlocking macOS.
+- [ ] Complete compact gameplay, physical-gamepad and audible-output acceptance. Compact console captures and standalone Journey quest/gift panels were inspected; these do not establish gameplay acceptance.
+
+Console-first verification (2026-10-22): all seven Godot presentation/native smoke suites passed, including 10,000-entry navigation, empty consoles, per-console return selection, seven game profiles, sequel fallback, live input mappings and native play/stop focus restoration. The original battery save remained byte-identical. The packaged local app starts headlessly and passes ad-hoc signature verification. The public CI/private-model blocker above is unchanged.
+
+- [x] Replace still console images with interactive local GLB previews for all seven systems. Keep rotation separate from opening a collection, retain models on return and suspend offscreen rendering.
+
+Console 3D follow-up (2026-10-22): all seven private local models loaded in the real renderer. Desktop, lower-row and compact captures were inspected. Programmatic drag/reset, collection navigation, preview reuse and hidden rendering checks passed, together with native play/stop and workspace regressions. Transmissive handheld lenses use an alpha approximation so the underlying LCD stays visible. Final physical click acceptance remains pending while macOS is locked.
+
+
+### Populated console carousel and runtime surface correction
+
+- [x] Present one 3D console at a time, omit zero-game systems, wrap side navigation and retain the selected console on refresh. Hide side controls for a single populated system and disable stale actions for an empty collection.
+- [x] Correct Godot runtime glTF remapping when normal/roughness textures omit the default `texCoord=0` and occlusion explicitly uses `texCoord=1`. Normalize omitted defaults in memory before import, preserve source bytes, filter repeating data maps with mipmaps and reduce harsh fill lighting.
+
+Verification (2026-10-22): the original two-UV fixture verifies repeating primary coordinates, independent AO atlas coordinates, mipmapped normal/roughness textures and unchanged GLB bytes. Desktop clicks opened the SNES collection and its local Super Mario World box. The real library contains one populated console; multi-console wrap, selection preservation and empty-library behavior are exercised with test fixtures rather than invented user games. The public build dependency blocker remains unchanged.
+
+Final runtime verification: the two-UV fixture, 10,000-entry library navigation, workspace mappings and native play/save/return smokes passed. All seven real local console exports rendered with the corrected importer; SNES desktop and compact captures were inspected. The Preview resource pack was updated and its ad-hoc signature verified. macOS locked again before a final installed-app click check; reopening the running Preview is still needed to load the corrected pack.
+
+
+### Immersive library and illustrated Journey
+
+- [x] Remove bottom command/storage bars, integrate window chrome, and navigate directly from 3D art with click/drag separation. Keep box/details and administrative actions in a compact header.
+- [x] Replace the primary Applications installation with the current local development build; preserve the previous signed app separately. Future local installs use the same primary app path. This is not a new notarized distribution release.
+- [x] Load optional per-game hero/chapter/keepsake packs from the private collection; no box-art substitute or inherited image for unknown games. Keep progress IDs and persistence unchanged.
+
+Verification (2026-10-22): the 10,000-entry library, native cartridge-click/play/save/return, workspace and window-layout smokes passed. Native desktop interaction exercised the installed borderless app, console-art click, return navigation, integrated menu, pause and clean stop. Desktop/compact library and real box captures were inspected. The isolated Journey smoke covers PNG/SVG loading, title+console scoping, partial/malformed/missing art, stale image clearing, cached polling and reversible reward state. The bespoke Super Mario World artwork was published to the private source library before local consumption; proprietary images remain outside this application repository. The public CI/private-model dependency blocker remains unchanged.
+
+
+### Rewards hub, game presentation and gameplay window
+
+- [x] Add a read-only cross-game Rewards collection with filters, actual persisted totals and scoped optional art.
+- [x] Add shared typography and original vector interface icons, plus a RetroLife PNG boot splash.
+- [x] Keep gameplay window dragging available, persist Journey visibility and restore focus after toggling the sidebar.
+- [x] Support per-game local backgrounds, metadata and explicit preview playback, with neutral and stale-data fallbacks.
+- [x] Add explicit ScreenScraper lookup and offline import with session-only credentials, atomic metadata updates and bounded media validation.
+- [ ] Exercise an authenticated ScreenScraper account; no developer credentials were available during implementation.
+
+Verification (2026-10-23): focused fixtures cover Rewards at desktop/compact sizes, sidebar visibility persistence, fullscreen repeat handling, catalog-revision invalidation, game identity, neutral/stale presentation cleanup, metadata/media path and checksum validation, malformed provider responses, sanitized quota failures, cancellation and credential-field clearing. Six local video-conversion helper tests pass. Existing native play/save/return, 10,000-entry navigation, Journey artwork, workspace and window-layout suites passed. Interactive installed-app acceptance is recorded separately after installation. The public private-model dependency blocker remains unchanged; PR #43 stays draft.
+
+Rendered review (2026-10-23): the real Godot renderer produced inspected desktop and compact views of the new game showcase, Rewards and ScreenScraper setup. These use fixture progress, not acceptance evidence for a user's saved totals. The installed-app pointer/drag acceptance is pending because the macOS UI remained locked. The private original background and keepsake refinements were published before local consumption. No authenticated ScreenScraper call was made.
+
+
+### Automatic gameplay achievements
+
+The owner clarified that Journey must observe actual gameplay and award keepsakes automatically. Manual checks and time-only rewards are retired.
+
+- [x] Observe read-only SNES system RAM after each executed worker frame, with exact loaded-ROM identity and lifecycle boundaries.
+- [x] Implement the four Super Mario World (USA) event rules and show read-only detection, locked/earned states and unlock notices.
+- [x] Archive version-one manual/time progress without silently counting it as verified achievements.
+- [ ] Expand verified detectors to additional games and revisions only with researched memory rules and false-positive tests.
+- [ ] Exercise every objective through normal gameplay in the installed app; synthetic event traces alone do not establish full-game acceptance.
+
+The public private-model dependency blocker remains unchanged; PR #43 stays draft.

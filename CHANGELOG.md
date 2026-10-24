@@ -4,6 +4,76 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Make updater-enabled signed releases the delivery path for everyday Mac installations, document one-time migration from development builds, and preserve separately installed private collections across app updates.
+- Include the public brand assets in the isolated updater UI fixture so clean CI imports and update-panel checks can run without any private model or artwork dependency.
+- Build public releases with original procedural presentation and no private model downloads. Reject staged owner resources before export, declare the asset boundary in release metadata and verify it in the exported application. Preserve explicit owner staging and external collection loading.
+- Report notarization validation phases and exit codes without exposing local paths or tool output, retry bounded host/service failures, and keep publication blocked when ticket validation still fails.
+- Exercise the current collection-to-game launch flow in the real-core regression and reserve save-state shortcuts in the controller-remapping fixture; run collection, input ownership and asset-boundary checks in public CI.
+
+- Add a cartridge collection between console selection and the full game presentation. Browse a centered cartridge with neighboring games and side arrows, select it to open its page, and return to the same collection position. Keep previews and selection music scoped to the game page, with neutral empty and single-game states.
+- Separate the game's box and cartridge into independent 3D displays with room between them, distinct drag/zoom targets and individual captions. Clicking the box opens its inspector; clicking the cartridge on the game page plays. Preserve keyboard/controller access, modal focus, bounded model resources and absent-box fallbacks.
+- Exercise the three-page navigation and inspect/play distinction, independent model transforms, visible neighbor layout, media ownership and responsive presentation with synthetic fixtures and local visual captures.
+
+- Rotate and zoom the selected box and cartridge as one rigid, physically separated assembly. Align their resting bases, fit the camera at every inspection angle and ground the contact shadow; remove independent hover and bob that could make the models intersect. Exercise 405 rotation/zoom/aspect combinations and retain click-to-play and missing-model fallbacks.
+- Turn selection backdrop artwork into a subdued per-game color wash so characters do not repeat behind the box. Give the optional official publisher mark a compact, contrasting plate beside the system name, retaining private asset loading and neutral missing-logo behavior.
+
+- Keep short selection layouts at 1024×720 and similar narrow windows compact, preventing the synopsis and preview from pushing soundtrack controls or navigation below the window.
+
+- Show the selected game’s external 3D box and cartridge together as one collectible composition. Reuse the existing validated box loader, retain only one selected box, and preserve click-to-play, shared drag/zoom inspection, keyboard/gamepad navigation and cartridge-only/text fallbacks.
+- Replace the full-height selection panel with a continuous subdued artwork canvas, a bounded video preview, concise opening synopsis and responsive typography. Align the optional publisher mark with the system name and generate logo mipmaps for clean scaling; keep private artwork outside the app.
+
+- Give active gameplay exclusive ownership of mapped controller input before GUI navigation, so Circle remains SNES A and face buttons cannot activate a focused fullscreen control. Keep library window dragging out of fullscreen and route in-game fullscreen shortcuts only through gameplay.
+- Soften the selection dossier with a translucent background, center its content, add optional checksum-verified external publisher logos, and replace tiny music text with a speaker toggle, styled volume track and percentage. Missing publisher artwork retains its text fallback.
+
+- Recompose game selection around a narrow illustrated dossier and a brighter artwork stage, inspired by ES-DE theme layouts. Keep copy bounded, integrate a clickable video with a small watch caption, replace full-width preview/music controls with compact controls, move collection count to the lower edge, and reduce the selected 3D cartridge. Compact windows suppress long synopses while preserving preview, navigation and neutral missing-media behavior.
+
+- Scale the inline game preview with the window height (140–400 pixels) so large displays show meaningful gameplay footage beside the cartridge instead of a tiny fixed-height thumbnail.
+
+- Make Super Mario World's Journey progressive: thirteen automatic discoveries, early power-up/Yoshi/Dragon Coin events, separate named keepsakes and later castle rewards. Hide future spoilers and move completed discoveries into Collection while preserving existing verified progress.
+- Show a silent local OGV preview directly beside the selected game after a short delay, with original-art fallback, reduced-motion support and playback stopped during gameplay/dialogs. Reduce the selected cartridge by 24%, tighten typography and darken the scenery backdrop for readability.
+- Keep game art and captured preview media in optional private packs; ScreenScraper credentials remain entered in Game media and never included in source. Validate staged native build, journal/media UI contracts and publication boundaries.
+
+- Add real SNES save states with six manual slots, a Quick save slot and an automatic pre-load Recovery point. Show saved-frame thumbnails and timestamps in a paused Saved moments browser, with overwrite/load confirmation and F5/F6/F7 shortcuts. Serialize and restore only on the emulation worker, atomically store bounded checksummed files, validate game/core compatibility, clear stale input/audio and reset Journey transition evidence on load. Preserve cartridge-save storage and reject unsafe or corrupt restores with recoverable status.
+
+- Make local game previews discoverable beside selection details and add optional per-game OGG, MP3 or WAV selection music with a separate saved volume. Stop collection audio before gameplay, during previews and when leaving game selection; preserve silence for games without media. Keep MP4 previews explicitly external and OGV previews inside RetroLife. Validate imported music and preserve existing assets when ScreenScraper reports missing media or offers an unsupported video.
+
+- Open Game settings during a session from the header, F9 or the pause menu. Pause automatically and keep controls, shader previews and existing RetroLife preferences under one pause state; closing restores the previous play state. Persist game audio volume, expose fullscreen and Journey visibility, and isolate held inputs while configuring or returning to play.
+- Prefer optional external PNG illustrations for custom Journey chapters and Rewards, retaining SVG compatibility and neutral fallbacks. Honor per-game pixel-art packs with nearest filtering and integer-scaled keepsakes. Keep game artwork in the private collection; changing presentation never unlocks a reward or enables unsupported games.
+
+- Add in-game Super Nintendo display presets: Original, Smooth, Scanlines and CRT, with frozen-frame previews, adjustable intensity and persisted system preferences. Opening the shader panel pauses gameplay and releases inputs; closing restores the prior play/pause state. Effects apply only to the game image and adapt to frame resolution and window size. Keep the floating options compact on large displays, and restore pause/exit controls if saving fails while leaving a preview.
+
+- Give supported custom Journeys larger illustrated chapters and full-color collectible artwork, with per-event colors, region captions and keepsake names from an optional bounded external theme. Supported games without art keep a neutral presentation; missing reward illustrations in partial packs consistently ignore per-card custom names and colors in Journey and Rewards. Hide the gameplay Journey column and toggle for unsupported games, omit them from Rewards, and retry temporary support failures without losing the visibility preference. Themes never enable detection or change progress.
+
+- Preserve macOS privacy permission continuity across local app updates with a pinned Apple Development signing identity. Add a dedicated installer that verifies signatures and designated requirements, refuses running-app replacement and ad-hoc fallback, and backs up the previous application with rollback. Keep ROM locations, saves, artwork and existing privacy settings unchanged. The first migration from an ad-hoc build can require one new authorization.
+
+- Replace manual Journey checks and elapsed-time gifts with verified Super Mario World (USA) gameplay events: Yoshi's Island stage clears, secret exits, Koopaling castles and Bowser's ending. Read SNES memory on the emulation worker after each frame, match the loaded ROM hash, and reject menus, demos, death exits, unsupported versions and unavailable memory. Keep the original version-one journal in an exact backup and archive legacy records without treating them as verified XP. Journey and Rewards now show read-only event rewards and automatic unlock notices.
+
+- Add a library-wide Rewards collection with global XP and per-game keepsakes, shared custom interface icons, a readable typography theme and an original RetroLife boot splash. Preserve reward IDs and saved progress.
+- Keep the integrated gameplay header draggable, support fullscreen without key-repeat flicker, and persist the Show/Hide Journey preference while returning space and focus to the game.
+- Give game selections an optional local scenic background, description, release details and explicit video preview. Clear unavailable or stale presentation data and keep games without artwork neutral.
+- Add in-app ScreenScraper configuration with session-only credentials, console-scoped explicit search/selection, bounded local media downloads, offline pack import and sanitized provenance. Keep artwork external and support explicit local MP4-to-OGV conversion for inline playback. Live authenticated service acceptance is pending.
+
+- Add optional per-game Journey art packs with a landscape hero, illustrated chapter cards and a two-column keepsake collection. Keep artwork external, cache it per selection, scope matching by console, clear stale textures and show neutral text when custom art is missing. Preserve existing milestone IDs, XP, paused time, confirmation rollback and reversible rewards.
+
+- Integrate the library into a borderless game-style window with a compact contextual header, static studio background, window dragging, fullscreen, minimize and safe quit. Remove bottom command and storage bars. Click console art to enter its collection and playable cartridge art to start; preserve drag/zoom inspection, keyboard/gamepad access and a missing-model fallback. Keep Search available after empty results and test vertical drag rejection.
+
+- Fix runtime GLB texture-coordinate remapping: preserve repeating normal/roughness UVs separately from baked occlusion atlases, preventing swollen-looking plastic on console previews. Generate mipmaps for data textures and rebalance the preview lights. Keep private source models unchanged and add an original two-UV regression fixture.
+
+- Present consoles one at a time in a 3D carousel and exclude systems without library games. Support side buttons and left/right navigation, preserve selection on refresh and handle empty collections without stale actions.
+
+- Replace console-gallery images with interactive local 3D models for all seven systems. Drag rotates each console, double-click resets it, and a separate button opens its games. Preserve loaded previews across navigation and suspend rendering outside the visible gallery.
+
+- Start in a console gallery, then open that console's games. Add a rotatable, zoomable local 3D box inspector and a dedicated RetroLife app icon.
+- Fit box-camera depth precision to the physical model and use anisotropic texture sampling. Pin the reviewed original icon bytes in the publication audit without admitting other binary assets.
+- Give seven known games distinct Journey chapters, challenge descriptions, reward collections, accent colors and local artwork. Unknown games keep a neutral journal, and challenge completion remains explicitly self-reported.
+
+- Record the verified local workspace build and the public CI blocker: the pinned 3D packages now require private repository access. Keep the feature PR in draft and preserve the private-asset boundary.
+
+- Add a library workspace with direct Play, console and game presentation, an explicit ROM storage location and a private local 3D collection link. ROM copying verifies identities and keeps originals; new imports use console folders while existing layouts remain readable. Offline volumes never fall back to internal storage.
+- Add visual SNES controller mapping with a highlighted 3D target, keyboard/gamepad capture, persistent bindings, duplicate rejection and cancellation/timeout rollback. Gameplay now uses the configured InputMap consistently.
+- Add a persistent personal Journey beside gameplay: emulator-time quests, self-reported game challenges, XP, levels and eight collectible rewards per game. Rewards are idempotent, can be corrected, and survive reload; pauses add no time.
+- Wait for save acknowledgement before closing the window and use an elapsed-time stop deadline instead of a frame-count deadline, avoiding false save timeouts on fast presentation loops.
+
 - Follow the renamed Retro 3D Library repository in canonical model-download and tag-pinned label URLs, current documentation and preview help. Preserve every model version, release tag, manifest commit, file checksum and the existing bundled notice-directory path.
 
 - Pin the approved Super Mario World labels to collection release 0.2.0: the front print has localized scan wear removed, while its artwork and folded layout are preserved. Use the canonical reproduction paths and verified checksums; the rear print and all neutral model dependencies remain unchanged.

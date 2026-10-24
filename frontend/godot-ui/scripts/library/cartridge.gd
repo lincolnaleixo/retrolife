@@ -13,6 +13,8 @@ static var _full_detail_labels: Dictionary = {}
 var force_fallback := false
 var preserve_imported_artwork := false
 var media_profile := ""
+var _model_key := ""
+var _local_reproduction := false
 var _built_fallback := false
 var _profile: Dictionary = {}
 var uses_fallback := true
@@ -65,9 +67,15 @@ func _ready() -> void:
 
 func _ensure_model(game: Dictionary) -> void:
     var requested := MediaProfiles.id_for(game)
-    if requested == media_profile and _built_fallback == force_fallback:
+    var local_path := ""
+    if requested == "snes" and str(game.get("title", "")).to_lower().contains("super mario world"):
+        local_path = preload("res://scripts/workspace/preferences.gd").asset("reproductions/snes/super-mario-world/snes-super-mario-world.glb")
+    var key := requested + local_path
+    if key == _model_key and _built_fallback == force_fallback:
         return
     media_profile = requested
+    _model_key = key
+    _local_reproduction = not local_path.is_empty() and not force_fallback
     _built_fallback = force_fallback
     _profile = MediaProfiles.for_game(game)
     # A pool slot can change systems. Free its old visual immediately so rapid
@@ -82,7 +90,14 @@ func _ensure_model(game: Dictionary) -> void:
     _rear_painter_material = null
     _visual_bounds = AABB()
     uses_fallback = true
-    var path: String = _profile["path"]
+    var path: String = local_path if _local_reproduction else _profile["path"]
+    if _local_reproduction and not _shared_models.has(path):
+        var local_scene := preload("res://scripts/workspace/local_model.gd").packed_scene(path)
+        if local_scene != null:
+            _shared_models[path] = local_scene
+        else:
+            _local_reproduction = false
+            path = _profile["path"]
     if not force_fallback and not path.is_empty():
         if not _shared_models.has(path) and ResourceLoader.exists(path):
             _shared_models[path] = load(path) as PackedScene
@@ -100,7 +115,7 @@ func _ensure_model(game: Dictionary) -> void:
                     var factor := minf(3.3 / maxf(bounds.size.x, 0.001), 2.4 / maxf(bounds.size.y, 0.001))
                     model.scale = Vector3.ONE * factor
                     model.position = -bounds.get_center() * factor
-                if media_profile == "snes":
+                if media_profile == "snes" and not _local_reproduction:
                     _soften_shell_materials(model)
                 var surfaces := _find_label_surfaces(model)
                 _label_surface = surfaces.get("front")
@@ -111,6 +126,9 @@ func _ensure_model(game: Dictionary) -> void:
                 if _rear_surface != null:
                     _rear_default_material = _rear_surface.material_override
                 uses_fallback = false
+    if _local_reproduction and not uses_fallback:
+        _visual_bounds = _bounds_in(_visual)
+        return
     if uses_fallback:
         _build_fallback()
     if _label_surface == null:
@@ -149,6 +167,8 @@ func bind_game(game: Dictionary, index: int, artwork: Texture2D, rear_artwork: T
     _ensure_model(game)
     game_id = str(game.get("id", ""))
     library_index = index
+    if _local_reproduction and not uses_fallback:
+        return
     var tone: Color = PALETTE[posmod(game_id.hash(), PALETTE.size())]
     _artwork_present = artwork != null
     if preserve_imported_artwork and artwork == null and not uses_fallback:
