@@ -47,6 +47,7 @@ func _ready() -> void:
     _picker.use_native_dialog = true
     _picker.mode_overrides_title = false
     _picker.dir_selected.connect(_selected)
+    _picker.canceled.connect(func(): popup())
     add_child(_picker)
     about_to_popup.connect(refresh)
 
@@ -71,6 +72,8 @@ func _pick(operation: String) -> void:
     _picker.popup_centered_clamped(Vector2i(880, 560), 0.9)
 
 func _selected(path: String) -> void:
+    # A native dialog takes focus away from the embedded storage popup.
+    popup()
     if _busy or owner_ui == null:
         return
     if _operation == "assets":
