@@ -392,8 +392,39 @@ impl Library {
             .ok_or_else(|| Error::ManagedFileMissing {
                 id: entry.id.clone(),
             })?;
+        self.prepare_entry(current)
+    }
+
+    /// Resolve a previously reconciled catalog entry without scanning other games.
+    /// The selected payload is verified again; stale/changed files cannot launch.
+    pub fn resolve_snapshot(root: &Path, entry: &Entry) -> Result<PathBuf> {
+        ensure_volume_available(root)?;
+        let library = Self {
+            root: root.to_path_buf(),
+            gate: LIBRARY_GATE
+                .get_or_init(|| Arc::new(Mutex::new(())))
+                .clone(),
+        };
+        library.prepare_entry(entry)
+    }
+
+    fn prepare_entry(&self, current: &Entry) -> Result<PathBuf> {
+        validate_entry_shape(current)?;
+        self.validate_rom_directory(&current.path)?;
         let source = self.root.join(&current.path);
+        let info = fs::symlink_metadata(&source).map_err(|_| Error::ManagedFileMissing {
+            id: current.id.clone(),
+        })?;
+        if !info.is_file() {
+            return Err(Error::ManagedFileMissing {
+                id: current.id.clone(),
+            });
+        }
+
         if supported_extension(&source) != Some("zip") {
+            if image_identity(&source)?.0 != current.id {
+                return Err(Error::SourceChanged);
+            }
             return Ok(source);
         }
         // Archive member names never become filesystem destinations.
@@ -1110,7 +1141,11 @@ fn remove_stale_staging_files(roms: &Path) -> Result<()> {
         let entry = entry.map_err(|error| map_io("checking import staging files", error))?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.starts_with('.') && name.ends_with(STAGING_SUFFIX) {
+        if name
+            .strip_prefix('.')
+            .and_then(|value| value.strip_suffix(STAGING_SUFFIX))
+            .is_some_and(is_sha256_id)
+        {
             let file_type = entry
                 .file_type()
                 .map_err(|error| map_io("checking import staging files", error))?;
@@ -1627,10 +1662,15 @@ mod tests {
         );
         zip_fixture(&root.join("snes/Escape.zip"), &[("../Escape.sfc", &bytes)]);
         fs::write(root.join("snes/Partial.zip"), b"PK partial download").unwrap();
+        fs::write(root.join("snes/.download.part"), b"user download").unwrap();
         fs::write(root.join("snes/Tiny.sfc"), b"unfinished").unwrap();
         let games = library.list().unwrap();
         assert_eq!(games.len(), 1);
         assert_eq!(games[0].title, "Good");
+        assert_eq!(
+            fs::read(root.join("snes/.download.part")).unwrap(),
+            b"user download"
+        );
         assert!(!root.join("Escape.sfc").exists());
         zip_fixture(&root.join("snes/Partial.zip"), &[("Game.sfc", &bytes)]);
         assert_eq!(library.list().unwrap().len(), 1); // Duplicate payload.

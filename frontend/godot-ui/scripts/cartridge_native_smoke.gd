@@ -100,6 +100,10 @@ func _click_selected_cartridge(carousel: Control) -> void:
 
 
 func _exercise_folder_changes(shell: Control) -> String:
+    # The baseline intentionally tries a duplicate import. Start this scenario
+    # with a collection-loading warning instead of that legitimate import notice.
+    shell._import_warning = ""
+    shell._show_nonfatal_error("The collection could not be loaded.")
     var directory := _smoke_root.path_join("library/snes")
     var original_id: String = shell._carousel.selected_id()
     var original_revision: Variant = shell._presentation_revision
@@ -133,7 +137,16 @@ func _exercise_folder_changes(shell: Control) -> String:
     DirAccess.remove_absolute(renamed)
     failure = await _wait_for_folder_count(shell, 1)
     shell._folder_watch_enabled = false
-    return failure
+    if not failure.is_empty():
+        return failure
+    await shell._on_files_selected(PackedStringArray([directory.path_join("Missing.zip")]))
+    var warning: String = shell._warning_label.text
+    if warning.is_empty():
+        return "a failed import lost its warning during the catalog refresh"
+    await shell._refresh_library()
+    if shell._warning_label.text != warning:
+        return "a subsequent collection refresh erased the failed-import notice"
+    return ""
 
 
 func _wait_for_folder_count(shell: Control, count: int) -> String:

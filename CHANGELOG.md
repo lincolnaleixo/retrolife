@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Serve search, details and collection reads from a reconciled in-memory snapshot while the folder worker scans; launch verifies only the selected game. Preserve import failure notices across successful collection refreshes and leave user download staging files untouched.
+
 - Record the reviewed MIT license choice for the ZIP reader’s pinned, UEFI-only r-efi dependency; keep unreviewed license changes blocked.
 
 - Pin ZIP parsing to 9.1.0, including the upstream extraction security fixes required by the release vulnerability gate.

@@ -270,7 +270,7 @@ impl RetroLifeBackend {
             if !state.session_id.is_empty() {
                 return Err("Stop the active emulation session before changing paths.".to_owned());
             }
-            retrolife_library::Library::open(&library_root).map_err(|error| error.to_string())?;
+            catalog::refresh(&library_root)?;
             state.journey = match retrolife_core::journey::Journey::load(
                 &save_root
                     .parent()
@@ -369,7 +369,7 @@ impl RetroLifeBackend {
             let worker_root = root.clone();
             *scan = Some((
                 root,
-                std::thread::spawn(move || catalog::status_json(&worker_root)),
+                std::thread::spawn(move || catalog::refresh_status_json(&worker_root)),
             ));
             Ok(String::new())
         })();

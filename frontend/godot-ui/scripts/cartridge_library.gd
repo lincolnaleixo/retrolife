@@ -86,6 +86,7 @@ var _refresh_generation := 0
 var _refreshing := false
 var _folder_poll_seconds := 0.0
 var _folder_watch_enabled := false
+var _import_warning := ""
 var _importing := false
 var _search_timer: Timer
 var _settings_timer: Timer
@@ -684,7 +685,9 @@ func _refresh_library(preferred_game_id := "", preserve_control_focus := false) 
         if generation != _refresh_generation or not is_inside_tree():
             return
     _refreshing = false
-    _warning_label.text = ""
+    _warning_label.text = _import_warning
+    _warning_label.tooltip_text = _import_warning
+    _warning_label.visible = not _import_warning.is_empty()
     if _presentation_revision != revision:
         _presentation_cache.clear()
         _presentation_key = ""
@@ -816,7 +819,8 @@ func _on_files_selected(paths: PackedStringArray) -> void:
         await get_tree().process_frame
     _importing = false
     _header.set_busy(false)
-    _warning_label.text = "\n".join(failures)
+    _import_warning = "\n".join(failures)
+    _warning_label.text = _import_warning
     _warning_label.tooltip_text = _warning_label.text
     _warning_label.visible = not failures.is_empty()
     if not imported_id.is_empty():
