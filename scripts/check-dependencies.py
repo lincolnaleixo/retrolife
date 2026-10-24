@@ -9,9 +9,15 @@ metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', 
 allowed = {'MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Zlib',
            'Unicode-3.0', 'Unicode-DFS-2016', 'AGPL-3.0-only', 'CC0-1.0',
            'BSL-1.0', 'Unlicense', 'MPL-2.0'}
+# Explicitly reviewed license choices for multi-licensed, pinned packages.
+# Keep the complete expression so upstream license changes still fail closed.
+reviewed_choices = {
+    ('r-efi', '6.0.0', 'MIT OR Apache-2.0 OR LGPL-2.1-or-later'): 'MIT',
+}
 failures = []
 for package in metadata['packages']:
     expression = package.get('license') or ''
+    expression = reviewed_choices.get((package['name'], package['version'], expression), expression)
     identifiers = set(re.findall(r'[A-Za-z0-9][A-Za-z0-9.+-]*', expression)) - {'AND', 'OR'}
     if not identifiers or not identifiers <= allowed:
         failures.append(package['name'])

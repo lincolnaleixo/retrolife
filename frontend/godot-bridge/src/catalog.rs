@@ -1,6 +1,38 @@
 use retrolife_library::{Entry, Library};
 use serde::Serialize;
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+
+static SNAPSHOTS: OnceLock<Mutex<HashMap<PathBuf, Vec<Entry>>>> = OnceLock::new();
+
+fn snapshots() -> &'static Mutex<HashMap<PathBuf, Vec<Entry>>> {
+    SNAPSHOTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn snapshot(root: &Path) -> Result<Vec<Entry>, String> {
+    snapshots()
+        .lock()
+        .map_err(|_| "Library snapshot unavailable".to_owned())?
+        .get(root)
+        .cloned()
+        .ok_or_else(|| "The library is still being scanned.".to_owned())
+}
+
+pub fn refresh(root: &Path) -> Result<Vec<Entry>, String> {
+    // Never hold the snapshot lock during filesystem/ZIP work. UI reads can
+    // continue using the previous immutable catalog while a scan is running.
+    let entries = open_library(root)?.list().map_err(|e| e.to_string())?;
+    snapshots()
+        .lock()
+        .map_err(|_| "Library snapshot unavailable".to_owned())?
+        .insert(root.to_path_buf(), entries.clone());
+    Ok(entries)
+}
+
+pub fn refresh_status_json(root: &Path) -> String {
+    encode_response(refresh(root).map(|entries| status(&entries)))
+}
 
 const DTO_SCHEMA_VERSION: u32 = 1;
 const MAX_PAGE_SIZE: usize = 500;
@@ -101,35 +133,30 @@ struct BridgeResponse<T: Serialize> {
 }
 
 pub fn status_json(root: &Path) -> String {
-    encode_response(open_library(root).and_then(|library| {
-        let entries = library.list().map_err(|error| error.to_string())?;
-        Ok(status(&entries))
-    }))
+    encode_response(snapshot(root).map(|entries| status(&entries)))
 }
 
 pub fn view_json(root: &Path, system_id: &str, search: &str, offset: i64, limit: i64) -> String {
-    encode_response(open_library(root).and_then(|library| {
-        let entries = library.list().map_err(|error| error.to_string())?;
-        view(&entries, system_id, search, offset, limit)
-    }))
+    encode_response(
+        snapshot(root).and_then(|entries| view(&entries, system_id, search, offset, limit)),
+    )
 }
 
 pub fn details_json(root: &Path, game_id: &str) -> String {
-    encode_response(open_library(root).and_then(|library| {
-        let entries = library.list().map_err(|error| error.to_string())?;
-        details(&entries, game_id)
-    }))
+    encode_response(snapshot(root).and_then(|entries| details(&entries, game_id)))
 }
 
 pub fn import_json(root: &Path, source: &Path) -> String {
-    encode_response(
-        open_library(root)
-            .and_then(|library| library.import(source).map_err(|error| error.to_string()))
-            .map(|entry| ImportDto {
-                id: entry.id,
-                title: entry.title,
-            }),
-    )
+    let result = open_library(root)
+        .and_then(|library| library.import(source).map_err(|error| error.to_string()));
+    let refreshed = refresh(root);
+    encode_response(result.and_then(|entry| {
+        refreshed?;
+        Ok(ImportDto {
+            id: entry.id,
+            title: entry.title,
+        })
+    }))
 }
 
 #[derive(Debug, Serialize)]
@@ -140,13 +167,12 @@ struct ImportDto {
 }
 
 pub fn entry(root: &Path, game_id: &str) -> Result<(Entry, std::path::PathBuf), String> {
-    let library = open_library(root)?;
-    let entries = library.list().map_err(|error| error.to_string())?;
+    let entries = snapshot(root)?;
     let entry = entries
         .into_iter()
         .find(|entry| entry.id == game_id.trim())
         .ok_or_else(|| "The selected game is not in the local library.".to_owned())?;
-    let path = library.resolve(&entry).map_err(|error| error.to_string())?;
+    let path = Library::resolve_snapshot(root, &entry).map_err(|error| error.to_string())?;
     Ok((entry, path))
 }
 
@@ -306,4 +332,37 @@ fn encode_response<T: Serialize>(result: Result<T, String>) -> String {
         r#"{"schemaVersion":1,"ok":false,"error":"The bridge could not encode its response."}"#
             .to_owned()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ui_reads_use_the_last_snapshot_and_launch_checks_only_the_selected_file() {
+        let root = std::env::temp_dir().join(format!(
+            "retrolife-snapshot-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("snes")).unwrap();
+        let game = root.join("snes/Fixture.sfc");
+        std::fs::write(&game, vec![7_u8; 32768]).unwrap();
+        let games = refresh(&root).unwrap();
+        assert_eq!(games.len(), 1);
+        let before = view_json(&root, "", "", 0, 500);
+        // If view/details tried to reconcile, this disappearance would change
+        // the collection. UI reads must keep the snapshot until worker refresh.
+        std::fs::remove_file(game).unwrap();
+        assert_eq!(view_json(&root, "", "", 0, 500), before);
+        assert!(details_json(&root, &games[0].id).contains("Fixture"));
+        assert!(entry(&root, &games[0].id).is_err());
+        assert!(refresh(&root).unwrap().is_empty());
+        assert_ne!(view_json(&root, "", "", 0, 500), before);
+        snapshots().lock().unwrap().remove(&root);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

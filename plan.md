@@ -575,3 +575,5 @@ The owner clarified that Journey must observe actual gameplay and award keepsake
 - [ ] Exercise every objective through normal gameplay in the installed app; synthetic event traces alone do not establish full-game acceptance.
 
 The public private-model dependency blocker remains unchanged; PR #43 stays draft.
+
+- Live SNES folder reconciliation: raw/ZIP discovery, removal and rename detection with stable content identities; background collection refresh and isolated native regression coverage.

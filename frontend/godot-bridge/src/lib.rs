@@ -140,6 +140,7 @@ impl BackendState {
 struct RetroLifeBackend {
     base: Base<Node>,
     state: Mutex<BackendState>,
+    library_scan: Mutex<Option<(PathBuf, std::thread::JoinHandle<String>)>>,
 }
 
 impl RetroLifeBackend {
@@ -269,7 +270,7 @@ impl RetroLifeBackend {
             if !state.session_id.is_empty() {
                 return Err("Stop the active emulation session before changing paths.".to_owned());
             }
-            retrolife_library::Library::open(&library_root).map_err(|error| error.to_string())?;
+            catalog::refresh(&library_root)?;
             state.journey = match retrolife_core::journey::Journey::load(
                 &save_root
                     .parent()
@@ -342,6 +343,37 @@ impl RetroLifeBackend {
             library.copy_to(target).map_err(|error| error.to_string())
         })();
         GString::from(response_json(result).as_str())
+    }
+
+    /// Polling performs archive IO on a worker, never on the render thread.
+    /// A root change invalidates an old result before it can reach the UI.
+    #[func]
+    fn poll_library_changes_json(&self) -> GString {
+        let result = (|| {
+            let (root, _, _) = self.configured_paths()?;
+            let mut scan = self
+                .library_scan
+                .lock()
+                .map_err(|_| "Library scan unavailable".to_owned())?;
+            if scan.as_ref().is_some_and(|(_, job)| !job.is_finished()) {
+                return Ok(String::new());
+            }
+            if let Some((scanned_root, job)) = scan.take() {
+                let response = job
+                    .join()
+                    .map_err(|_| "Library scan interrupted".to_owned())?;
+                if scanned_root == root {
+                    return Ok(response);
+                }
+            }
+            let worker_root = root.clone();
+            *scan = Some((
+                root,
+                std::thread::spawn(move || catalog::refresh_status_json(&worker_root)),
+            ));
+            Ok(String::new())
+        })();
+        GString::from(result.unwrap_or_else(error_json).as_str())
     }
 
     #[func]
