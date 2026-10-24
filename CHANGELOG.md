@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Discover added, renamed, replaced and removed SNES ROMs automatically, including bounded single-game ZIP archives; retain game identities for saves and progress, skip incomplete files, and refresh the collection from background scans without interrupting gameplay.
+- Connect existing ROM folders without requiring an application-created index and clear resolved missing-file notices.
+
 - Keep imported ROM filenames readable, disambiguate name collisions, and reconnect renamed files by verified contents without changing game identity, saves or progress. Retain compatibility with existing hash-named libraries and interrupted imports.
 - Use the native folder chooser for ROM storage and private 3D collections, starting at the configured folder or Documents when that location is offline. Restore storage settings after choosing or canceling, and keep a compact fallback on platforms without native dialogs.
 

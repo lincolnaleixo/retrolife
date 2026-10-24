@@ -84,6 +84,8 @@ var _view_selections: Dictionary = {}
 var _view_order: Array[String] = []
 var _refresh_generation := 0
 var _refreshing := false
+var _folder_poll_seconds := 0.0
+var _folder_watch_enabled := false
 var _importing := false
 var _search_timer: Timer
 var _settings_timer: Timer
@@ -95,6 +97,7 @@ var _fetch_collection_labels := true
 
 
 func _ready() -> void:
+    _folder_watch_enabled = persist_preferences
     _load_preferences()
     if not WorkspacePreferences.read_value("collection_root").is_empty():
         _fetch_collection_labels = false
@@ -397,7 +400,7 @@ func _build_shell() -> void:
     _file_dialog = FileDialog.new()
     _file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
     _file_dialog.access = FileDialog.ACCESS_FILESYSTEM
-    _file_dialog.filters = PackedStringArray(["*.sfc ; Super Nintendo ROM", "*.smc ; Super Nintendo ROM"])
+    _file_dialog.filters = PackedStringArray(["*.sfc ; Super Nintendo ROM", "*.smc ; Super Nintendo ROM", "*.zip ; Single-game ZIP archive"])
     _file_dialog.files_selected.connect(_on_files_selected)
     _file_dialog.canceled.connect(_restore_carousel_focus)
     add_child(_file_dialog)
@@ -681,6 +684,7 @@ func _refresh_library(preferred_game_id := "", preserve_control_focus := false) 
         if generation != _refresh_generation or not is_inside_tree():
             return
     _refreshing = false
+    _warning_label.text = ""
     if _presentation_revision != revision:
         _presentation_cache.clear()
         _presentation_key = ""
@@ -696,7 +700,7 @@ func _refresh_library(preferred_game_id := "", preserve_control_focus := false) 
     _console_home.configure(_systems)
     _carousel.set_games(_current_games, desired)
     _empty_label.visible = _current_games.is_empty()
-    _empty_label.text = ("Import an .sfc or .smc file to start your SNES collection." if _selected_system_id in ["", "snes"] else "No games for this console yet. Local play currently supports Super Nintendo.") if query.is_empty() else "No games match this search. Press B or Esc to clear it."
+    _empty_label.text = ("Add .sfc, .smc or single-game .zip files to your SNES folder." if _selected_system_id in ["", "snes"] else "No games for this console yet. Local play currently supports Super Nintendo.") if query.is_empty() else "No games match this search. Press B or Esc to clear it."
     _apply_library_page()
     if not preserve_control_focus and not _search_panel.visible:
         _restore_carousel_focus()
@@ -899,11 +903,33 @@ func _game_is_active() -> bool:
 
 
 func _process(_delta: float) -> void:
+    _poll_rom_folder(_delta)
     _sync_inline_preview(_delta)
     _update_settings_context()
     _sync_selection_music()
     if _carousel != null:
         _carousel.set_active(not _importing and not _at_console_home and not _header.is_menu_open() and not _box_panel.visible and not _game_is_active() and not _details_overlay.visible and not _search_panel.visible and not _settings_panel.visible and not _updates_panel.visible and not _file_dialog.visible and not _controller_panel.visible and not _storage_panel.visible and not _rewards_panel.visible and not _media_settings.visible and not _video_panel.visible)
+
+
+func _poll_rom_folder(delta: float) -> void:
+    if not _folder_watch_enabled or _backend == null or not _backend.has_method("poll_library_changes_json"):
+        return
+    if _game_is_active() or _importing or _refreshing or _storage_panel.visible or _file_dialog.visible:
+        return
+    _folder_poll_seconds += delta
+    if _folder_poll_seconds < 2.0:
+        return
+    _folder_poll_seconds = 0.0
+    var raw: String = str(_backend.call("poll_library_changes_json"))
+    if raw.is_empty():
+        return
+    var response: Variant = JSON.parse_string(raw)
+    if not response is Dictionary or not bool(response.get("ok", false)):
+        return # Keep the current collection while a drive is unavailable.
+    var revision: Variant = response.get("data", {}).get("revision")
+    if revision != _presentation_revision:
+        _remember_selection()
+        _refresh_library(_last_game_id, true)
 
 
 func _unhandled_input(event: InputEvent) -> void:

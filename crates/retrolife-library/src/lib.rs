@@ -1,9 +1,5 @@
-//! Durable, app-managed storage for user-owned SNES ROM files.
-//!
-//! The library copies an input `.sfc` or `.smc` file into its own `snes/`
-//! directory. The input is never moved, renamed, or deleted. Imported files
-//! keep readable filenames; SHA-256 remains the internal identity for duplicate
-//! detection and progress. Renamed copies are reconnected by verified contents.
+//! A live folder of user-owned SNES images and single-game ZIP archives.
+//! Filenames stay readable; uncompressed content identifies games and saves.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,7 +9,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// The largest source file accepted by [`Library::import`].
 ///
@@ -41,6 +37,8 @@ const STAGING_SUFFIX: &str = ".part";
 const SHA256_HEX_LENGTH: usize = 64;
 const MAX_TITLE_CHARS: usize = 200;
 const COPY_BUFFER_SIZE: usize = 64 * 1024;
+
+static LIBRARY_GATE: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -129,11 +127,17 @@ pub enum Error {
     },
     /// The in-process import gate was poisoned.
     LockPoisoned,
+    /// Archive is damaged, unsafe, or does not contain exactly one SNES ROM.
+    InvalidArchive,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidArchive => write!(
+                f,
+                "Use a complete ZIP containing exactly one .sfc or .smc game."
+            ),
             Self::InvalidLibraryPath { reason } => {
                 write!(f, "The library directory cannot be used: {reason}.")
             }
@@ -143,11 +147,11 @@ impl fmt::Display for Error {
             ),
             Self::SourceNotRegularFile { name } => write!(
                 f,
-                "The source '{name}' is not a regular file; select an .sfc or .smc file."
+                "The source '{name}' is not a regular file; select an .sfc, .smc or single-game .zip file."
             ),
             Self::UnsupportedExtension { name } => write!(
                 f,
-                "The source '{name}' has an unsupported extension; use .sfc or .smc."
+                "The source '{name}' has an unsupported extension; use .sfc, .smc or single-game .zip."
             ),
             Self::EmptySource { name } => write!(
                 f,
@@ -237,18 +241,22 @@ impl Library {
 
         let library = Self {
             root,
-            gate: Arc::new(Mutex::new(())),
+            gate: LIBRARY_GATE
+                .get_or_init(|| Arc::new(Mutex::new(())))
+                .clone(),
         };
 
+        let _guard = library.gate.lock().map_err(|_| Error::LockPoisoned)?;
         let (mut metadata, metadata_missing) = library.load_metadata()?;
         let recovered = library.recover_interrupted(&mut metadata)?;
-        let reconnected = library.reconnect_renamed(&mut metadata)?;
+        let reconnected = library.reconcile_folder(&mut metadata)?;
         library.validate_metadata(&metadata)?;
 
         if metadata_missing || recovered || reconnected {
             library.write_metadata(&metadata)?;
         }
 
+        drop(_guard);
         Ok(library)
     }
 
@@ -276,9 +284,14 @@ impl Library {
         let extension = supported_extension(source).ok_or_else(|| Error::UnsupportedExtension {
             name: source_name.clone(),
         })?;
-        validate_source_size(source_metadata.len(), &source_name)?;
+        if extension == "zip" {
+            validate_managed_size(source_metadata.len())?;
+        } else {
+            validate_source_size(source_metadata.len(), &source_name)?;
+        }
 
-        let (id, original_size) = hash_source(source, &source_name)?;
+        let (copy_id, original_size) = hash_source(source, &source_name)?;
+        let (id, _) = image_identity(source)?;
         let mut metadata = self.load_and_recover()?;
         if metadata.entries.iter().any(|entry| entry.id == id) {
             return Err(Error::Duplicate { id });
@@ -297,7 +310,7 @@ impl Library {
                 if !final_metadata.file_type().is_file() {
                     return Err(Error::StorageConflict { id });
                 }
-                let (existing_id, _) = hash_managed_file(&final_path)?;
+                let (existing_id, _) = image_identity(&final_path)?;
                 if existing_id == id {
                     return Err(Error::Duplicate { id });
                 }
@@ -324,7 +337,7 @@ impl Library {
             });
         }
 
-        copy_to_staging(source, &staging_path, original_size, &id, &source_name)?;
+        copy_to_staging(source, &staging_path, original_size, &copy_id, &source_name)?;
         if let Err(error) = self.write_journal(&journal) {
             let _ = fs::remove_file(&staging_path);
             return Err(error);
@@ -379,7 +392,26 @@ impl Library {
             .ok_or_else(|| Error::ManagedFileMissing {
                 id: entry.id.clone(),
             })?;
-        Ok(self.root.join(&current.path))
+        let source = self.root.join(&current.path);
+        if supported_extension(&source) != Some("zip") {
+            return Ok(source);
+        }
+        // Archive member names never become filesystem destinations.
+        let bytes = read_zip_image(&source)?;
+        if hex_digest(&Sha256::digest(&bytes)) != current.id {
+            return Err(Error::SourceChanged);
+        }
+        let cache = self.root.join(".rom-cache");
+        if is_symlink(&cache)? {
+            return Err(Error::InvalidArchive);
+        }
+        fs::create_dir_all(&cache).map_err(|e| map_io("creating the ROM cache", e))?;
+        let destination = cache.join(format!("{}.sfc", current.id));
+        if is_symlink(&destination)? {
+            return Err(Error::InvalidArchive);
+        }
+        write_atomic_bytes(&destination, &bytes, "preparing the archived game")?;
+        Ok(destination)
     }
 
     /// Verify a complete copy before callers switch roots. Source files are
@@ -388,7 +420,7 @@ impl Library {
         let entries = self.list()?;
         let target = Self::open(destination)?;
         for entry in &entries {
-            match target.import(self.resolve(entry)?) {
+            match target.import(self.root.join(&entry.path)) {
                 Ok(_) | Err(Error::Duplicate { .. }) => {}
                 Err(error) => return Err(error),
             }
@@ -408,7 +440,7 @@ impl Library {
     fn load_and_recover(&self) -> Result<Metadata> {
         let (mut metadata, metadata_missing) = self.load_metadata()?;
         let recovered = self.recover_interrupted(&mut metadata)?;
-        let reconnected = self.reconnect_renamed(&mut metadata)?;
+        let reconnected = self.reconcile_folder(&mut metadata)?;
         self.validate_metadata(&metadata)?;
         if metadata_missing || recovered || reconnected {
             self.write_metadata(&metadata)?;
@@ -451,59 +483,79 @@ impl Library {
         })
     }
 
-    fn reconnect_renamed(&self, metadata: &mut Metadata) -> Result<bool> {
-        let mut missing = HashSet::new();
+    fn reconcile_folder(&self, metadata: &mut Metadata) -> Result<bool> {
+        // Validate the old index before using its titles. Removed games affect
+        // only this index; save files and journey records live elsewhere.
         for entry in &metadata.entries {
             validate_entry_shape(entry)?;
             self.validate_rom_directory(&entry.path)?;
-            match fs::symlink_metadata(self.root.join(&entry.path)) {
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    missing.insert(entry.id.clone());
-                }
-                Err(error) => return Err(map_io("checking a managed ROM", error)),
-                Ok(_) => {}
-            }
         }
-        if missing.is_empty() {
-            return Ok(false);
-        }
-
-        // Search only the two supported, direct console folders, never arbitrary
-        // paths or symlinks. A matching filename is not evidence of game identity.
         let mut candidates = Vec::new();
         for directory in [ROMS_DIRECTORY_NAME, "roms"] {
             self.validate_rom_directory(&Path::new(directory).join("probe.sfc"))?;
             let files = match fs::read_dir(self.root.join(directory)) {
                 Ok(files) => files,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(map_io("looking for renamed ROMs", error)),
+                Err(error) => return Err(map_io("reading the ROM folder", error)),
             };
             for file in files {
-                let file = file.map_err(|error| map_io("looking for renamed ROMs", error))?;
-                let info = fs::symlink_metadata(file.path())
-                    .map_err(|error| map_io("checking a renamed ROM", error))?;
-                if info.is_file()
-                    && supported_extension(&file.path()).is_some()
-                    && (MIN_ROM_SIZE_BYTES..=MAX_ROM_SIZE_BYTES).contains(&info.len())
+                let file = file.map_err(|error| map_io("reading the ROM folder", error))?;
+                let path = Path::new(directory).join(file.file_name());
+                if !file.file_name().to_string_lossy().starts_with('.')
+                    && supported_extension(&path).is_some()
                 {
-                    candidates.push(Path::new(directory).join(file.file_name()));
+                    candidates.push(path);
                 }
             }
         }
         candidates.sort();
-        let mut changed = false;
+        let mut entries = Vec::new();
+        let mut ids = HashSet::new();
         for path in candidates {
-            let (id, _) = hash_managed_file(&self.root.join(&path))?;
-            if missing.remove(&id) {
-                for entry in metadata.entries.iter_mut().filter(|entry| entry.id == id) {
-                    entry.path.clone_from(&path);
-                }
-                changed = true;
-                if missing.is_empty() {
-                    break;
-                }
+            let full = self.root.join(&path);
+            let Ok(before) = fs::symlink_metadata(&full) else {
+                continue;
+            };
+            if !before.is_file() || before.len() > MAX_ROM_SIZE_BYTES {
+                continue;
+            }
+            // A partially copied/downloaded or unsupported archive cannot hide
+            // the other games. It will be retried on the next folder scan.
+            let Ok((id, _)) = image_identity(&full) else {
+                continue;
+            };
+            let Ok(after) = fs::symlink_metadata(&full) else {
+                continue;
+            };
+            if before.len() != after.len() || before.modified().ok() != after.modified().ok() {
+                continue;
+            }
+            let title = metadata
+                .entries
+                .iter()
+                .find(|entry| entry.id == id)
+                .map(|entry| entry.title.clone())
+                .or_else(|| title_from_source(&path));
+            let Some(title) = title else { continue };
+            let entry = Entry {
+                id: id.clone(),
+                title,
+                path,
+            };
+            if validate_entry_shape(&entry).is_ok() && ids.insert(id) {
+                entries.push(entry);
             }
         }
+        // Preserve ordering and titles for games already known to the library.
+        entries.sort_by_key(|entry| {
+            metadata
+                .entries
+                .iter()
+                .position(|old| old.id == entry.id)
+                .unwrap_or(usize::MAX)
+        });
+        let changed = metadata.entries != entries;
+        metadata.entries = entries;
         Ok(changed)
     }
 
@@ -557,34 +609,6 @@ impl Library {
             if !ids.insert(entry.id.clone()) {
                 return Err(Error::MetadataInvalid {
                     reason: format!("duplicate entry identity {}", entry.id),
-                });
-            }
-
-            let managed_path = self.root.join(&entry.path);
-            let file_metadata = match fs::symlink_metadata(&managed_path) {
-                Ok(file_metadata) => file_metadata,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    return Err(Error::ManagedFileMissing {
-                        id: entry.id.clone(),
-                    });
-                }
-                Err(error) => return Err(map_io("checking a managed ROM", error)),
-            };
-            if file_metadata.file_type().is_symlink() {
-                return Err(Error::MetadataInvalid {
-                    reason: "a managed entry points through a symbolic link".to_owned(),
-                });
-            }
-            if !file_metadata.file_type().is_file() {
-                return Err(Error::ManagedFileMissing {
-                    id: entry.id.clone(),
-                });
-            }
-            validate_managed_size(file_metadata.len())?;
-            let (actual_id, _) = hash_managed_file(&managed_path)?;
-            if actual_id != entry.id {
-                return Err(Error::ManagedFileCorrupt {
-                    id: entry.id.clone(),
                 });
             }
         }
@@ -647,7 +671,11 @@ impl Library {
                 path: journal.path.clone(),
             });
         } else if path_exists(&staging_path) {
-            verify_managed_identity(&staging_path, &journal.id)?;
+            verify_image_identity(
+                &staging_path,
+                &journal.id,
+                supported_extension(&journal.path) == Some("zip"),
+            )?;
             fs::rename(&staging_path, &final_path)
                 .map_err(|error| map_io("finishing the interrupted ROM move", error))?;
             sync_directory(&self.root.join(ROMS_DIRECTORY_NAME))?;
@@ -732,6 +760,7 @@ fn supported_extension(path: &Path) -> Option<&'static str> {
     match extension.as_str() {
         "sfc" => Some("sfc"),
         "smc" => Some("smc"),
+        "zip" => Some("zip"),
         _ => None,
     }
 }
@@ -855,6 +884,67 @@ fn is_sha256_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+fn read_zip_image(path: &Path) -> Result<Vec<u8>> {
+    let file = File::open(path).map_err(|e| map_io("opening the game archive", e))?;
+    validate_managed_size(
+        file.metadata()
+            .map_err(|e| map_io("checking the game archive", e))?
+            .len(),
+    )?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|_| Error::InvalidArchive)?;
+    if archive.len() > 128 {
+        return Err(Error::InvalidArchive);
+    }
+    let mut selected = None;
+    for index in 0..archive.len() {
+        let member = archive.by_index(index).map_err(|_| Error::InvalidArchive)?;
+        let Some(name) = member.enclosed_name() else {
+            return Err(Error::InvalidArchive);
+        };
+        if member.is_symlink() {
+            return Err(Error::InvalidArchive);
+        }
+        if !member.is_dir() && matches!(supported_extension(&name), Some("sfc" | "smc")) {
+            if selected.is_some() {
+                return Err(Error::InvalidArchive);
+            }
+            validate_source_size(member.size(), "archived game")?;
+            selected = Some(index);
+        }
+    }
+    let mut member = archive
+        .by_index(selected.ok_or(Error::InvalidArchive)?)
+        .map_err(|_| Error::InvalidArchive)?;
+    let expected = member.size();
+    let mut bytes = Vec::new();
+    member
+        .by_ref()
+        .take(MAX_ROM_SIZE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| Error::InvalidArchive)?;
+    validate_source_size(bytes.len() as u64, "archived game")?;
+    if bytes.len() as u64 != expected {
+        return Err(Error::InvalidArchive);
+    }
+    Ok(bytes)
+}
+
+fn image_identity(path: &Path) -> Result<(String, u64)> {
+    if supported_extension(path) == Some("zip") {
+        let bytes = read_zip_image(path)?;
+        Ok((hex_digest(&Sha256::digest(&bytes)), bytes.len() as u64))
+    } else {
+        let metadata = fs::symlink_metadata(path).map_err(|e| map_io("checking a game", e))?;
+        if !metadata.is_file() {
+            return Err(Error::SourceNotRegularFile {
+                name: safe_name(path),
+            });
+        }
+        validate_source_size(metadata.len(), "game")?;
+        hash_managed_file(path)
+    }
+}
+
 fn hash_source(path: &Path, name: &str) -> Result<(String, u64)> {
     let mut file = File::open(path).map_err(|error| {
         if error.kind() == io::ErrorKind::NotFound {
@@ -874,6 +964,10 @@ fn hash_managed_file(path: &Path) -> Result<(String, u64)> {
 }
 
 fn verify_managed_identity(path: &Path, expected_id: &str) -> Result<()> {
+    verify_image_identity(path, expected_id, supported_extension(path) == Some("zip"))
+}
+
+fn verify_image_identity(path: &Path, expected_id: &str, archived: bool) -> Result<()> {
     let metadata =
         fs::symlink_metadata(path).map_err(|error| map_io("checking an interrupted ROM", error))?;
     if metadata.file_type().is_symlink() {
@@ -887,7 +981,11 @@ fn verify_managed_identity(path: &Path, expected_id: &str) -> Result<()> {
         });
     }
     validate_managed_size(metadata.len())?;
-    let (actual_id, _) = hash_managed_file(path)?;
+    let actual_id = if archived {
+        hex_digest(&Sha256::digest(read_zip_image(path)?))
+    } else {
+        hash_managed_file(path)?.0
+    };
     if actual_id != expected_id {
         return Err(Error::InterruptedImport {
             reason: "the interrupted file failed its SHA-256 identity check".to_owned(),
@@ -1321,21 +1419,19 @@ mod tests {
     }
 
     #[test]
-    fn renamed_recovery_never_adopts_different_content_or_mutates_failed_metadata() {
+    fn replacing_a_game_creates_a_new_identity_and_removes_the_old_entry() {
         let temp = TestDir::new("wrong-rename");
         let (source, _) = temp.rom("Game.sfc", b"original");
         let root = temp.path.join("library");
         let library = Library::open(&root).unwrap();
         let entry = library.import(source).unwrap();
-        let before = fs::read(root.join(METADATA_FILE_NAME)).unwrap();
         fs::remove_file(root.join(&entry.path)).unwrap();
         let (_, other) = temp.rom("Other.sfc", b"different game");
         fs::write(root.join("snes/Renamed.sfc"), other).unwrap();
-        assert!(matches!(
-            Library::open(&root),
-            Err(Error::ManagedFileMissing { .. })
-        ));
-        assert_eq!(fs::read(root.join(METADATA_FILE_NAME)).unwrap(), before);
+        let entries = Library::open(&root).unwrap().list().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_ne!(entries[0].id, entry.id);
+        assert!(library.resolve(&entry).is_err());
     }
 
     #[cfg(unix)]
@@ -1349,10 +1445,7 @@ mod tests {
         let entry = library.import(&source).unwrap();
         fs::remove_file(root.join(&entry.path)).unwrap();
         symlink(&source, root.join("snes/Renamed.sfc")).unwrap();
-        assert!(matches!(
-            Library::open(&root),
-            Err(Error::ManagedFileMissing { .. })
-        ));
+        assert!(Library::open(&root).unwrap().list().unwrap().is_empty());
         for invalid in [
             "../Game.sfc",
             "snes/../../Game.sfc",
@@ -1445,7 +1538,7 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_managed_file_is_reported_instead_of_silently_recreated() {
+    fn removing_a_game_updates_the_collection_without_recreating_the_file() {
         let temp = TestDir::new("missing-managed");
         let (source, _) = temp.rom("game.sfc", b"managed bytes");
         let library_path = temp.path.join("library");
@@ -1454,13 +1547,112 @@ mod tests {
         fs::remove_file(library.resolve(&entry).expect("resolve entry"))
             .expect("remove managed copy");
 
-        let error = Library::open(&library_path).expect_err("missing managed file should fail");
-        assert_eq!(
-            error,
-            Error::ManagedFileMissing {
-                id: entry.id.clone()
-            }
+        assert!(
+            Library::open(&library_path)
+                .unwrap()
+                .list()
+                .unwrap()
+                .is_empty()
         );
+        assert!(matches!(
+            library.resolve(&entry),
+            Err(Error::ManagedFileMissing { .. })
+        ));
+        assert!(!library_path.join(&entry.path).exists());
+    }
+
+    fn zip_fixture(path: &Path, members: &[(&str, &[u8])]) {
+        let mut writer = zip::ZipWriter::new(File::create(path).unwrap());
+        for (name, bytes) in members {
+            writer
+                .start_file(
+                    *name,
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated),
+                )
+                .unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+
+    #[test]
+    fn folder_discovers_archives_and_reconciles_add_rename_remove_and_replace() {
+        let temp = TestDir::new("live-folder");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let (source, bytes) = temp.rom("Adventure.sfc", b"live original");
+        let original = library.import(source).unwrap();
+        fs::remove_file(root.join(&original.path)).unwrap();
+        let archive = root.join("snes/Adventure.zip");
+        zip_fixture(&archive, &[("Adventure.sfc", &bytes)]);
+        for i in 0..4 {
+            let (_, other) = temp.rom("Fixture.sfc", format!("game {i}").as_bytes());
+            zip_fixture(
+                &root.join(format!("snes/Game {i}.zip")),
+                &[("Game.smc", &other)],
+            );
+        }
+        let entries = library.list().unwrap();
+        assert_eq!(entries.len(), 5);
+        assert_eq!(entries[0].id, original.id);
+        assert_eq!(
+            fs::read(library.resolve(&original).unwrap()).unwrap(),
+            bytes
+        );
+        assert!(!root.join(&original.path).exists());
+        fs::rename(&archive, root.join("snes/My renamed game.zip")).unwrap();
+        assert_eq!(library.list().unwrap()[0].id, original.id);
+        let save = temp.file("battery.srm", b"preserved progress");
+        fs::remove_file(root.join("snes/My renamed game.zip")).unwrap();
+        assert_eq!(library.list().unwrap().len(), 4);
+        assert_eq!(fs::read(save).unwrap(), b"preserved progress");
+        // The extracted launch cache must never re-add a removed archive.
+        assert!(library.resolve(&original).is_err());
+        zip_fixture(&archive, &[("Adventure.sfc", &bytes)]);
+        assert!(library.list().unwrap().iter().any(|e| e.id == original.id));
+        assert_eq!(Library::open(&root).unwrap().list().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn invalid_partial_ambiguous_and_traversal_archives_do_not_block_good_games() {
+        let temp = TestDir::new("bad-archives");
+        let root = temp.path.join("library");
+        let library = Library::open(&root).unwrap();
+        let (_, bytes) = temp.rom("fixture.sfc", b"bounded archive");
+        zip_fixture(&root.join("snes/Good.zip"), &[("Game.sfc", &bytes)]);
+        zip_fixture(
+            &root.join("snes/Ambiguous.zip"),
+            &[("A.sfc", &bytes), ("B.sfc", &bytes)],
+        );
+        zip_fixture(&root.join("snes/Escape.zip"), &[("../Escape.sfc", &bytes)]);
+        fs::write(root.join("snes/Partial.zip"), b"PK partial download").unwrap();
+        fs::write(root.join("snes/Tiny.sfc"), b"unfinished").unwrap();
+        let games = library.list().unwrap();
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].title, "Good");
+        assert!(!root.join("Escape.sfc").exists());
+        zip_fixture(&root.join("snes/Partial.zip"), &[("Game.sfc", &bytes)]);
+        assert_eq!(library.list().unwrap().len(), 1); // Duplicate payload.
+    }
+
+    #[test]
+    fn imported_zip_preserves_name_and_bytes_and_resolves_verified_payload() {
+        let temp = TestDir::new("zip-import");
+        let (_, bytes) = temp.rom("fixture.smc", b"zip import");
+        let source = temp.path.join("My Game.zip");
+        zip_fixture(&source, &[("Game.smc", &bytes)]);
+        let original_archive = fs::read(&source).unwrap();
+        let library = Library::open(temp.path.join("library")).unwrap();
+        let entry = library.import(&source).unwrap();
+        assert_eq!(entry.path, Path::new("snes/My Game.zip"));
+        assert_eq!(
+            fs::read(library.root.join(&entry.path)).unwrap(),
+            original_archive
+        );
+        assert_eq!(fs::read(&source).unwrap(), original_archive);
+        assert_eq!(fs::read(library.resolve(&entry).unwrap()).unwrap(), bytes);
+        assert_eq!(library.copy_to(temp.path.join("copy")).unwrap(), 1);
     }
 
     #[test]

@@ -23,7 +23,7 @@ func _execute() -> String:
     shell.queue_free()
     await process_frame
     if failure.is_empty():
-        print("RetroLife native cartridge round trip passed: real managed import, header details, direct artwork launch, core start, render suspension, saved stop and selection restoration")
+        print("RetroLife native cartridge round trip passed: real managed import, header details, direct artwork launch, core start, render suspension, saved stop, selection restoration and live ZIP folder discovery/removal")
     return failure
 
 
@@ -80,7 +80,7 @@ func _exercise_native_library(shell: Control) -> String:
         return "the carousel did not restore selection and focus after native gameplay"
     if (shell.get("_details_overlay") as Control).visible:
         return "details remained open after the native gameplay round trip"
-    return ""
+    return await _exercise_folder_changes(shell)
 
 
 func _click_selected_cartridge(carousel: Control) -> void:
@@ -97,3 +97,49 @@ func _click_selected_cartridge(carousel: Control) -> void:
     release.button_index = MOUSE_BUTTON_LEFT
     release.position = local_point
     carousel._gui_input(release)
+
+
+func _exercise_folder_changes(shell: Control) -> String:
+    var directory := _smoke_root.path_join("library/snes")
+    var original_id: String = shell._carousel.selected_id()
+    var original_revision: Variant = shell._presentation_revision
+    var bytes := FileAccess.get_file_as_bytes(_source_rom)
+    bytes[bytes.size() - 1] = (int(bytes[bytes.size() - 1]) + 1) % 256
+    var archive_path := directory.path_join("Added in Finder.zip")
+    var archive := ZIPPacker.new()
+    if archive.open(archive_path) != OK or archive.start_file("Fixture.sfc") != OK:
+        return "could not create the isolated folder fixture"
+    archive.write_file(bytes)
+    archive.close_file()
+    archive.close()
+    shell._folder_watch_enabled = true
+    var failure := await _wait_for_folder_count(shell, 2)
+    if not failure.is_empty():
+        return failure
+    if shell._carousel.selected_id() != original_id:
+        return "automatic folder discovery changed the selected game"
+    if shell._presentation_revision == original_revision:
+        return "automatic folder discovery did not update the revision"
+    if not shell._warning_label.text.is_empty():
+        return "a resolved library warning remained visible"
+    var renamed := directory.path_join("Readable renamed game.zip")
+    DirAccess.rename_absolute(archive_path, renamed)
+    # The same payload is still one game after a filesystem rename.
+    for tick in range(6):
+        shell._poll_rom_folder(2.1)
+        await create_timer(0.03).timeout
+    if shell._carousel.games.size() != 2:
+        return "renaming an archive duplicated or removed its game"
+    DirAccess.remove_absolute(renamed)
+    failure = await _wait_for_folder_count(shell, 1)
+    shell._folder_watch_enabled = false
+    return failure
+
+
+func _wait_for_folder_count(shell: Control, count: int) -> String:
+    for tick in range(100):
+        shell._poll_rom_folder(2.1)
+        await create_timer(0.03).timeout
+        if shell._carousel.games.size() == count:
+            return ""
+    return "the collection did not automatically reflect a folder change"

@@ -94,9 +94,6 @@ func _selected(path: String) -> void:
     if owner_ui._backend == null:
         _status.text = "The native backend must be available before changing storage."
         return
-    if _operation == "existing" and not FileAccess.file_exists(path.path_join("library.json")):
-        _status.text = "This is not a managed library. Use Copy collection to create one."
-        return
     _busy = true
     _status.text = "Copying and verifying every ROM. Originals will be retained."
     await get_tree().process_frame
