@@ -35,3 +35,7 @@ The application contains no Nintendo artwork, ROMs, BIOS or personal saves. User
 ## Sparkle
 
 The macOS updater embeds Sparkle 2.10.0 from https://github.com/sparkle-project/Sparkle/releases/tag/2.10.0 under its upstream permissive license and included component notices. The exact official SDK is checksum-pinned by `scripts/prepare-sparkle.py`; its complete LICENSE is distributed as `Contents/Resources/licenses/Sparkle-LICENSE` in the app. The updater test host, ephemeral signing seeds and test-only trust exceptions are never distributed. Sparkle is not relicensed by the application license.
+
+## ZIP archive support
+
+ZIP reading uses zip 9.1.0 under MIT with the Deflate backend recorded in Cargo.lock. The transitive, UEFI-only r-efi 6.0.0 package offers MIT OR Apache-2.0 OR LGPL-2.1-or-later; RetroLife selects its MIT option. The corresponding-source dependency bundle preserves upstream license files.

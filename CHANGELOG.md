@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning.
 
 ## Unreleased
 
+- Record the reviewed MIT license choice for the ZIP reader’s pinned, UEFI-only r-efi dependency; keep unreviewed license changes blocked.
+
 - Pin ZIP parsing to 9.1.0, including the upstream extraction security fixes required by the release vulnerability gate.
 
 - Discover added, renamed, replaced and removed SNES ROMs automatically, including bounded single-game ZIP archives; retain game identities for saves and progress, skip incomplete files, and refresh the collection from background scans without interrupting gameplay.
